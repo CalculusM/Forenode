@@ -1,0 +1,22 @@
+{
+  "beta_hat": 1.044,
+  "eta_hat": 9.89,
+  "median_life": 6.98,
+  "beta_ci_lower": 0.971,
+  "beta_ci_upper": 1.122,
+  "eta_ci_lower": 9.18,
+  "eta_ci_upper": 10.66,
+  "n_samples": 31602,
+  "n_observed": 357,
+  "n_censored": 31245,
+  "data_source": "한국도로공사 포장일반현황 (공공데이터포털)",
+  "data_period_year_range": [1969, 2025],
+  "log_likelihood": -1068.24,
+  "aic": 2140.48,
+  "bic": 2148.36,
+  "interpretation": {
+    "beta_meaning": "β = 1.044 ≈ 1 → 거의 무작위 고장, 약한 마모성",
+    "eta_meaning": "η = 9.89년 → 평균 9.89년에 누적 고장 확률 63.2%",
+    "expected_repairs_30y": "30년 운영 시 약 3.14회 대규모 포장 보수 예상"
+  }
+}
