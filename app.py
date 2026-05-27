@@ -34,6 +34,7 @@ from data_sources import (
 from xgboost_tab import render_xgboost_tab
 from weibull_tab import render_weibull_tab
 from opex_tab import render_opex_tab
+from solver_tab import render_solver_tab
 
 # Forenode v2 — 자동 산출 모듈
 from opex_estimator import estimate_opex_series
@@ -1279,10 +1280,94 @@ def main():
     
     st.markdown("---")
 
-    # ── 분석 도구 탭 ──
-    tabs = st.tabs(["📊 MC NPV", "🌪️ Tornado", "📈 현금흐름",
-                     "📉 열화곡선", "🔥 통행료", "🏦 금융구조", "📋 벤치마크", "📚 법제 RAG",
-                    "🎯 수익성 등급", "🔧 Weibull 열화", "💰 OPEX 모델"])
+    # ════════════════════════════════════════════════════════════════
+    # 🎯 전략 의사결정 — 요구수익률 솔버 (강조 영역)
+    # ════════════════════════════════════════════════════════════════
+    st.markdown(
+        """<div style="background:linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%);
+            border-left:6px solid #EF9F27;border-radius:8px;
+            padding:18px 22px;margin:16px 0;">
+            <div style="font-size:13px;color:#888;font-weight:600;">━ 전략 의사결정 ━</div>
+            <div style="font-size:22px;font-weight:bold;color:#1F3864;margin-top:4px;">
+                🎯 요구수익률 솔버
+            </div>
+            <div style="font-size:13px;color:#555;margin-top:6px;">
+                5대 고객 그룹별 요구수익률 자동 진단 + 변수 조정 시나리오 자동 도출.
+            </div>
+        </div>""",
+        unsafe_allow_html=True,
+    )
+    
+    with st.container():
+        render_solver_tab(base_params, metrics, build_cashflow, phase_context)
+
+    st.markdown("---")
+    
+    # ════════════════════════════════════════════════════════════════
+    # 📊 심화 분석 도구 — 4그룹 (재무·시설/열화·시장/법제·AI 모델)
+    # ════════════════════════════════════════════════════════════════
+    st.markdown("#### 📊 심화 분석 도구")
+    st.caption(
+        "**4개 영역 11개 도구** — 재무 분석(4) · 시설·열화(3) · 시장·법제(3) · AI 모델 검증(1). "
+        "각 영역 내 도구는 독립 실행 가능하며 상호 교차 검증 자료로 활용됩니다."
+    )
+    
+    # 4그룹 최상위 탭
+    group_tabs = st.tabs([
+        "📊 재무 분석",
+        "🛣 시설·열화",
+        "🚦 시장·법제",
+        "🤖 AI 모델 검증",
+    ])
+    
+    # ── 그룹 A: 재무 분석 (4) — MC NPV, Tornado, 현금흐름, 금융구조 ──
+    with group_tabs[0]:
+        tabs = st.tabs([
+            "📊 MC NPV (Monte Carlo)",
+            "🌪️ Tornado (민감도)",
+            "📈 현금흐름",
+            "🏦 금융구조",
+        ])
+        # 호환성 매핑: 기존 tabs[0,1,2,5] 위치 → 새 tabs[0,1,2,3]
+        # 아래 본문은 변경 없이 그대로 사용하기 위해 별칭 사용
+        tab_mc = tabs[0]
+        tab_tornado = tabs[1]
+        tab_cashflow = tabs[2]
+        tab_finance = tabs[3]
+    
+    # ── 그룹 B: 시설·열화 (3) — 열화곡선, Weibull, OPEX ──
+    with group_tabs[1]:
+        tabs_b = st.tabs([
+            "📉 열화곡선",
+            "🔧 Weibull 열화 분포",
+            "💰 OPEX 시계열 모델",
+        ])
+        tab_deterioration = tabs_b[0]
+        tab_weibull = tabs_b[1]
+        tab_opex = tabs_b[2]
+    
+    # ── 그룹 C: 시장·법제 (3) — 통행료, 벤치마크, 법제 RAG ──
+    with group_tabs[2]:
+        tabs_c = st.tabs([
+            "🔥 통행료 적정성",
+            "📋 SPC 벤치마크",
+            "📚 법제 RAG 자문",
+        ])
+        tab_toll = tabs_c[0]
+        tab_benchmark = tabs_c[1]
+        tab_rag = tabs_c[2]
+    
+    # ── 그룹 D: AI 모델 검증 (1) — XGBoost 수익성 등급 ──
+    with group_tabs[3]:
+        tabs_d = st.tabs([
+            "🎯 XGBoost 수익성 등급 (LOOCV 93.2%)",
+        ])
+        tab_xgboost = tabs_d[0]
+    
+    # ── 호환성 매핑: 기존 tabs[0~10] 별칭 (코드 변경 최소화) ──
+    # 솔버는 위에서 이미 render했으므로 tabs[11]은 사용 안 함
+    tabs = [tab_mc, tab_tornado, tab_cashflow, tab_deterioration, tab_toll,
+            tab_finance, tab_benchmark, tab_rag, tab_xgboost, tab_weibull, tab_opex]
 
     # ━━━━━━━━━━ TAB 1: Monte Carlo ━━━━━━━━━━
     with tabs[0]:
