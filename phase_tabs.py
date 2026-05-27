@@ -220,7 +220,7 @@ def render_phase_pretest(ctx: dict):
     st.markdown("")
     st.caption(
         "💡 **사전 검토 다음 단계** — 사업이 고시되어 설계 BIM이 생성되면 "
-        "**🏗 시공·자금조달 탭**에서 BIM 모드로 ±5% 정확도 분석으로 전환됩니다."
+        "**🏗 시공·자금조달 탭**에서 BIM 기반 분석 모드로  전환됩니다."
     )
 
 
@@ -247,7 +247,7 @@ def render_phase_construction(ctx: dict):
         description=(
             "사업 고시 이후 시공·자금조달 단계용. 대주단(LTA)·사업주(STA) 양쪽 관점에서 "
             "자금조달 구조, 시공기간 자금 인출 일정, 공기 지연·공사비 변동 위험을 분석합니다. "
-            "BIM(IFC) 통합 모드는 Stage 2(7~8월)에 ±5% 정확도로 출시 예정."
+            "BIM(IFC) 통합 모드는 Stage 2(2026년 7월 경) 출시 예정."
         ),
     )
 
