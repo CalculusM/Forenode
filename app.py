@@ -138,29 +138,23 @@ def build_cashflow(
         else:
             opex[y] = annual_revenue_억 * opex_ratio * infl_factor
         
-        # MRG 보전금 계산 (수요 위험 — BTO-rs, BTO-ann)
-        # 실적이 예측의 mrg_ratio% 미만 시 정부가 보전
-        # 시뮬레이션 단순화: 실적이 항상 예측의 80%라고 가정
+        # MRG 보전금 (수요 위험 — BTO-rs, BTO-ann)
+        # 협약 추정수입(통행료 조정 전) 대비 mrg_ratio를 floor로 보장.
+        # 실제(재구조화 통행료 인하 등 반영) 수입이 floor 미만이면 정부가 차액을 보전한다.
+        # ※ 보장률을 '실적 실현율'로 환산해 매출을 깎던 종전 로직(0.80 하드코딩)을 제거 —
+        #   입력 시나리오를 그대로 실적으로 보고 floor 미달분만 보전(진성 MRG).
         if mrg_ratio > 0:
-            expected_rev = annual_revenue_억 * rev_growth * toll_adj
-            actual_rev = expected_rev * 0.80  # 가정: 실적은 예측의 80%
-            guarantee_floor = expected_rev * mrg_ratio
-            if actual_rev < guarantee_floor:
-                mrg_subsidy[y] = guarantee_floor - actual_rev
-                revenue[y] = actual_rev + mrg_subsidy[y]
-            else:
-                revenue[y] = actual_rev
-        
-        # MCC 비용보전 (운영비 정부 보전 — BTO-a, BTL의 운영비 부분)
-        # 실시협약 OPEX 대비 mcc_ratio% 만큼 정부가 보전
-        # 시뮬레이션: 실제 OPEX가 협약 OPEX의 110% 발생 가정
+            forecast_rev = annual_revenue_억 * rev_growth  # 추정수입(통행료 조정 전)
+            guarantee_floor = forecast_rev * mrg_ratio
+            if revenue[y] < guarantee_floor:
+                mrg_subsidy[y] = guarantee_floor - revenue[y]
+                revenue[y] = guarantee_floor
+
+        # MCC 비용보전 (운영비 정부 보전 — BTO-a/BTL의 운영비 가용성 지급)
+        # 정부가 운영비의 mcc_ratio만큼을 보전(매출에 가산). 변수 정의와 일치하도록 단순화.
         if mcc_ratio > 0:
-            covenant_opex = annual_revenue_억 * opex_ratio * infl_factor
-            actual_opex_gap = opex[y] - covenant_opex
-            if actual_opex_gap > 0:
-                mcc_subsidy[y] = actual_opex_gap * mcc_ratio
-                # 정부 보전금이 매출에 가산되는 형태로 처리
-                revenue[y] += mcc_subsidy[y]
+            mcc_subsidy[y] = opex[y] * mcc_ratio
+            revenue[y] += mcc_subsidy[y]
 
     # 금융 구조
     debt_amount = capex_억 * (1 - equity_ratio)
@@ -171,10 +165,14 @@ def build_cashflow(
     principal_payment = np.zeros(total_years + 1)
     debt_balance = np.zeros(total_years + 1)
     
-    # 건설기간 이자 자본화
+    # 건설기간 이자(IDC) 자본화: 인출 잔액에 이자를 누적해 부채원금에 가산.
+    # IDC는 통상 차입 facility에서 인출되므로 전액 부채로 자본화한다(자기자본 불변).
+    idc_total = 0.0
     for y in range(1, construction_years + 1):
-        debt_balance[y] = sum(capex_schedule[1:y+1]) * (1 - equity_ratio)
-    
+        drawn = sum(capex_schedule[1:y+1]) * (1 - equity_ratio)
+        idc_total += drawn * debt_rate
+        debt_balance[y] = drawn + idc_total
+    debt_amount = debt_amount + idc_total
     debt_balance[construction_years] = debt_amount
     
     if debt_repayment_method == "원리금균등":
@@ -229,9 +227,16 @@ def build_cashflow(
                 principal_payment[y] = 0  # 상환 완료 후 부담 없음
             debt_balance[y] = max(0, prev_balance - principal_payment[y])
 
-    # 세금 (법인세)
+    # 감가상각 (정액법, 운영기간에 걸쳐 CAPEX 상각) — 세금방패 반영
+    depreciation = np.zeros(total_years + 1)
+    if operation_years > 0:
+        annual_dep = capex_억 / operation_years
+        for y in range(construction_years + 1, total_years + 1):
+            depreciation[y] = annual_dep
+
+    # 세금 (법인세) — 과세소득 = 매출 − 운영비 − 이자 − 감가상각
     tax_rate = kwargs.get('tax_rate', 0.22)
-    ebt = revenue - opex - interest_payment
+    ebt = revenue - opex - interest_payment - depreciation
     tax = np.maximum(0, ebt * tax_rate)
     net_income = ebt - tax
 
@@ -255,7 +260,7 @@ def build_cashflow(
             if y <= construction_years:
                 equity_fcf[y] = -capex_schedule[y] * equity_ratio
             else:
-                equity_fcf[y] = net_income[y] - principal_payment[y]
+                equity_fcf[y] = net_income[y] + depreciation[y] - principal_payment[y]
     
     elif equity_recovery_method == "원금만":
         # 매년 net_income은 그대로, 사업 만료 시점에 원금만 회수
@@ -263,7 +268,7 @@ def build_cashflow(
             if y <= construction_years:
                 equity_fcf[y] = -capex_schedule[y] * equity_ratio
             else:
-                equity_fcf[y] = net_income[y] - principal_payment[y]
+                equity_fcf[y] = net_income[y] + depreciation[y] - principal_payment[y]
         # 사업 만료 시 자기자본 원금 회수 추가
         equity_fcf[total_years] += equity_amount
         equity_recovery_at_end = equity_amount
@@ -274,7 +279,7 @@ def build_cashflow(
             if y <= construction_years:
                 equity_fcf[y] = -capex_schedule[y] * equity_ratio
             else:
-                equity_fcf[y] = net_income[y] - principal_payment[y]
+                equity_fcf[y] = net_income[y] + depreciation[y] - principal_payment[y]
         # 사업 만료 시 자기자본 원금 + 약정 수익률 5% 추가 회수
         equity_recovery_at_end = equity_amount * 1.05
         equity_fcf[total_years] += equity_recovery_at_end
@@ -307,12 +312,12 @@ def build_cashflow(
     # 자기자본 IRR
     equity_irr = calc_irr(equity_fcf.tolist())
 
-    # DSCR (연도별)
+    # DSCR (연도별) — CFADS(세후 영업현금 = 매출 − 운영비 − 세금) ÷ 원리금
     dscr_arr = np.zeros(total_years + 1)
     for y in range(construction_years + 1, total_years + 1):
         ds = interest_payment[y] + principal_payment[y]
         if ds > 0:
-            dscr_arr[y] = (revenue[y] - opex[y]) / ds
+            dscr_arr[y] = (revenue[y] - opex[y] - tax[y]) / ds
     
     op_dscr = dscr_arr[construction_years + 1: total_years + 1]
     dscr_min = np.min(op_dscr) if len(op_dscr) > 0 else 0
@@ -338,6 +343,7 @@ def build_cashflow(
         'MCC_Subsidy': mcc_subsidy,
         'Interest': -interest_payment,
         'Principal': -principal_payment,
+        'Depreciation': -depreciation,
         'Tax': -tax,
         'NetIncome': net_income,
         'ProjectFCF': project_fcf,
@@ -384,7 +390,7 @@ def calc_wacc(equity_ratio, cost_of_equity, debt_rate, tax_rate=0.22):
 
 
 def calc_wacc_detail(rf, mrp, beta, equity_ratio, debt_rate, tax_rate=0.22,
-                      senior_ratio=0.7, senior_rate=None, sub_rate=None):
+                      senior_ratio=0.7, senior_rate=None, sub_rate=None, ke=None):
     """
     CAPM 기반 WACC 상세 계산 — 선순위/후순위 부채 구조 반영
     
@@ -402,7 +408,9 @@ def calc_wacc_detail(rf, mrp, beta, equity_ratio, debt_rate, tax_rate=0.22,
     sub_rate : float or None  
         후순위 금리. None이면 debt_rate + 1.5% 사용
     """
-    ke = rf + beta * mrp
+    # 사용자가 자기자본비용(Ke)을 직접 지정하면 그 값을 사용, 없으면 CAPM(rf+β·MRP)으로 산출
+    if ke is None:
+        ke = rf + beta * mrp
     debt_ratio = 1 - equity_ratio
     
     # 선순위/후순위 금리 자동 설정 (사용자 미입력 시)
@@ -1051,6 +1059,7 @@ def main():
         rf=base_rate, mrp=0.06, beta=0.7,
         equity_ratio=equity_ratio, debt_rate=debt_rate, tax_rate=tax_rate,
         senior_ratio=senior_ratio, senior_rate=senior_rate, sub_rate=sub_rate,
+        ke=ke,
     )
 
     # ── OPEX 자동 산출 (학습 데이터 기반) ──
@@ -1219,6 +1228,18 @@ def main():
             unsafe_allow_html=True)
 
     st.markdown("")
+
+    with st.expander("ℹ️ 분석 가정 (지표 해석 시 참고)", expanded=False):
+        st.markdown(
+            "- **NPV·할인율**: 프로젝트 FCF를 **WACC**로 할인. WACC의 자기자본비용(Ke)은 "
+            "사이드바 입력값을 그대로 사용(미입력 시 CAPM `rf+β·MRP`).\n"
+            "- **세금·감가상각**: 법인세는 **정액법 감가상각(CAPEX÷운영기간)**을 과세소득에서 차감해 산출(세금방패 반영).\n"
+            "- **DSCR**: 분자는 **세후 CFADS(매출−운영비−세금)**, 분모는 원리금. 건설기간 이자(IDC)는 부채에 자본화.\n"
+            "- **ROE**: 연평균 순이익 ÷ **투입 자기자본 원금**(장부 평균자본이 아닌 투입원금 기준).\n"
+            "- **B/C ratio**: 사회적 편익이 아닌 **재무적 비율**(매출 PV ÷ (CAPEX+운영비) PV).\n"
+            "- **MRG**: 추정수입(통행료 조정 전)의 보장률을 floor로, 실제 수입이 미달할 때만 차액 보전.\n"
+            "- **자기자본 만료 회수**: '원금+수익률' 방식은 만료 시 원금에 **약정수익률 5%**를 가산해 회수한다고 가정."
+        )
 
     # ════════════════════════════════════════════════════════
     # 📤 개발자 데이터 핸드오프 (고객 → 개발자 원클릭 전달, MVP=다운로드)
