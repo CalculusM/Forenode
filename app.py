@@ -1221,6 +1221,64 @@ def main():
     st.markdown("")
 
     # ════════════════════════════════════════════════════════
+    # 📤 개발자 데이터 핸드오프 (고객 → 개발자 원클릭 전달, MVP=다운로드)
+    # ════════════════════════════════════════════════════════
+    try:
+        from dev_handoff import render_handoff_section
+        _scenario_export = {
+            "inputs": {
+                "business_type": business_type,
+                "road_length_km": road_length,
+                "total_capex_eok": total_capex,
+                "construction_years": construction_years,
+                "operation_years": operation_years,
+                "terrain": terrain,
+                "bridge_ratio": round(float(bridge_ratio), 4),
+                "tunnel_ratio": round(float(tunnel_ratio), 4),
+                "lanes": lanes,
+                "mrg_ratio": round(float(mrg_ratio), 4),
+                "mcc_ratio": round(float(mcc_ratio), 4),
+                "restructuring_year": restructuring_year,
+                "daily_traffic": daily_traffic,
+                "growth_pct": growth,
+                "heavy_ratio_pct": heavy_ratio,
+                "toll_per_km_won": toll_per_km,
+                "heavy_surcharge": heavy_surcharge,
+                "equity_ratio": round(float(equity_ratio), 4),
+                "ke": round(float(ke), 4),
+                "base_rate": round(float(base_rate), 4),
+                "senior_ratio_pct": senior_ratio_pct,
+                "senior_spread": round(float(senior_spread), 6),
+                "sub_spread": round(float(sub_spread), 6),
+                "debt_rate": round(float(debt_rate), 6),
+                "infl_pct": infl,
+                "tax_rate": round(float(tax_rate), 4),
+                "equity_recovery_method": equity_recovery_method,
+                "debt_repayment_method": debt_repayment_method,
+                "opex_ratio_manual": opex_ratio_manual,
+            },
+            "outputs": {
+                "npv_eok": round(float(metrics["npv"]), 1),
+                "nominal_irr": round(float(metrics["nominal_irr"]), 4),
+                "real_irr": round(float(metrics["real_irr"]), 4),
+                "roe": round(float(metrics["roe"]), 4),
+                "dscr_min": round(float(metrics["dscr_min"]), 3),
+                "dscr_avg": round(float(metrics["dscr_avg"]), 3),
+                "bc_ratio": round(float(metrics["bc_ratio"]), 3),
+                "wacc": round(float(wacc_info["wacc"]), 4),
+                "opex_ratio": round(float(opex_ratio), 4),
+            },
+            "units": {
+                "*_ratio / ke / base_rate / *_spread / debt_rate / tax_rate / *_irr / roe / wacc": "소수(0.10 = 10%)",
+                "*_pct": "퍼센트(2.5 = 2.5%)",
+                "*_eok": "억원",
+            },
+        }
+        render_handoff_section(_scenario_export, project_name=project_name)
+    except Exception as _handoff_err:  # 변수 누락 등으로 본 분석이 깨지지 않도록 방어
+        st.caption(f"📤 데이터 전달 모듈을 불러오지 못했습니다: {_handoff_err}")
+
+    # ════════════════════════════════════════════════════════
     # 시점 탭 — 민자도로 라이프사이클 4시점
     # ════════════════════════════════════════════════════════
     from phase_tabs import (
