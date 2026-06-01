@@ -475,30 +475,65 @@ def render_phase_construction(ctx: dict):
         # 시공 리스크 카드 (대주단 의사결정 자료)
         st.markdown("**⚠️ 시공 리스크 평가 (대주단 의사결정 자료)**")
         
+        # ── DSCR 평가 밴드 (PF/유료도로 대주단 실무 기준) ───────────────
+        #   base-case 권고치 ≈ 1.30x · 배당제한(lock-up) 임계 ≈ 1.20x · 부도(default/EOD) 임계 ≈ 1.05x
+        #   유료도로는 초기 2~3년 램프업 동안 DSCR이 낮은 게 정상이며 DSRA(통상 6개월)·MRG로 흡수.
         dscr_min_lta = float(np.min(dscr_arr)) if len(dscr_arr) > 0 else 0
-        years_below_12 = int(np.sum(dscr_arr < 1.2)) if len(dscr_arr) > 0 else 0
-        years_below_10 = int(np.sum(dscr_arr < 1.0)) if len(dscr_arr) > 0 else 0
-        
-        if dscr_min_lta >= 1.3:
+        # 운영 연차(1-indexed) 기준 임계 위반 '연차 목록' (※ 건수를 연차 서수로 쓰지 말 것)
+        yrs_below_130 = [i + 1 for i, d in enumerate(dscr_arr) if d < 1.30]
+        yrs_below_120 = [i + 1 for i, d in enumerate(dscr_arr) if d < 1.20]
+        yrs_below_105 = [i + 1 for i, d in enumerate(dscr_arr) if d < 1.05]
+
+        def _yrs_txt(ys):
+            if not ys:
+                return ""
+            if len(ys) <= 3:
+                return ", ".join(f"{y}년차" for y in ys)
+            return f"{ys[0]}~{ys[-1]}년차 등 {len(ys)}개 연차"
+
+        # 1.30x 미만이 초기 3년(램프업) 구간에만 한정되는지 — 한정되면 표준 프로파일로 간주
+        ramp_only_130 = bool(yrs_below_130) and all(y <= 3 for y in yrs_below_130)
+
+        if dscr_min_lta >= 1.30:
             risk_level = "🟢 SAFE"
             risk_color = "#1B5E20"
             risk_bg = "#E8F5E9"
-            risk_msg = "DSCR 안정. 대주단 금리 협상 시 유리한 위치."
-        elif dscr_min_lta >= 1.2:
-            risk_level = "🟡 WARNING"
-            risk_color = "#E65100"
-            risk_bg = "#FFF3E0"
-            risk_msg = f"DSCR 임계선 근접. 운영 {years_below_12}년차에 1.2 미달. 자기자본 확충 또는 MRG 활용 검토."
-        elif dscr_min_lta >= 1.0:
-            risk_level = "🟠 CRITICAL"
+            risk_msg = "전 운영기간 최소 DSCR이 base-case 권고치(1.30x)를 상회. 대주단 금리 협상 시 유리한 위치."
+        elif dscr_min_lta >= 1.20:
+            # 배당제한(lock-up) 임계 1.20x 이상 → covenant 충족. 'base-case 여유'만 얇은 상태(미달 아님).
+            if ramp_only_130:
+                risk_level = "🟢 SAFE"
+                risk_color = "#2E7D32"
+                risk_bg = "#E8F5E9"
+                risk_msg = (
+                    f"최소 DSCR이 배당제한(lock-up) 임계 1.20x를 상회해 covenant를 충족. "
+                    f"1.30x 미만은 {_yrs_txt(yrs_below_130)}의 초기 램프업 구간에 한정되며, "
+                    f"DSRA·MRG로 흡수 가능한 표준 프로파일."
+                )
+            else:
+                risk_level = "🟡 CAUTION"
+                risk_color = "#E65100"
+                risk_bg = "#FFF3E0"
+                risk_msg = (
+                    f"배당제한(lock-up) 임계 1.20x는 충족하나 base-case 권고치(1.30x) 대비 여유가 얇음 "
+                    f"({_yrs_txt(yrs_below_130)} 1.30x 미만). DSRA 적립·MRG 조건 점검 권장."
+                )
+        elif dscr_min_lta >= 1.05:
+            risk_level = "🟠 LOCK-UP"
             risk_color = "#C62828"
             risk_bg = "#FFEBEE"
-            risk_msg = f"부도 위험 시그널. {years_below_12}년 1.2 미달, 부도 임계 1.0 근접. 사업구조 재검토 필요."
+            risk_msg = (
+                f"{_yrs_txt(yrs_below_120)} 배당제한(lock-up) 임계 1.20x 미달 → 해당 기간 주주 배당 제한·현금 트랩. "
+                f"부도 임계(1.05x) 도달 전이나 자기자본 확충 또는 MRG 활용 검토 필요."
+            )
         else:
             risk_level = "🔴 DEFAULT RISK"
             risk_color = "#B71C1C"
             risk_bg = "#FFCDD2"
-            risk_msg = f"부도 위험 매우 높음. {years_below_10}년 1.0 미달. 본 구조로는 자금조달 불가."
+            risk_msg = (
+                f"{_yrs_txt(yrs_below_105)} 부도(default·EOD) 임계 1.05x 미달 → 기한이익상실 위험. "
+                f"본 구조로는 자금조달 곤란, 사업구조 재설계 필요."
+            )
         
         st.markdown(
             f"""<div style="background:{risk_bg};border-left:5px solid {risk_color};
