@@ -333,6 +333,26 @@ def build_cashflow(
     pv_costs = np.sum((capex_schedule + opex) * discount_factors)
     bc_ratio = pv_benefits / pv_costs if pv_costs > 0 else 0
 
+    # EBITDA (영업이익 + 감가상각 ≈ 매출 − 운영비) — 대주단 표준 현금흐름 대용
+    ebitda = revenue - opex
+
+    # LLCR (Loan Life Coverage Ratio) — 잔여 대출기간 CFADS 현가 ÷ 잔존부채
+    # CFADS = 매출 − 운영비 − 세금 (DSCR 분자와 동일 정의)
+    cfads = revenue - opex - tax
+    llcr_arr = np.zeros(total_years + 1)
+    for y in range(construction_years + 1, total_years + 1):
+        if debt_balance[y] > 1e-9:
+            # y 시점 이후(포함) 운영연도의 CFADS를 debt_rate로 y로 할인
+            future_idx = np.arange(y, total_years + 1)
+            disc = np.array([1 / (1 + debt_rate)**(t - y) for t in future_idx])
+            pv_cfads = np.sum(cfads[future_idx] * disc)
+            llcr_arr[y] = pv_cfads / debt_balance[y]
+    op_llcr = llcr_arr[construction_years + 1: total_years + 1]
+    op_llcr_pos = op_llcr[op_llcr > 0]
+    llcr_min = float(np.min(op_llcr_pos)) if len(op_llcr_pos) > 0 else 0.0
+    llcr_avg = float(np.mean(op_llcr_pos)) if len(op_llcr_pos) > 0 else 0.0
+    ebitda_avg = float(np.mean(ebitda[construction_years + 1:])) if operation_years > 0 else 0.0
+
     # DataFrame 구축
     cf_df = pd.DataFrame({
         'Year': years,
@@ -346,11 +366,13 @@ def build_cashflow(
         'Depreciation': -depreciation,
         'Tax': -tax,
         'NetIncome': net_income,
+        'EBITDA': ebitda,
         'ProjectFCF': project_fcf,
         'EquityFCF': equity_fcf,
         'CumProjectFCF': np.cumsum(project_fcf),
         'DebtBalance': debt_balance,
         'DSCR': dscr_arr,
+        'LLCR': llcr_arr,
         'DiscountFactor': discount_factors,
         'PV_FCF': project_fcf * discount_factors,
     })
@@ -363,6 +385,9 @@ def build_cashflow(
         'roe': roe,
         'dscr_min': dscr_min,
         'dscr_avg': dscr_avg,
+        'llcr_min': llcr_min,
+        'llcr_avg': llcr_avg,
+        'ebitda_avg': ebitda_avg,
         'bc_ratio': bc_ratio,
         'total_revenue': revenue.sum(),
         'total_opex': opex.sum(),
@@ -1399,20 +1424,31 @@ def main():
         "🤖 AI 모델 검증",
     ])
     
-    # ── 그룹 A: 재무 분석 (4) — MC NPV, Tornado, 현금흐름, 금융구조 ──
+    # ── 그룹 A: 재무 분석 (5) — 민감도·리스크 등록부, MC NPV, Tornado, 현금흐름, 금융구조 ──
     with group_tabs[0]:
         tabs = st.tabs([
+            "🎯 민감도·리스크 등록부",
             "📊 MC NPV (Monte Carlo)",
             "🌪️ Tornado (민감도)",
             "📈 현금흐름",
             "🏦 금융구조",
         ])
-        # 호환성 매핑: 기존 tabs[0,1,2,5] 위치 → 새 tabs[0,1,2,3]
-        # 아래 본문은 변경 없이 그대로 사용하기 위해 별칭 사용
-        tab_mc = tabs[0]
-        tab_tornado = tabs[1]
-        tab_cashflow = tabs[2]
-        tab_finance = tabs[3]
+        # 호환성 매핑: 기존 본문은 별칭으로 그대로 사용
+        tab_sensitivity = tabs[0]
+        tab_mc = tabs[1]
+        tab_tornado = tabs[2]
+        tab_cashflow = tabs[3]
+        tab_finance = tabs[4]
+
+        with tab_sensitivity:
+            # 지연 import: scenario_engine 이 app.build_cashflow 를 역참조하므로
+            # 모듈 상단에서 import 하면 순환 import 발생 → 함수 내부에서 import
+            from sensitivity_tab import render_sensitivity_tab
+            render_sensitivity_tab(
+                base_params,
+                daily_traffic=daily_traffic,
+                road_length_km=road_length,
+            )
     
     # ── 그룹 B: 시설·열화 (3) — 열화곡선, Weibull, OPEX ──
     with group_tabs[1]:
@@ -1576,12 +1612,22 @@ def main():
             st.line_chart(cf_df.set_index('Year')[['ProjectFCF', 'CumProjectFCF']])
 
         with st.expander("📋 상세 현금흐름표"):
-            display_cols = ['Year', 'CAPEX', 'Revenue', 'OPEX', 'Interest',
+            display_cols = ['Year', 'CAPEX', 'Revenue', 'OPEX', 'EBITDA', 'Interest',
                            'Principal', 'Tax', 'NetIncome', 'ProjectFCF',
-                           'CumProjectFCF', 'DSCR']
+                           'CumProjectFCF', 'DSCR', 'LLCR']
             st.dataframe(cf_df[display_cols].style.format({
                 col: '{:,.1f}' for col in display_cols if col != 'Year'
             }), use_container_width=True)
+
+            with st.expander("ⓘ EBITDA·LLCR 산정 규약 (민감도 탭과 소수점 차이가 나는 이유)"):
+                st.markdown(
+                    "- **EBITDA** = 매출 − 운영비 (감가상각·이자·세금 전). 대주단 표준 현금흐름 대용.\n"
+                    "- **LLCR**(Loan Life Coverage Ratio) = 해당 연도 이후 잔여 CFADS의 현재가치(부채금리 할인) "
+                    "÷ 잔존 부채. CFADS = 매출 − 운영비 − 세금(= DSCR 분자와 동일 정의).\n"
+                    "- 이 표의 LLCR은 **연말 잔존부채** 기준, 🎯 민감도·리스크 탭의 LLCR_min은 "
+                    "**연초(=직전 연도 말) 잔존부채** 기준으로 계산합니다. 둘 다 통용되는 관행이며, "
+                    "그 시점 규약 차이로 같은 사업이라도 소수점 단위 차이가 날 수 있습니다(오류 아님)."
+                )
 
     # ━━━━━━━━━━ TAB 4: 열화곡선 ━━━━━━━━━━
     with tabs[3]:
