@@ -234,55 +234,52 @@ def build_cashflow(
         for y in range(construction_years + 1, total_years + 1):
             depreciation[y] = annual_dep
 
-    # 세금 (법인세) — 과세소득 = 매출 − 운영비 − 이자 − 감가상각
+    # 세금 (법인세)
     tax_rate = kwargs.get('tax_rate', 0.22)
+    # 레버드 세금 — 과세소득 = 매출 − 운영비 − 이자 − 감가상각 (당기순이익·DSCR·CFADS 용)
     ebt = revenue - opex - interest_payment - depreciation
     tax = np.maximum(0, ebt * tax_rate)
     net_income = ebt - tax
+    # 언레버드 세금 — 프로젝트 FCFF는 자본구조와 무관해야 하므로 이자 차감 없이 과세
+    #   (이자 세금방패는 할인율 WACC의 Kd(1−t)에 이미 반영 → 여기서 또 빼면 이중계상)
+    ebit = revenue - opex - depreciation
+    tax_unlevered = np.maximum(0, ebit * tax_rate)
 
-    # 프로젝트 FCF (세후)
+    # 프로젝트 FCF (세후, FCFF 기준 — 언레버드 세금 적용)
     project_fcf = np.zeros(total_years + 1)
     project_fcf[0] = 0
     for y in range(1, total_years + 1):
         if y <= construction_years:
             project_fcf[y] = -capex_schedule[y]
         else:
-            project_fcf[y] = revenue[y] - opex[y] - tax[y]
+            project_fcf[y] = revenue[y] - opex[y] - tax_unlevered[y]
 
-    # 자기자본 FCF (보완 6 — KDB 자료 기반 3가지 회수 방법)
+    # 자기자본 FCF (FCFE = 당기순이익 + 감가상각 − 원금상환)
+    #  만기 회수액은 '만기 잔존가치(terminal value)'라는 실제 현금흐름에서만 나온다.
+    #  잔존가치가 0이면 무에서 현금을 만들 수 없으므로 회수액도 0 (이전: 출처 없는 환상 현금).
     equity_fcf = np.zeros(total_years + 1)
-    equity_recovery_at_end = 0.0  # 사업 만료 시 추가 회수액
-    
+    for y in range(1, total_years + 1):
+        if y <= construction_years:
+            equity_fcf[y] = -capex_schedule[y] * equity_ratio
+        else:
+            equity_fcf[y] = net_income[y] + depreciation[y] - principal_payment[y]
+
+    terminal_value = float(kwargs.get('terminal_value_억', 0.0))
+    residual_debt = debt_balance[total_years] if total_years < len(debt_balance) else 0.0
+    # 만기 잔존가치는 잔존부채를 먼저 상환한 뒤 남는 부분만 자기자본이 회수 가능
+    terminal_to_equity_avail = max(0.0, terminal_value - residual_debt)
+
+    equity_recovery_at_end = 0.0  # 사업 만료 시 추가 회수액 (잔존가치 한도 내)
     if equity_recovery_method == "회수안함":
-        # 자기자본을 별도 회수하지 않고, 매년 net_income으로만 회수
-        # (실무: 자기자본 비용을 타인자본 금리에 더해 상환하는 구조)
-        for y in range(1, total_years + 1):
-            if y <= construction_years:
-                equity_fcf[y] = -capex_schedule[y] * equity_ratio
-            else:
-                equity_fcf[y] = net_income[y] + depreciation[y] - principal_payment[y]
-    
+        equity_recovery_at_end = 0.0
     elif equity_recovery_method == "원금만":
-        # 매년 net_income은 그대로, 사업 만료 시점에 원금만 회수
-        for y in range(1, total_years + 1):
-            if y <= construction_years:
-                equity_fcf[y] = -capex_schedule[y] * equity_ratio
-            else:
-                equity_fcf[y] = net_income[y] + depreciation[y] - principal_payment[y]
-        # 사업 만료 시 자기자본 원금 회수 추가
-        equity_fcf[total_years] += equity_amount
-        equity_recovery_at_end = equity_amount
-    
-    else:  # "원금+수익률" — 기본값, 매년 net_income으로 회수 + 만료 시 추가 수익률
-        # 실무: ROE 목표치 달성을 위해 만료 시점에 자기자본 원금 + 누적 수익 회수
-        for y in range(1, total_years + 1):
-            if y <= construction_years:
-                equity_fcf[y] = -capex_schedule[y] * equity_ratio
-            else:
-                equity_fcf[y] = net_income[y] + depreciation[y] - principal_payment[y]
-        # 사업 만료 시 자기자본 원금 + 약정 수익률 5% 추가 회수
-        equity_recovery_at_end = equity_amount * 1.05
-        equity_fcf[total_years] += equity_recovery_at_end
+        equity_recovery_at_end = min(equity_amount, terminal_to_equity_avail)
+    else:  # "원금+수익률"
+        equity_recovery_at_end = min(equity_amount * 1.05, terminal_to_equity_avail)
+    equity_fcf[total_years] += equity_recovery_at_end
+
+    # 프로젝트 FCFF에도 만기 잔존가치 반영 (부채 상환 전 총가치)
+    project_fcf[total_years] += terminal_value
 
     # NPV 계산
     discount_factors = np.array([1 / (1 + discount_rate)**t for t in years])
@@ -353,6 +350,31 @@ def build_cashflow(
     llcr_avg = float(np.mean(op_llcr_pos)) if len(op_llcr_pos) > 0 else 0.0
     ebitda_avg = float(np.mean(ebitda[construction_years + 1:])) if operation_years > 0 else 0.0
 
+    # 선순위 전용 DSCR (overlay) — 선순위 트랜치를 독립 annuity(선순위 금리)로 모델링한 커버리지.
+    # 본 현금흐름은 가중평균 금리 기준이며, 이는 '선순위 채무 상환 우선권' 관점의 분석용 overlay다.
+    # 선순위 채무상환액 < 전체 채무상환액 이므로 선순위 DSCR ≥ 블렌디드 DSCR.
+    senior_ratio = float(kwargs.get('senior_ratio', 1.0))
+    senior_rate = float(kwargs.get('senior_rate', debt_rate))
+    senior_dscr_arr = np.zeros(total_years + 1)
+    if 0 < senior_ratio <= 1.0 and operation_years > 0:
+        sr_balance = debt_amount * senior_ratio
+        if senior_rate > 0:
+            sr_af = senior_rate * (1 + senior_rate) ** operation_years / ((1 + senior_rate) ** operation_years - 1)
+            sr_payment = sr_balance * sr_af
+        else:
+            sr_payment = sr_balance / operation_years
+        for y in range(construction_years + 1, total_years + 1):
+            sr_int = sr_balance * senior_rate
+            sr_prin = max(0.0, min(sr_payment - sr_int, sr_balance))
+            sr_ds = sr_int + sr_prin
+            if sr_ds > 0:
+                senior_dscr_arr[y] = (revenue[y] - opex[y] - tax[y]) / sr_ds
+            sr_balance = max(0.0, sr_balance - sr_prin)
+    op_sr = senior_dscr_arr[construction_years + 1: total_years + 1]
+    op_sr_pos = op_sr[op_sr > 0]
+    senior_dscr_min = float(np.min(op_sr_pos)) if len(op_sr_pos) > 0 else 0.0
+    senior_dscr_avg = float(np.mean(op_sr_pos)) if len(op_sr_pos) > 0 else 0.0
+
     # DataFrame 구축
     cf_df = pd.DataFrame({
         'Year': years,
@@ -367,6 +389,7 @@ def build_cashflow(
         'Tax': -tax,
         'NetIncome': net_income,
         'EBITDA': ebitda,
+        'SeniorDSCR': senior_dscr_arr,
         'ProjectFCF': project_fcf,
         'EquityFCF': equity_fcf,
         'CumProjectFCF': np.cumsum(project_fcf),
@@ -385,6 +408,8 @@ def build_cashflow(
         'roe': roe,
         'dscr_min': dscr_min,
         'dscr_avg': dscr_avg,
+        'senior_dscr_min': senior_dscr_min,
+        'senior_dscr_avg': senior_dscr_avg,
         'llcr_min': llcr_min,
         'llcr_avg': llcr_avg,
         'ebitda_avg': ebitda_avg,
@@ -405,6 +430,39 @@ def build_cashflow(
         metrics['payback_year'] = int(payback_idx[0])
 
     return cf_df, metrics
+
+
+def build_pimac_standard_table(cf_df: pd.DataFrame) -> pd.DataFrame:
+    """엔진 현금흐름을 KDI PIMAC 표준재무모델 연도별 양식으로 매핑.
+
+    표준 .xlsx에 그대로 붙여넣을 수 있도록 한국어 컬럼·부호 규약(지출=양수 투자비)으로
+    재구성한다. 6개 독립 주체가 같은 표준 양식으로 결과를 대조할 수 있게 하는 정합 레이어.
+    """
+    dep = -cf_df['Depreciation']
+    ebitda = cf_df['EBITDA']
+    interest = -cf_df['Interest']
+    tax = -cf_df['Tax']
+    out = pd.DataFrame({
+        '연차': cf_df['Year'].astype(int),
+        '투자비(억)': -cf_df['CAPEX'],
+        '운영수입(억)': cf_df['Revenue'],
+        '운영비용(억)': -cf_df['OPEX'],
+        '정부보조MRG+MCC(억)': cf_df['MRG_Subsidy'] + cf_df['MCC_Subsidy'],
+        'EBITDA(억)': ebitda,
+        '감가상각비(억)': dep,
+        '영업이익EBIT(억)': ebitda - dep,
+        '이자비용(억)': interest,
+        '세전이익(억)': cf_df['NetIncome'] + tax,
+        '법인세(억)': tax,
+        '당기순이익(억)': cf_df['NetIncome'],
+        '부채원금상환(억)': -cf_df['Principal'],
+        '부채잔액(억)': cf_df['DebtBalance'],
+        '프로젝트현금흐름(억)': cf_df['ProjectFCF'],
+        'DSCR': cf_df['DSCR'],
+        '선순위DSCR': cf_df['SeniorDSCR'],
+        'LLCR': cf_df['LLCR'],
+    })
+    return out.round(2)
 
 
 def calc_wacc(equity_ratio, cost_of_equity, debt_rate, tax_rate=0.22):
@@ -490,7 +548,7 @@ def monte_carlo(
     # ★ 핵심 수정: 명시적 인자 키를 kwargs에서 제거
     EXPLICIT_KEYS = {
         'discount_rate', 'inflation', 'growth_rate',
-        'capex_억', 'annual_revenue_억', 'opex_series_억',
+        'capex_억', 'annual_revenue_억',
         'n_sim',
     }
     build_kwargs = {k: v for k, v in kwargs.items() if k not in EXPLICIT_KEYS}
@@ -571,21 +629,29 @@ def tornado_analysis(base_params: dict, variation: float = 0.2):
         '차입금리': 'debt_rate',
     }
 
+    has_opex_series = base_params.get('opex_series_억') is not None
+
     for label, param_key in sensitive_params.items():
         if param_key not in base_params:
             continue
-        base_val = base_params[param_key]
-        if base_val == 0:
-            continue
+        # OPEX비율은 opex_series_억가 있으면 무시되므로(시계열 우선), 시계열 자체를 스케일
+        scale_opex_series = (param_key == 'opex_ratio' and has_opex_series)
+        if not scale_opex_series:
+            base_val = base_params[param_key]
+            if base_val == 0:
+                continue
 
-        # 상한 시나리오
         high_params = base_params.copy()
-        high_params[param_key] = base_val * (1 + variation)
-        _, high_met = build_cashflow(**high_params)
-
-        # 하한 시나리오
         low_params = base_params.copy()
-        low_params[param_key] = base_val * (1 - variation)
+        if scale_opex_series:
+            series = np.asarray(base_params['opex_series_억'], dtype=float)
+            high_params['opex_series_억'] = series * (1 + variation)
+            low_params['opex_series_억'] = series * (1 - variation)
+        else:
+            high_params[param_key] = base_val * (1 + variation)
+            low_params[param_key] = base_val * (1 - variation)
+
+        _, high_met = build_cashflow(**high_params)
         _, low_met = build_cashflow(**low_params)
 
         results.append({
@@ -870,6 +936,40 @@ def estimate_toll_revenue(
 # [STREAMLIT APP] 메인 UI
 # ════════════════════════════════════════════════════════════
 
+def linked_slider_input(label, min_v, max_v, default, step, key, fmt=None, help=None):
+    """슬라이더(드래그)와 숫자 입력(키보드)을 한 값에 묶어 함께 노출한다.
+
+    두 위젯은 master 세션 키를 공유하며, 둘 중 하나를 바꾸면 다른 쪽도 즉시 동기화된다.
+    이렇게 하면 모드 전환 없이 드래그와 정밀 타이핑을 동시에 지원한다.
+    """
+    sk = f"_lk_{key}"
+    if sk not in st.session_state:
+        st.session_state[sk] = default
+
+    def _from_slider():
+        st.session_state[sk] = st.session_state[f"{key}_sl"]
+
+    def _from_num():
+        st.session_state[sk] = st.session_state[f"{key}_ni"]
+
+    # 위젯 인스턴스화 전에 master 값으로 두 위젯 상태를 시드 → value= 미사용으로 경고 회피
+    st.session_state[f"{key}_sl"] = st.session_state[sk]
+    st.session_state[f"{key}_ni"] = st.session_state[sk]
+
+    # 소제목(라벨) 옆에 숫자 입력칸을 두고, 그 아래 슬라이더를 전폭으로 배치
+    hc1, hc2 = st.sidebar.columns([3, 2], vertical_alignment="center")
+    hc1.markdown(f"**{label}**")
+    hc2.number_input(
+        label, min_value=min_v, max_value=max_v, step=step, key=f"{key}_ni",
+        on_change=_from_num, label_visibility="collapsed", format=fmt, help=help,
+    )
+    st.sidebar.slider(
+        label, min_v, max_v, step=step, key=f"{key}_sl",
+        on_change=_from_slider, label_visibility="collapsed",
+    )
+    return st.session_state[sk]
+
+
 def main():
     st.set_page_config(
         page_title="BIM·AI 민자도로 수익성 분석",
@@ -920,7 +1020,7 @@ def main():
     _BIZ_DEFAULTS = {
         "BTO":     {"equity": 25, "opex": 30, "mrg": 0,   "mcc": 0,   "toll": 100, "desc": "수익형 — 운영 수익으로 회수 (정부 위험 분담 없음)"},
         "BTO-rs":  {"equity": 20, "opex": 32, "mrg": 50,  "mcc": 0,   "toll": 90,  "desc": "위험분담형 — 정부·사업자 수요위험 분담 (Risk Sharing)"},
-        "BTO-ann": {"equity": 15, "opex": 35, "mrg": 90,  "mcc": 30,  "toll": 80,  "desc": "정부지급형(BTO-a) — 운영비 일부 정부 보전 (Annuity)"},
+        "BTO-ann": {"equity": 15, "opex": 35, "mrg": 90,  "mcc": 30,  "toll": 130, "desc": "정부지급형(BTO-a) — 운영비 일부 정부 보전 (Annuity)"},
         "BTL":     {"equity": 10, "opex": 40, "mrg": 100, "mcc": 80,  "toll": 0,   "desc": "임대형 — 정부 임대료 + 운영비 보전"},
         "BTO+BTL": {"equity": 18, "opex": 35, "mrg": 60,  "mcc": 50,  "toll": 60,  "desc": "결합형(2024.10 신규) — 상부 BTO 사용료로 하부 BTL 임대료 충당"},
     }
@@ -929,8 +1029,9 @@ def main():
 
     # ─── 사업 기본 ───
     st.sidebar.subheader("🏗️ 사업 기본")
-    road_length = st.sidebar.slider("연장(km)", 5, 200, 45, 5)
-    total_capex = st.sidebar.slider("총사업비(억)", 1000, 100000, 20725, 500)
+    st.sidebar.caption("슬라이더로 드래그하거나, 옆 칸에 실측치를 직접 입력하세요.")
+    road_length = linked_slider_input("연장(km)", 5, 200, 45, 1, "road_length")
+    total_capex = linked_slider_input("총사업비(억)", 1000, 100000, 20725, 100, "total_capex")
     construction_years = st.sidebar.slider("건설기간(년)", 2, 10, 5)
     operation_years = st.sidebar.slider("운영기간(년)", 15, 50, 30)
 
@@ -963,7 +1064,7 @@ def main():
 
     # ─── 수요 ───
     st.sidebar.subheader("🚗 수요")
-    daily_traffic = st.sidebar.slider("일통행량(대)", 5000, 200000, 50000, 1000)
+    daily_traffic = linked_slider_input("일통행량(대)", 5000, 200000, 110000, 500, "daily_traffic")
     growth = st.sidebar.slider("성장률(%)", -2.0, 8.0, 2.5, 0.1)
     heavy_ratio = st.sidebar.slider("화물비율(%)", 5, 60, 30)
 
@@ -975,8 +1076,18 @@ def main():
     # ─── 금융구조 ───
     st.sidebar.subheader("🏦 금융구조")
     equity_ratio = st.sidebar.slider("자기자본비율(%)", 5, 50, _bd["equity"]) / 100
-    ke = st.sidebar.slider("자기자본비용Ke(%)", 3.0, 20.0, 8.0, 0.25) / 100
     base_rate = st.sidebar.slider("기준금리(%)", 0.0, 8.0, 2.50, 0.25) / 100
+    # 자기자본비용 Ke — CAPM(Ke = rf + β·MRP)으로 산출. rf는 기준금리.
+    capm_beta = st.sidebar.slider(
+        "베타(β)", 0.3, 2.0, 0.70, 0.05,
+        help="인프라 자산의 체계적 위험. 통상 도로 0.6~0.9 (방어적). 높을수록 Ke↑"
+    )
+    capm_mrp = st.sidebar.slider(
+        "시장위험프리미엄 MRP(%)", 3.0, 10.0, 6.0, 0.5,
+        help="시장수익률−무위험수익률. 국내 통상 5~7%"
+    ) / 100
+    ke = base_rate + capm_beta * capm_mrp
+    st.sidebar.caption(f"📊 자기자본비용 Ke = {base_rate*100:.2f}% + {capm_beta:.2f}×{capm_mrp*100:.1f}% = **{ke*100:.2f}%** (CAPM)")
     
     # 선순위·후순위 분리 (실무 자금구조)
     senior_ratio_pct = st.sidebar.slider(
@@ -1003,7 +1114,23 @@ def main():
     
     # 호환성용 기존 spread 변수 유지
     spread = senior_spread
-    
+
+    # ─── 대주단 커버넌트 (텀시트 기준 입력) ───
+    st.sidebar.subheader("🏦 대주단 커버넌트")
+    st.sidebar.caption("딜 텀시트의 DSCR 기준을 직접 입력하세요. 판정·민감도·스컬프팅에 일괄 적용됩니다.")
+    cov_base = st.sidebar.number_input(
+        "Base-case DSCR", min_value=1.00, max_value=2.00, value=1.30, step=0.05,
+        help="목표 커버넌트. 통상 1.25~1.40. 스컬프팅·base 판정 기준."
+    )
+    cov_lockup = st.sidebar.number_input(
+        "Lock-up(배당제한) DSCR", min_value=1.00, max_value=2.00, value=1.20, step=0.05,
+        help="이 밑이면 배당(분배) 제한. 통상 1.10~1.20."
+    )
+    cov_default = st.sidebar.number_input(
+        "Default DSCR", min_value=1.00, max_value=2.00, value=1.05, step=0.05,
+        help="이 밑이면 기술적 디폴트 근처. 통상 1.00~1.10."
+    )
+
     infl = st.sidebar.slider("물가상승률(%)", 0.0, 6.0, 2.0, 0.1)
 
     # ─── 고급 옵션 ───
@@ -1081,7 +1208,7 @@ def main():
 
     # WACC 계산 (선순위·후순위 분리 반영)
     wacc_info = calc_wacc_detail(
-        rf=base_rate, mrp=0.06, beta=0.7,
+        rf=base_rate, mrp=capm_mrp, beta=capm_beta,
         equity_ratio=equity_ratio, debt_rate=debt_rate, tax_rate=tax_rate,
         senior_ratio=senior_ratio, senior_rate=senior_rate, sub_rate=sub_rate,
         ke=ke,
@@ -1131,6 +1258,8 @@ def main():
         'growth_rate': growth / 100,
         'equity_ratio': equity_ratio,
         'debt_rate': debt_rate,
+        'senior_ratio': senior_ratio,
+        'senior_rate': senior_rate,
         'tax_rate': tax_rate,
         'business_type': business_type,
         'mrg_ratio': mrg_ratio,
@@ -1219,34 +1348,42 @@ def main():
         f"(±20%: {capex_reference['capex_low_억']:,}~{capex_reference['capex_high_억']:,}) {_capex_check}"
     )
 
-    # KPI 카드
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    # KPI 카드 (1열: 사업주 지분 관점 / 2열: 대주단·사업성 관점)
+    _eirr = metrics.get('equity_irr', float('nan'))
+    _eirr_ok = _eirr == _eirr  # NaN guard
+    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
 
     npv_color = "green" if metrics['npv'] >= 0 else "red"
     with col1:
         st.markdown(f"""<div class="metric-card {npv_color}">
-            <h4>NPV</h4><h2>{metrics['npv']:,.0f}억</h2></div>""",
+            <h4>NPV (프로젝트·@WACC)</h4><h2>{metrics['npv']:,.0f}억</h2></div>""",
             unsafe_allow_html=True)
     with col2:
-        irr_txt = f"{metrics['nominal_irr']*100:.1f}% / {metrics['real_irr']*100:.1f}%"
-        st.markdown(f"""<div class="metric-card blue">
-            <h4>명목IRR / 불변IRR</h4><h2>{irr_txt}</h2></div>""",
+        eirr_color = "green" if (_eirr_ok and _eirr > 0) else "red"
+        eirr_txt = f"{_eirr*100:.1f}%" if _eirr_ok else "—"
+        st.markdown(f"""<div class="metric-card {eirr_color}">
+            <h4>자기자본IRR</h4><h2>{eirr_txt}</h2></div>""",
             unsafe_allow_html=True)
     with col3:
+        irr_txt = f"{metrics['nominal_irr']*100:.1f}% / {metrics['real_irr']*100:.1f}%"
+        st.markdown(f"""<div class="metric-card blue">
+            <h4>프로젝트IRR(명목/불변)</h4><h2>{irr_txt}</h2></div>""",
+            unsafe_allow_html=True)
+    with col4:
         roe_color = "green" if metrics['roe'] > 0 else "red"
         st.markdown(f"""<div class="metric-card {roe_color}">
             <h4>ROE (배당수익률)</h4><h2>{metrics['roe']*100:.1f}%</h2></div>""",
             unsafe_allow_html=True)
-    with col4:
+    with col5:
         dscr_color = "green" if metrics['dscr_min'] >= 1.0 else "red"
         st.markdown(f"""<div class="metric-card {dscr_color}">
             <h4>DSCR (최소/평균)</h4><h2>{metrics['dscr_min']:.2f} / {metrics['dscr_avg']:.2f}</h2></div>""",
             unsafe_allow_html=True)
-    with col5:
+    with col6:
         st.markdown(f"""<div class="metric-card blue">
             <h4>WACC</h4><h2>{wacc_info['wacc']*100:.2f}%</h2></div>""",
             unsafe_allow_html=True)
-    with col6:
+    with col7:
         bc_color = "green" if metrics['bc_ratio'] >= 1.0 else "orange"
         st.markdown(f"""<div class="metric-card {bc_color}">
             <h4>B/C ratio</h4><h2>{metrics['bc_ratio']:.2f}</h2></div>""",
@@ -1254,16 +1391,129 @@ def main():
 
     st.markdown("")
 
+    # ── 한 줄 판정 (대주단 커버넌트 입력 기준) ──
+    _dmin = metrics['dscr_min']
+    _npv = metrics['npv']
+    if _npv < 0 or _dmin < cov_default:
+        _detail = "부채상환 불가" if _dmin < 1.0 else f"default({cov_default:.2f}) 근처"
+        st.error(
+            f"🔴 **대주단 기준 사업성 미달** — DSCR_min {_dmin:.2f}({_detail})"
+            f"{' · NPV 적자' if _npv < 0 else ''}. 수요·단가·자본구조 가정 재검토 또는 정부 보전(MRG/MCC) 필요."
+        )
+    elif _dmin < cov_lockup:
+        st.warning(
+            f"🟡 **여유 얇음** — DSCR_min {_dmin:.2f}가 lock-up(배당제한 {cov_lockup:.2f}) 미만. "
+            "배당제한 구간 진입 위험 — DSRA·MRG 흡수 여력 확인 필요."
+        )
+    elif _dmin < cov_base:
+        st.warning(
+            f"🟡 **양호하나 base-case({cov_base:.2f}) 미달** — DSCR_min {_dmin:.2f}. "
+            "초기 램프업 구간에 한정되면 DSRA·MRG로 흡수되는 표준 프로파일."
+        )
+    else:
+        st.success(
+            f"🟢 **대주단 기준 양호** — DSCR_min {_dmin:.2f} ≥ base-case {cov_base:.2f}"
+            f"{' · NPV 흑자' if _npv >= 0 else ''}."
+        )
+
+    # ── 사업주(지분) 관점 한 줄 ──
+    if _eirr_ok:
+        if _eirr < 0:
+            st.error(f"🔴 **지분 관점** — 자기자본IRR {_eirr*100:.1f}%(원금 손실 구간). 출자 회수 불가.")
+        elif _eirr < ke:
+            st.warning(
+                f"🟡 **지분 관점** — 자기자본IRR {_eirr*100:.1f}%가 요구수익률 Ke {ke*100:.1f}% 미달. "
+                "통행료·자본구조·정부 보전 조정 없이는 출자자 수익 기준 미충족."
+            )
+        else:
+            st.success(f"🟢 **지분 관점** — 자기자본IRR {_eirr*100:.1f}% ≥ 요구수익률 Ke {ke*100:.1f}%.")
+
+    # ── 리스크 스냅샷 (핵심 산출물 상단 승격 + 회계법인용 EBITDA 노출) ──
+    st.markdown("##### ⚡ 리스크 스냅샷")
+    _llcr = metrics.get('llcr_min', float('nan'))
+    _ebitda = metrics.get('ebitda_avg', float('nan'))
+    _sdscr = metrics.get('senior_dscr_min', float('nan'))
+    rc1, rc2, rc3, rc4, rc5 = st.columns(5)
+    rc1.metric("DSCR 최소/평균", f"{_dmin:.2f} / {metrics['dscr_avg']:.2f}")
+    rc2.metric("선순위 DSCR 최소", f"{_sdscr:.2f}" if _sdscr == _sdscr and _sdscr > 0 else "—",
+               help="선순위 트랜치 단독 상환 기준 커버리지(우선권 관점). 블렌디드 DSCR보다 높음.")
+    rc3.metric("LLCR 최소", f"{_llcr:.2f}" if _llcr == _llcr else "—")
+    rc4.metric("EBITDA 평균(억)", f"{_ebitda:,.0f}" if _ebitda == _ebitda else "—")
+    rc5.metric("NPV 적자 여부", "적자" if _npv < 0 else "흑자")
+    st.caption(
+        "전체 토네이도·몬테카를로·낙관편향·부채 스컬프팅·리스크 등록부는 아래 "
+        "**[📊 재무 분석 ▸ 🎯 민감도·리스크 등록부]** 탭에서 — 대주단·운용사 실사(DD) 산출물."
+    )
+
+    # ── 배당 타임라인 (사업주 현금회수 관점) ──
+    _div_df = cf_df[(cf_df['Year'] > construction_years) & (cf_df['DSCR'] > 0)].copy()
+    if len(_div_df) > 0:
+        _div_df['배당가능'] = _div_df['DSCR'] >= cov_lockup
+        _div_df['운영년차'] = (_div_df['Year'] - construction_years).astype(int)
+        _allowed = _div_df[_div_df['배당가능']]
+        _first_div = int(_allowed['운영년차'].iloc[0]) if len(_allowed) > 0 else None
+        _n_allowed = int(_div_df['배당가능'].sum())
+        _n_total = len(_div_df)
+        with st.expander(
+            f"💵 배당 타임라인 (사업주 관점) — "
+            + (f"운영 {_first_div}년차부터 배당 가능" if _first_div else "전 기간 배당제한")
+            + f" · 배당가능 {_n_allowed}/{_n_total}년",
+            expanded=False,
+        ):
+            st.caption(
+                f"lock-up DSCR {cov_lockup:.2f} 이상인 해에만 출자자 배당(분배) 가능 — "
+                "그 미만 구간은 현금이 DSRA·상환에 묶여 회수가 지연됩니다."
+            )
+            import plotly.graph_objects as _go
+            _fig = _go.Figure()
+            _fig.add_trace(_go.Bar(
+                x=_div_df['운영년차'], y=_div_df['DSCR'],
+                marker_color=['#2ca02c' if v else '#d62728' for v in _div_df['배당가능']],
+                hovertemplate="운영 %{x}년차 · DSCR %{y:.2f}<extra></extra>",
+            ))
+            _fig.add_hline(y=cov_lockup, line_dash="dash", line_color="#ff7f0e",
+                           annotation_text=f"lock-up {cov_lockup:.2f}")
+            _fig.update_layout(
+                height=260, margin=dict(l=10, r=10, t=10, b=10),
+                xaxis_title="운영년차", yaxis_title="DSCR",
+                showlegend=False,
+            )
+            st.plotly_chart(_fig, use_container_width=True)
+            st.caption("🟢 배당 가능 연차 · 🔴 배당제한(lock-up 미만) 연차")
+
+    st.markdown("")
+
     with st.expander("ℹ️ 분석 가정 (지표 해석 시 참고)", expanded=False):
         st.markdown(
-            "- **NPV·할인율**: 프로젝트 FCF를 **WACC**로 할인. WACC의 자기자본비용(Ke)은 "
-            "사이드바 입력값을 그대로 사용(미입력 시 CAPM `rf+β·MRP`).\n"
-            "- **세금·감가상각**: 법인세는 **정액법 감가상각(CAPEX÷운영기간)**을 과세소득에서 차감해 산출(세금방패 반영).\n"
-            "- **DSCR**: 분자는 **세후 CFADS(매출−운영비−세금)**, 분모는 원리금. 건설기간 이자(IDC)는 부채에 자본화.\n"
+            "- **NPV·할인율**: 프로젝트 FCFF를 **WACC**로 할인. WACC의 자기자본비용(Ke)은 "
+            "**CAPM `Ke = rf + β·MRP`**로 산출(rf=기준금리, β·MRP는 사이드바 입력).\n"
+            "- **프로젝트 세금(FCFF)**: 자본구조 중립을 위해 프로젝트 FCF의 법인세는 **이자 차감 없이**(언레버드) "
+            "과세 — 이자 세금방패는 할인율 WACC의 `Kd(1−t)`에 이미 반영되므로 **이중계상 방지**.\n"
+            "- **당기순이익·DSCR**: 법인세는 **정액법 감가상각·이자 차감 후**(레버드) 과세소득으로 산출. "
+            "DSCR 분자=세후 CFADS, 분모=원리금. 건설기간 이자(IDC)는 부채에 자본화.\n"
             "- **ROE**: 연평균 순이익 ÷ **투입 자기자본 원금**(장부 평균자본이 아닌 투입원금 기준).\n"
             "- **B/C ratio**: 사회적 편익이 아닌 **재무적 비율**(매출 PV ÷ (CAPEX+운영비) PV).\n"
             "- **MRG**: 추정수입(통행료 조정 전)의 보장률을 floor로, 실제 수입이 미달할 때만 차액 보전.\n"
-            "- **자기자본 만료 회수**: '원금+수익률' 방식은 만료 시 원금에 **약정수익률 5%**를 가산해 회수한다고 가정."
+            "- **자기자본 만료 회수**: 회수액은 **만기 잔존가치(terminal value)에서 잔존부채를 상환한 잔여분 한도 내**에서만 "
+            "인식(출처 없는 현금 생성 방지). 잔존가치 미입력 시 회수액 0."
+        )
+
+    # ── KDI PIMAC 표준재무모델 정합 내보내기 ──
+    with st.expander("📐 KDI PIMAC 표준재무모델 양식으로 내보내기", expanded=False):
+        st.caption(
+            "정부 적격성조사·6개 주체 대조의 사실상 표준인 **KDI PIMAC 표준재무모델** 연도별 "
+            "양식(한국어 컬럼·지출=양수 투자비)으로 변환합니다. 표준 .xlsx에 그대로 붙여넣어 "
+            "교차검증할 수 있는 **정합 레이어**입니다."
+        )
+        _pimac_df = build_pimac_standard_table(cf_df)
+        st.dataframe(_pimac_df, use_container_width=True, height=280)
+        st.download_button(
+            "⬇️ 표준양식 CSV 다운로드",
+            _pimac_df.to_csv(index=False).encode('utf-8-sig'),
+            file_name="forenode_PIMAC표준재무모델.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key="pimac_export_main",
         )
 
     # ════════════════════════════════════════════════════════
@@ -1364,11 +1614,128 @@ def main():
         'termination_payment': total_capex,
     }
     
+    # ════════════════════════════════════════════════════════════════
+    # 🔭 관점 라우터 — 6주체별 핵심 결과 + 심화 도구/what-if 바로가기
+    # ════════════════════════════════════════════════════════════════
+    st.markdown("### 🔭 관점별 보기")
+    st.caption(
+        "주체를 고르면 그 입장에서 가장 중요한 지표·판정과, 더 파볼 심화 도구·what-if 위치를 안내합니다. "
+        "아래 단계별 분석·솔버·심화 도구로 가는 길잡이입니다."
+    )
+    _role = st.radio(
+        "관점(역할)",
+        ["전체", "대주단", "사업주", "자산운용사·연기금", "정부(PIMAC·주무관청)", "회계법인"],
+        horizontal=True, label_visibility="collapsed", key="role_lens",
+    )
+
+    _rl_eirr = metrics.get('equity_irr', float('nan'))
+    _rl_eirr_ok = _rl_eirr == _rl_eirr
+    _rl_eirr_txt = f"{_rl_eirr*100:.1f}%" if _rl_eirr_ok else "—"
+    _rl_sdscr = metrics.get('senior_dscr_min', float('nan'))
+    _rl_llcr = metrics.get('llcr_min', float('nan'))
+    _rl_ebitda = metrics.get('ebitda_avg', float('nan'))
+    _rl_govt = metrics.get('total_govt_burden', 0.0)
+    _rl_dmin = metrics['dscr_min']
+
+    with st.container(border=True):
+        if _role == "대주단":
+            st.markdown("**📐 대주단 — 부채 회수 안정성 (DSCR·LLCR·스컬프팅)**")
+            d1, d2, d3, d4 = st.columns(4)
+            d1.metric("DSCR 최소/평균", f"{_rl_dmin:.2f} / {metrics['dscr_avg']:.2f}")
+            d2.metric("선순위 DSCR 최소", f"{_rl_sdscr:.2f}" if _rl_sdscr == _rl_sdscr and _rl_sdscr > 0 else "—")
+            d3.metric("LLCR 최소", f"{_rl_llcr:.2f}" if _rl_llcr == _rl_llcr else "—")
+            d4.metric("커버넌트(텀시트)", f"base {cov_base:.2f} / lock {cov_lockup:.2f}")
+            if _rl_dmin < cov_default:
+                st.error(f"DSCR_min {_rl_dmin:.2f} < default {cov_default:.2f} — 커버넌트 미달, 부채 상환 불안정.")
+            elif _rl_dmin < cov_lockup:
+                st.warning(f"DSCR_min {_rl_dmin:.2f} < lock-up {cov_lockup:.2f} — 배당제한 구간 진입 위험.")
+            else:
+                st.success(f"DSCR_min {_rl_dmin:.2f} ≥ lock-up {cov_lockup:.2f} — 부채 회수 안정권.")
+            st.caption(
+                "심화 ▸ **📊 재무 분석 ▸ 🎯 민감도·리스크 등록부**(토네이도·몬테카를로·부채 스컬프팅·낙관편향) · **📈 현금흐름**(연도별 DSCR·선순위 DSCR) · "
+                "what-if ▸ **🎯 요구수익률 솔버**(대주단 프리셋)."
+            )
+        elif _role == "사업주":
+            st.markdown("**🏢 사업주(SPC 출자자) — 자기자본 회수 (Equity IRR·배당)**")
+            s1, s2, s3, s4 = st.columns(4)
+            s1.metric("자기자본IRR", _rl_eirr_txt)
+            s2.metric("ROE(배당수익률)", f"{metrics['roe']*100:.1f}%")
+            s3.metric("요구수익률 Ke", f"{ke*100:.1f}%")
+            s4.metric("NPV(프로젝트·@WACC)", f"{metrics['npv']:,.0f}억")
+            if _rl_eirr_ok and _rl_eirr >= ke:
+                st.success(f"자기자본IRR {_rl_eirr_txt} ≥ 요구수익률 Ke {ke*100:.1f}% — 출자자 수익 기준 충족.")
+            elif _rl_eirr_ok and _rl_eirr >= 0:
+                st.warning(f"자기자본IRR {_rl_eirr_txt} < Ke {ke*100:.1f}% — 통행료·자본구조·정부 보전 조정 필요.")
+            else:
+                st.error("자기자본IRR 산출 불가/음수 — 현 가정에서 출자 회수 곤란.")
+            st.caption(
+                "심화 ▸ **💵 배당 타임라인**(위 스냅샷) · **🔄 재구조화 단계**(MRG 재협상·관리운영권) · "
+                "what-if ▸ **🎯 요구수익률 솔버**(사업주 프리셋: 목표 IRR 역산)."
+            )
+        elif _role == "자산운용사·연기금":
+            st.markdown("**💼 자산운용사·연기금(FI) — 안정 수익 + 잔여가치**")
+            f1, f2, f3, f4 = st.columns(4)
+            f1.metric("자기자본IRR", _rl_eirr_txt)
+            f2.metric("ROE", f"{metrics['roe']*100:.1f}%")
+            f3.metric("DSCR 최소", f"{_rl_dmin:.2f}")
+            f4.metric("LLCR 최소", f"{_rl_llcr:.2f}" if _rl_llcr == _rl_llcr else "—")
+            if _rl_eirr_ok and _rl_eirr >= 0.10 and _rl_dmin >= 1.15:
+                st.success("IRR·DSCR 모두 운용 기준선(IRR≥10%·DSCR≥1.15) 충족 — 편입 검토 가능.")
+            else:
+                st.warning("IRR 또는 DSCR이 운용 기준선(IRR≥10%·DSCR≥1.15) 미달 — 하방 분포 확인 필요.")
+            st.caption(
+                "심화 ▸ **🎯 민감도·리스크 등록부**(몬테카를로 P10·하방확률) · **📊 MC NPV** · "
+                "what-if ▸ **🎯 요구수익률 솔버**(자산운용사·연기금 프리셋)."
+            )
+        elif _role == "정부(PIMAC·주무관청)":
+            st.markdown("**🏛️ 정부(KDI PIMAC·주무관청) — VfM·재정부담**")
+            g1, g2, g3, g4 = st.columns(4)
+            g1.metric("B/C ratio", f"{metrics['bc_ratio']:.2f}")
+            g2.metric("NPV(억)", f"{metrics['npv']:,.0f}")
+            g3.metric("정부 재정부담(MRG+MCC 누적·억)", f"{_rl_govt:,.0f}")
+            g4.metric("DSCR 최소", f"{_rl_dmin:.2f}")
+            if metrics['bc_ratio'] >= 1.0 and metrics['npv'] >= 0:
+                st.success("B/C ≥ 1.0 · NPV ≥ 0 — 재무 타당성 확보(VfM 추가 검토 권장).")
+            else:
+                st.warning("B/C < 1.0 또는 NPV < 0 — 민자 적격성·정부 보전(MRG/MCC) 설계 재검토 필요.")
+            st.caption(
+                "심화 ▸ **⏱ 사전 검토 단계**(민자 적격성) · **🚦 시장·법제 ▸ 통행료 적정성·SPC 벤치마크** · "
+                "what-if ▸ **🎯 요구수익률 솔버**(KDI PIMAC·주무관청 프리셋)."
+            )
+        elif _role == "회계법인":
+            st.markdown("**🧮 회계법인 — 현금흐름 재현성·검증**")
+            a1, a2, a3, a4 = st.columns(4)
+            a1.metric("EBITDA 평균(억)", f"{_rl_ebitda:,.0f}" if _rl_ebitda == _rl_ebitda else "—")
+            a2.metric("NPV(프로젝트·@WACC)", f"{metrics['npv']:,.0f}억")
+            a3.metric("DSCR 최소/평균", f"{_rl_dmin:.2f} / {metrics['dscr_avg']:.2f}")
+            a4.metric("선순위 DSCR 최소", f"{_rl_sdscr:.2f}" if _rl_sdscr == _rl_sdscr and _rl_sdscr > 0 else "—")
+            st.info("검증 포인트: EBITDA=매출−운영비, CFADS=매출−운영비−세금, 세금은 정액 감가상각 반영. 연도별 추적은 현금흐름표에서.")
+            st.download_button(
+                "⬇️ KDI PIMAC 표준재무모델 양식 CSV — 감사 대조용 납품물",
+                build_pimac_standard_table(cf_df).to_csv(index=False).encode('utf-8-sig'),
+                file_name="forenode_PIMAC표준재무모델.csv",
+                mime="text/csv",
+                use_container_width=True,
+                key="pimac_export_acct",
+            )
+            st.caption(
+                "납품물 ▸ 위 CSV를 표준 .xlsx에 붙여넣어 주무관청·대주단 모델과 **연도별 셀 단위 대조**. · "
+                "심화 ▸ **📈 현금흐름 ▸ 📋 상세 현금흐름표**(EBITDA·DSCR·선순위 DSCR·LLCR + 산정 규약) · "
+                "**ℹ️ 분석 가정**(위 expander)."
+            )
+        else:  # 전체
+            st.caption(
+                "전체 보기 — 위 KPI·리스크 스냅샷이 종합 요약입니다. 특정 주체를 고르면 그 입장의 "
+                "핵심 지표·판정과 바로 갈 심화 도구/솔버 위치만 추려서 보여줍니다."
+            )
+
+    st.markdown("---")
+
     st.markdown("### 🗓️ 사업 시점별 분석")
     st.caption(
         "민자도로 라이프사이클에 따른 분석 제공"
     )
-    
+
     phase_tabs_ui = st.tabs([
         "⏱ 사전 검토", "🏗 시공·자금조달", "🛣 운영", "🔄 재구조화"
     ])
@@ -1448,6 +1815,9 @@ def main():
                 base_params,
                 daily_traffic=daily_traffic,
                 road_length_km=road_length,
+                cov_base=cov_base,
+                cov_lockup=cov_lockup,
+                cov_default=cov_default,
             )
     
     # ── 그룹 B: 시설·열화 (3) — 열화곡선, Weibull, OPEX ──
@@ -1500,6 +1870,12 @@ def main():
 
             if st.button("▶ 시뮬레이션 실행", type="primary", use_container_width=True):
                 with st.spinner("시뮬레이션 실행 중..."):
+                    # 결정론 모델과 동일한 base_params를 그대로 전달 (opex 시계열·만기가치·
+                    # 회수방식 등 포함) — monte_carlo가 무작위화하는 5개 키만 제외
+                    _mc_randomized = {'capex_억', 'annual_revenue_억',
+                                      'discount_rate', 'inflation', 'growth_rate'}
+                    mc_extra = {k: v for k, v in base_params.items()
+                                if k not in _mc_randomized}
                     mc = monte_carlo(
                         capex_억=total_capex,
                         annual_revenue_억=ann_rev,
@@ -1507,15 +1883,10 @@ def main():
                         discount_rate=wacc_info['wacc'],
                         inflation=infl / 100,
                         growth_rate=growth / 100,
-                        construction_years=construction_years,
-                        operation_years=operation_years,
-                        opex_ratio=opex_ratio,
-                        equity_ratio=equity_ratio,
-                        debt_rate=debt_rate,
-                        tax_rate=tax_rate,
                         capex_volatility=capex_vol,
                         revenue_volatility=rev_vol,
                         rate_volatility=rate_vol,
+                        **mc_extra,
                     )
                     st.session_state['mc_results'] = mc
 
@@ -1542,7 +1913,7 @@ def main():
                                   row=1, col=2)
                     fig.add_vline(x=1.0, line_dash="dash", line_color="red", row=1, col=2)
                     fig.update_layout(height=350, showlegend=False,
-                                      template="plotly_dark",
+                                      template="plotly_white",
                                       margin=dict(t=40, b=30))
                     st.plotly_chart(fig, use_container_width=True)
                 else:
@@ -1573,7 +1944,7 @@ def main():
                     marker_color='#eb3349', showlegend=False,
                 ))
             fig.add_vline(x=metrics['npv'], line_dash="dash", line_color="white")
-            fig.update_layout(height=400, template="plotly_dark",
+            fig.update_layout(height=400, template="plotly_white",
                               xaxis_title="NPV (억원)", barmode='overlay',
                               margin=dict(t=20, b=30))
             st.plotly_chart(fig, use_container_width=True)
@@ -1605,7 +1976,7 @@ def main():
             fig.add_hline(y=1.0, line_dash="dash", line_color="red", row=2, col=1)
             fig.add_hline(y=1.3, line_dash="dot", line_color="orange", row=2, col=1)
 
-            fig.update_layout(height=550, template="plotly_dark",
+            fig.update_layout(height=550, template="plotly_white",
                               margin=dict(t=40, b=30))
             st.plotly_chart(fig, use_container_width=True)
         else:
@@ -1614,7 +1985,7 @@ def main():
         with st.expander("📋 상세 현금흐름표"):
             display_cols = ['Year', 'CAPEX', 'Revenue', 'OPEX', 'EBITDA', 'Interest',
                            'Principal', 'Tax', 'NetIncome', 'ProjectFCF',
-                           'CumProjectFCF', 'DSCR', 'LLCR']
+                           'CumProjectFCF', 'DSCR', 'SeniorDSCR', 'LLCR']
             st.dataframe(cf_df[display_cols].style.format({
                 col: '{:,.1f}' for col in display_cols if col != 'Year'
             }), use_container_width=True)
@@ -1643,7 +2014,7 @@ def main():
                           annotation_text="대보수 기준 (PI=40)")
             fig.add_hline(y=20, line_dash="dash", line_color="red",
                           annotation_text="교체 기준 (PI=20)")
-            fig.update_layout(height=400, template="plotly_dark",
+            fig.update_layout(height=400, template="plotly_white",
                               margin=dict(t=50, b=30))
             st.plotly_chart(fig, use_container_width=True)
         else:
@@ -1666,7 +2037,7 @@ def main():
                     fig = px.bar(yearly_lcc, x='Year', y='PV_억',
                                  title="연도별 유지관리비 (현가)",
                                  labels={'PV_억': '비용(억원)'})
-                    fig.update_layout(height=300, template="plotly_dark")
+                    fig.update_layout(height=300, template="plotly_white")
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.bar_chart(yearly_lcc.set_index('Year'))
@@ -1689,7 +2060,7 @@ def main():
                                          name='일교통량(대)',
                                          line=dict(color='#ffd200', width=2)),
                               secondary_y=True)
-                fig.update_layout(height=350, template="plotly_dark",
+                fig.update_layout(height=350, template="plotly_white",
                                   margin=dict(t=30, b=30))
                 fig.update_yaxes(title_text="수입(억원)", secondary_y=False)
                 fig.update_yaxes(title_text="교통량(대/일)", secondary_y=True)
@@ -1864,7 +2235,7 @@ def main():
                     hole=0.5,
                     textinfo='label+percent',
                 )])
-                fig.update_layout(height=300, template="plotly_dark",
+                fig.update_layout(height=300, template="plotly_white",
                                   margin=dict(t=20, b=20))
                 st.plotly_chart(fig, use_container_width=True)
             else:
@@ -1884,7 +2255,7 @@ def main():
                                      name='잔액', yaxis='y2',
                                      line=dict(color='#ffd200', width=2)))
             fig.update_layout(
-                height=350, template="plotly_dark", barmode='stack',
+                height=350, template="plotly_white", barmode='stack',
                 yaxis=dict(title='상환액(억)'),
                 yaxis2=dict(title='잔액(억)', overlaying='y', side='right'),
                 margin=dict(t=30, b=30),
@@ -1930,7 +2301,7 @@ def main():
                     y=[bm_df.loc[name, m] for m in compare_metrics],
                     name=name,
                 ))
-            fig.update_layout(height=350, template="plotly_dark",
+            fig.update_layout(height=350, template="plotly_white",
                               barmode='group', margin=dict(t=30, b=30),
                               yaxis_title="억원")
             st.plotly_chart(fig, use_container_width=True)
