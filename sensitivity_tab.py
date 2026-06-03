@@ -51,7 +51,10 @@ def _base_case_from_params(base_params: dict, daily_traffic: float = 0.0,
 
 def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
                            road_length_km: float = 0.0,
-                           benchmark_aadt=None):
+                           benchmark_aadt=None,
+                           cov_base: float = _DSCR_BASE,
+                           cov_lockup: float = _DSCR_LOCKUP,
+                           cov_default: float = _DSCR_DEFAULT):
     st.subheader("민감도 · 시나리오 · 리스크 등록부")
     st.caption(
         "수요·통행량은 **외부 입력 가정**으로 둡니다(Forenode는 수요를 예측하지 않습니다). "
@@ -77,7 +80,7 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
     c3.metric("기준 DSCR_min", f"{base_res['dscr_min']:.2f}")
     c4.metric("기준 LLCR_min", f"{base_res['llcr_min']:.2f}"
               if not np.isnan(base_res['llcr_min']) else "—")
-    st.caption(f"DSCR covenant 가정 — base {_DSCR_BASE} / lock-up {_DSCR_LOCKUP} / default {_DSCR_DEFAULT}")
+    st.caption(f"DSCR covenant(텀시트 입력) — base {cov_base:.2f} / lock-up {cov_lockup:.2f} / default {cov_default:.2f}")
 
     with st.expander("ⓘ 이 탭의 LLCR이 현금흐름표 LLCR과 소수점 차이가 나는 이유"):
         st.markdown(
@@ -136,10 +139,10 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
         fig2 = go.Figure()
         fig2.add_trace(go.Scatter(x=xfmt, y=sdf["dscr_min"], name="DSCR_min",
                                   mode="lines+markers", line_color="#3b6ea5"))
-        fig2.add_hline(y=_DSCR_LOCKUP, line_dash="dot", line_color="#d9822b",
-                       annotation_text=f"lock-up {_DSCR_LOCKUP}")
-        fig2.add_hline(y=_DSCR_DEFAULT, line_dash="dot", line_color="#c0392b",
-                       annotation_text=f"default {_DSCR_DEFAULT}")
+        fig2.add_hline(y=cov_lockup, line_dash="dot", line_color="#d9822b",
+                       annotation_text=f"lock-up {cov_lockup:.2f}")
+        fig2.add_hline(y=cov_default, line_dash="dot", line_color="#c0392b",
+                       annotation_text=f"default {cov_default:.2f}")
         fig2.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10),
                            xaxis_title=xlabel, yaxis_title="DSCR_min")
         st.plotly_chart(fig2, use_container_width=True)
@@ -172,11 +175,12 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
         with st.spinner("시뮬레이션 중…"):
             try:
                 mc = monte_carlo(base, n=2000, demand_sd=demand_sd, capex_sd=capex_sd,
-                                 demand_mean_bias=bias)
+                                 demand_mean_bias=bias,
+                                 lockup_dscr=cov_lockup, default_dscr=cov_default)
                 k1, k2, k3 = st.columns(3)
                 k1.metric("NPV<0 확률", f"{mc['prob_npv_negative']*100:.1f}%")
-                k2.metric("DSCR<1.20(lock-up) 확률", f"{mc['prob_dscr_below_1_2']*100:.1f}%")
-                k3.metric("DSCR<1.00(default) 확률", f"{mc['prob_dscr_below_1_0']*100:.1f}%")
+                k2.metric(f"DSCR<{cov_lockup:.2f}(lock-up) 확률", f"{mc['prob_dscr_below_lockup']*100:.1f}%")
+                k3.metric(f"DSCR<{cov_default:.2f}(default) 확률", f"{mc['prob_dscr_below_default']*100:.1f}%")
                 dist = pd.DataFrame({
                     "지표": ["NPV(억)", "DSCR_min", "명목IRR", "LLCR_min"],
                     "P10": [mc['npv']['p10'], mc['dscr_min']['p10'],
@@ -213,7 +217,7 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
 
     # ── 5. 부채 스컬프팅 ──
     st.markdown("##### 5. 부채 스컬프팅 — 지속가능 부채한도")
-    tgt = st.slider("목표 DSCR(평탄)", 1.10, 1.60, _DSCR_BASE, 0.05, key="sens_sculpt_tgt")
+    tgt = st.slider("목표 DSCR(평탄)", 1.10, 1.60, float(cov_base), 0.05, key="sens_sculpt_tgt")
     try:
         sc = sculpt_debt(base, target_dscr=tgt)
         s1, s2, s3 = st.columns(3)

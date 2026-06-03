@@ -1,0 +1,30 @@
+{
+  "data_source": "한국도로공사 포장일반현황 (공공데이터포털)",
+  "data_period_year_range": [
+    1969,
+    2025
+  ],
+  "data_end_year_for_censoring": 2025,
+  "n_total_rows_input": 54379,
+  "n_unique_locations": 32456,
+  "n_locations_with_repair": 290,
+  "n_locations_no_repair": 30959,
+  "n_weibull_records": 31602,
+  "n_observed": 357,
+  "n_censored": 31245,
+  "distress_time_stats": {
+    "mean": 18.184355420543003,
+    "median": 17.0,
+    "std": 7.77454769274961,
+    "min": 1,
+    "max": 55,
+    "p25": 12.0,
+    "p75": 24.0
+  },
+  "event_type_distribution": {
+    "관측종료": 31245,
+    "재포장": 320,
+    "절삭덧씌우기": 22,
+    "덧씌우기": 15
+  }
+}

@@ -1,0 +1,55 @@
+# 환경 변수
+.env
+
+# 데이터 폴더 (GitHub 업로드 X)
+01 사업기본정보/
+02 교통량데이터/
+03 단가 및 건설비/
+04 금융지표/
+05 BIM IFC/
+06 민자도로 재무제표/
+07 법령, 시행령 자연어 처리/
+10 고속도로 공공데이터 포털 API/
+11 가명정보/
+4기관 출처모듈/
+99 프로그램 테스트/
+
+# Python 캐시
+__pycache__/
+*.pyc
+
+# 백업 파일
+*_backup.py
+app_v1_backup.py
+app_v2_backup.py
+app_v2.1_backup.py
+phase_tabs_backup.py
+
+# 로컬 도구·설정
+.claude/
+_backup_temp/
+
+# 발표자료·문서 산출물 (저장소 제외)
+*.pdf
+발표스크립트_pre3.0업데이트.md
+_야간작업_브리핑.md
+업데이트내역.txt
+
+# PDF 생성 스크립트·덤프
+_make_pitch_pdf.py
+_make_script_pdf.py
+_ppt_dump.txt
+_smoke_c9.py
+
+# 학습 부산물 (선택 — 필요시 주석)
+shap_summary_*.png
+weibull_curve.png
+weibull_hazard.png
+feature_importance.png
+labeling_report.html
+financial_extraction_log.txt
+fix_json.py
+app_patch_guide.py
+integration_guide.py
+indexed_files.csv
+폴더정리방법.txt

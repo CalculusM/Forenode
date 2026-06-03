@@ -262,7 +262,8 @@ def tornado(base: BaseCase, metric: str = "dscr_min",
 def monte_carlo(base: BaseCase, n: int = 2000,
                 demand_sd: float = 0.15, capex_sd: float = 0.10,
                 rate_sd: float = 0.01, demand_mean_bias: float = 0.0,
-                seed: int = 42) -> dict:
+                seed: int = 42,
+                lockup_dscr: float = 1.20, default_dscr: float = 1.00) -> dict:
     """
     수요·공사비·금리를 분포에서 샘플링해 지표 분포·하방확률 산출.
     - demand: 정규(평균 1+bias, 표준편차 demand_sd).  낙관편향을 bias<0 로 보정 가능.
@@ -294,8 +295,10 @@ def monte_carlo(base: BaseCase, n: int = 2000,
         "npv": pct(npvs), "dscr_min": pct(dscrs),
         "nominal_irr": pct(irrs), "llcr_min": pct(llcrs),
         "prob_npv_negative": float(np.mean(npvs < 0)),
-        "prob_dscr_below_1_2": float(np.mean(dscrs < 1.20)),   # lock-up covenant
-        "prob_dscr_below_1_0": float(np.mean(dscrs < 1.00)),   # default
+        "prob_dscr_below_1_2": float(np.mean(dscrs < 1.20)),   # 고정 1.20 참조(하위호환)
+        "prob_dscr_below_1_0": float(np.mean(dscrs < 1.00)),   # 고정 1.00 참조(하위호환)
+        "prob_dscr_below_lockup": float(np.mean(dscrs < lockup_dscr)),
+        "prob_dscr_below_default": float(np.mean(dscrs < default_dscr)),
         "prob_llcr_below_1_2": float(np.nanmean(llcrs < 1.20)),
     }
 
