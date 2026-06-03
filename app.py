@@ -983,15 +983,23 @@ def main():
     <style>
     .metric-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 16px 20px; border-radius: 12px; color: white;
+        padding: 14px 8px; border-radius: 12px; color: white;
         text-align: center; margin: 4px 0;
+        display: flex; flex-direction: column; justify-content: space-between;
+        min-height: 118px;
     }
     .metric-card.green { background: linear-gradient(135deg, #11998e, #38ef7d); }
     .metric-card.red { background: linear-gradient(135deg, #eb3349, #f45c43); }
     .metric-card.blue { background: linear-gradient(135deg, #2193b0, #6dd5ed); }
     .metric-card.orange { background: linear-gradient(135deg, #f7971e, #ffd200); }
-    .metric-card h4 { margin: 0; font-size: 13px; opacity: 0.9; }
-    .metric-card h2 { margin: 4px 0 0; font-size: 26px; font-weight: 700; }
+    .metric-card h4 {
+        margin: 0; font-size: 11.5px; line-height: 1.25; opacity: 0.92;
+        min-height: 29px; display: flex; align-items: center; justify-content: center;
+    }
+    .metric-card h2 {
+        margin: 6px 0 0; font-size: clamp(15px, 1.55vw, 23px); font-weight: 700;
+        white-space: nowrap; letter-spacing: -0.3px;
+    }
     .stTabs [data-baseweb="tab-list"] { gap: 8px; }
     .stTabs [data-baseweb="tab"] {
         padding: 8px 16px; border-radius: 8px;
