@@ -203,6 +203,90 @@ def estimate_opex_series(
 
 
 # ════════════════════════════════════════════════════════════
+# [C1] 상향식(물량기반 LCC) OPEX 시계열 — 현금흐름 직결
+# ════════════════════════════════════════════════════════════
+# 배경: estimate_lcc_maintenance(app.py)의 물량×표준단가×열화 LCC 엔진은
+#       종전까지 화면 표시만 되고 build_cashflow의 opex_series로 연결되지
+#       않았다(C1 단절). 아래 두 함수가 그 연결을 담당한다.
+#
+# 주의(정직성): LCC 엔진은 "자본적 유지보수(교체·대보수·일상보수)"만 산출하며
+#       일상 운영비(징수·인건·제설·일반관리 등 routine O&M)는 포함하지 않는다.
+#       따라서 총 OPEX = routine O&M baseline + 자본적 유지보수(LCC)로 구성한다.
+#       routine_opex_ratio 기본값은 통행료도로 일상 O&M의 보수적 placeholder이며
+#       실측 보정 전까지는 '가정값'임을 산출 설명에 명시한다.
+#       또한 현재 LCC 물량은 BIM이 아닌 연장(road_length) 추정식이므로,
+#       BIM/IFC 물량 연결 시 이 시계열이 정밀화된다(P1 후속과제).
+
+def lcc_to_annual_series(lcc_df, operation_years):
+    """estimate_lcc_maintenance가 반환한 lcc_df(연도별·부재별 'Cost_억')를
+    운영연차별 자본적 유지보수비 시계열(억원, 명목·할인 전)로 집계.
+
+    Parameters
+    ----------
+    lcc_df : DataFrame  (columns 최소 'Year', 'Cost_억')
+    operation_years : int
+
+    Returns
+    -------
+    np.ndarray shape (operation_years,)  # index 0 = 1년차
+    """
+    series = np.zeros(operation_years)
+    if lcc_df is None or len(lcc_df) == 0:
+        return series
+    try:
+        grp = lcc_df.groupby("Year")["Cost_억"].sum()
+    except Exception:
+        return series
+    for yr, val in grp.items():
+        idx = int(yr) - 1
+        if 0 <= idx < operation_years:
+            series[idx] += float(val)
+    return series
+
+
+def estimate_opex_series_bottomup(
+    lcc_df,
+    annual_revenue_억,
+    operation_years,
+    routine_opex_ratio: float = 0.18,
+    growth_rate: float = 0.025,
+) -> dict:
+    """상향식(물량기반 LCC) OPEX 시계열 — estimate_opex_series와 동일한 dict 형태로
+    반환하여 build_cashflow 경로에 그대로 투입(drop-in)할 수 있다.
+
+    총 OPEX(y) = 일상 O&M(매출비례 baseline) + 자본적 유지보수(LCC, 물량기반)
+
+    - 일상 O&M은 estimate_opex_series와 같이 매출성장만 반영(인플레는 build_cashflow가 적용).
+    - LCC 'Cost_억'은 기준연도 명목값이므로 인플레는 build_cashflow가 적용(이중계상 없음).
+    """
+    cap_maint = lcc_to_annual_series(lcc_df, operation_years)  # 억/년 (기준연도)
+    opex_series = []
+    for y in range(operation_years):
+        rev_growth = (1 + growth_rate) ** y
+        routine = annual_revenue_억 * rev_growth * routine_opex_ratio
+        opex_series.append(round(routine + float(cap_maint[y]), 2))
+
+    opex_arr = np.array(opex_series)
+    avg_ratio = float(opex_arr.mean() / annual_revenue_억) if annual_revenue_억 else 0.0
+    peak_idx = int(np.argmax(opex_arr)) if len(opex_arr) else 0
+    explanation = (
+        f"상향식(실험): 일상 O&M {routine_opex_ratio*100:.0f}%(매출비례·가정값) "
+        f"+ 물량기반 LCC 자본적유지보수(연장 추정물량 × 표준품셈 단가 × 열화모델). "
+        f"평균 OPEX≈매출의 {avg_ratio*100:.1f}% | ※BIM 물량 연결 시 정밀화 예정"
+    )
+    return {
+        "opex_ratio_avg": avg_ratio,
+        "opex_series_억": opex_series,
+        "peak_year": peak_idx + 1,
+        "peak_amount_억": float(opex_arr[peak_idx]) if len(opex_arr) else 0.0,
+        "explanation": explanation,
+        "routine_opex_ratio": routine_opex_ratio,
+        "cap_maint_series_억": cap_maint.tolist(),
+        "is_bottomup": True,
+    }
+
+
+# ════════════════════════════════════════════════════════════
 # 자가 검증
 # ════════════════════════════════════════════════════════════
 if __name__ == "__main__":

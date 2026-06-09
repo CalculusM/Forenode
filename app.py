@@ -37,7 +37,7 @@ from opex_tab import render_opex_tab
 from solver_tab import render_solver_tab
 
 # Forenode v2 — 자동 산출 모듈
-from opex_estimator import estimate_opex_series
+from opex_estimator import estimate_opex_series, estimate_opex_series_bottomup
 from pretest_regressor import estimate_capex_from_route
 
 # ── Plotly (없으면 matplotlib fallback) ──
@@ -1179,17 +1179,33 @@ def main():
         )
         
         st.markdown("---")
-        manual_opex = st.checkbox(
-            "🔧 OPEX 수동 조정 (전문가용)",
-            value=False,
-            help="기본은 자동 산출. 체크 시 사용자 직접 입력 (자동값 override)"
+        opex_mode = st.radio(
+            "OPEX 산출 방식",
+            ["자동 (매출비례 top-down)", "물량기반 LCC (상향식·실험)", "수동 입력"],
+            index=0,
+            help=(
+                "• 자동: 학습데이터(도로공사 4,380건) 매출비례 시계열 (기본)\n"
+                "• 물량기반 LCC: 물량×표준품셈 단가×열화 상향식 → 현금흐름 직결(C1). "
+                "일상 O&M(매출비례 가정) + 자본적 유지보수(LCC) 합산. 실험적·연장기반 추정물량.\n"
+                "• 수동: 사용자가 OPEX 비율 직접 입력"
+            ),
+            key="opex_mode",
         )
-        if manual_opex:
+        opex_use_bottomup = (opex_mode == "물량기반 LCC (상향식·실험)")
+        if opex_mode == "수동 입력":
             opex_ratio_manual = st.slider(
                 "OPEX 비율 수동값(% of 매출)", 10, 55, _bd["opex"], 1
             ) / 100
         else:
             opex_ratio_manual = None
+        if opex_use_bottomup:
+            opex_routine_ratio = st.slider(
+                "일상 O&M 비율(% of 매출, 가정값)", 5, 35, 18, 1,
+                help="LCC는 자본적 유지보수만 산출하므로 일상 운영비 baseline을 더한다. "
+                     "실측 보정 전까지 가정값.",
+            ) / 100
+        else:
+            opex_routine_ratio = 0.18
 
     # ECOS 연동
     st.sidebar.markdown("---")
@@ -1233,11 +1249,29 @@ def main():
         growth_rate=growth / 100,
         inflation=infl / 100,
     )
-    # 수동 override 우선
+    # 수동 override 우선 → 상향식(LCC) → 자동(top-down)
     if opex_ratio_manual is not None:
         opex_ratio = opex_ratio_manual
         opex_series = None  # 수동값 사용 시 시계열 미사용 (build_cashflow가 비율로 계산)
         opex_source = "수동 입력"
+    elif opex_use_bottomup:
+        # [C1] 물량기반 LCC 상향식 → 현금흐름 직결
+        lcc_df_bu, _lcc_total_bu = estimate_lcc_maintenance(
+            road_length, operation_years, wacc_info['wacc'])
+        bu = estimate_opex_series_bottomup(
+            lcc_df_bu, ann_rev, operation_years,
+            routine_opex_ratio=opex_routine_ratio, growth_rate=growth / 100,
+        )
+        opex_ratio = bu['opex_ratio_avg']
+        opex_series = np.array(bu['opex_series_억'])
+        opex_source = "물량기반 LCC (상향식·실험)"
+        # 하류 표시(설명·시계열)도 상향식 결과를 반영하도록 override
+        opex_estimation = {**opex_estimation,
+                           'opex_series_억': bu['opex_series_억'],
+                           'opex_ratio_avg': bu['opex_ratio_avg'],
+                           'explanation': bu['explanation'],
+                           'peak_year': bu['peak_year'],
+                           'peak_amount_억': bu['peak_amount_억']}
     else:
         opex_ratio = opex_estimation['opex_ratio_avg']
         opex_series = np.array(opex_estimation['opex_series_억'])
@@ -2033,12 +2067,19 @@ def main():
         lcc_df, lcc_total = estimate_lcc_maintenance(
             road_length, operation_years, wacc_info['wacc'])
 
+        if opex_source.startswith("물량기반 LCC"):
+            st.success("✅ [C1] 이 LCC 자본적 유지보수가 현금흐름 OPEX로 직결되어 DSCR에 반영됩니다 "
+                       "(상향식 모드). 총 OPEX = 일상 O&M(가정) + 아래 LCC.")
+        else:
+            st.info("ℹ️ 현재 현금흐름 OPEX는 '자동(매출비례)' 모드입니다. 사이드바에서 "
+                    "'물량기반 LCC (상향식·실험)'를 선택하면 아래 LCC가 DSCR에 직결됩니다(C1).")
+
         if len(lcc_df) > 0:
             lc1, lc2 = st.columns([1, 2])
             with lc1:
                 st.metric("유지관리비 현가 합계", f"{lcc_total:,.0f}억원")
                 st.metric("연평균 유지관리비", f"{lcc_total/operation_years:,.1f}억원/년")
-                st.caption("※ 2026 표준품셈 단가 기준 추정")
+                st.caption("※ 2026 표준품셈 단가 기준 추정 · 연장기반 추정물량(BIM 연결 시 정밀화)")
             with lc2:
                 yearly_lcc = lcc_df.groupby('Year')['PV_억'].sum().reset_index()
                 if HAS_PLOTLY:
