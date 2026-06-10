@@ -825,11 +825,9 @@ def generate_deterioration_data(years: int = 30):
     return pd.DataFrame(data)
 
 
-def estimate_lcc_maintenance(road_length_km: float, operation_years: int = 30,
-                              discount_rate: float = 0.045):
-    """도로 시설물 LCC 기반 유지관리비 추정"""
-    # 도로 연장 기반 대략적 물량 산정
-    quantities = {
+def quantities_from_road_length(road_length_km: float) -> dict:
+    """도로 연장 기반 추정 물량(BIM 부재 시 폴백). {MaterialCategory: qty}."""
+    return {
         MaterialCategory.ASPHALT: road_length_km * 1000 * 3.5 * 0.05 * 4,  # ㎥ (4차로, 5cm)
         MaterialCategory.CONCRETE: road_length_km * 50,    # ㎥ (교량 등)
         MaterialCategory.GUARDRAIL: road_length_km * 2000,  # m (양측)
@@ -840,6 +838,22 @@ def estimate_lcc_maintenance(road_length_km: float, operation_years: int = 30,
         MaterialCategory.DRAINAGE: road_length_km * 2000,   # m
     }
 
+
+def bim_quantities_to_categories(extracted: dict) -> dict:
+    """ifc_extract.extract_opex_quantities() 결과 → {MaterialCategory: qty}.
+    카테고리명(문자열, 예 'CONCRETE') → MaterialCategory 매핑. 단위는 이미 일치(㎥/m/EA/ton)."""
+    name_to_cat = {c.name: c for c in MaterialCategory}
+    out = {}
+    for cname, info in (extracted or {}).get("quantities", {}).items():
+        cat = name_to_cat.get(cname)
+        if cat is not None and float(info.get("qty", 0)) > 0:
+            out[cat] = out.get(cat, 0.0) + float(info["qty"])
+    return out
+
+
+def estimate_lcc_from_quantities(quantities: dict, operation_years: int = 30,
+                                 discount_rate: float = 0.045):
+    """물량 dict({MaterialCategory: qty}) → (lcc_df, total_pv_억). 엔진 본체."""
     lcc_data = []
     total_pv = 0
 
@@ -876,6 +890,14 @@ def estimate_lcc_maintenance(road_length_km: float, operation_years: int = 30,
                 })
 
     return pd.DataFrame(lcc_data), total_pv / 1e8
+
+
+def estimate_lcc_maintenance(road_length_km: float, operation_years: int = 30,
+                              discount_rate: float = 0.045):
+    """도로 시설물 LCC 기반 유지관리비 추정 (연장 기반 추정물량 폴백).
+    BIM 물량이 있으면 estimate_lcc_from_quantities(bim_quantities_to_categories(...))를 직접 사용."""
+    return estimate_lcc_from_quantities(
+        quantities_from_road_length(road_length_km), operation_years, discount_rate)
 
 
 # ════════════════════════════════════════════════════════════
@@ -970,6 +992,30 @@ def linked_slider_input(label, min_v, max_v, default, step, key, fmt=None, help=
     return st.session_state[sk]
 
 
+# 사업 프리셋 — 핵심 입력 자동 채움(대표 예시값, 선택 후 자유 수정 가능)
+PROJECT_PRESETS = {
+    "표준 4차로 (45km · 화성-안성형)": {
+        "business_type": "BTO-ann", "road_length": 45, "total_capex": 20725,
+        "construction_years": 5, "operation_years": 30, "daily_traffic": 110000,
+        "bridge_ratio": 15, "tunnel_ratio": 20, "lanes": 4, "toll_per_km": 130,
+        "growth": 2.5, "heavy_ratio": 30,
+    },
+    "천안논산 (81km · BTO-rs)": {
+        "business_type": "BTO-rs", "road_length": 81, "total_capex": 16000,
+        "construction_years": 5, "operation_years": 30, "daily_traffic": 60000,
+        "bridge_ratio": 15, "tunnel_ratio": 8, "lanes": 4, "toll_per_km": 110,
+        "growth": 2.0, "heavy_ratio": 28,
+    },
+    "제이영동 (57km · 산악·다터널)": {
+        "business_type": "BTO-rs", "road_length": 57, "total_capex": 18000,
+        "construction_years": 5, "operation_years": 37, "daily_traffic": 35000,
+        "bridge_ratio": 22, "tunnel_ratio": 30, "lanes": 4, "toll_per_km": 100,
+        "growth": 1.5, "heavy_ratio": 25,
+    },
+}
+_BIZ_OPTIONS = ["BTO", "BTO-rs", "BTO-ann", "BTL", "BTO+BTL"]
+
+
 def main():
     st.set_page_config(
         page_title="BIM·AI 민자도로 수익성 분석",
@@ -1010,12 +1056,27 @@ def main():
     # ── 사이드바 ──
     st.sidebar.title("⚙️ 시나리오 설정")
 
+    # ─── 사업 프리셋 (핵심 입력 자동 채움) ───
+    preset_choice = st.sidebar.selectbox(
+        "📁 사업 프리셋 (자동 채움)",
+        ["직접 입력"] + list(PROJECT_PRESETS.keys()), index=0,
+        help="대표 사업을 고르면 핵심 입력(연장·사업비·교통량·기간·지형 등)이 자동으로 채워집니다. "
+             "이후 자유롭게 수정 가능. (대표 예시값)",
+    )
+    _preset = PROJECT_PRESETS.get(preset_choice, {})
+    # 프리셋 변경 시 linked 입력(연장·사업비·교통량)은 세션값으로 시드
+    if preset_choice != st.session_state.get("_preset_applied"):
+        for _k in ("road_length", "total_capex", "daily_traffic"):
+            if _k in _preset:
+                st.session_state[f"_lk_{_k}"] = _preset[_k]
+        st.session_state["_preset_applied"] = preset_choice
+
     # ─── 사업 유형 (최상단, 다른 변수의 기본값을 결정) ───
     st.sidebar.subheader("📋 사업 유형")
     business_type = st.sidebar.selectbox(
         "사업 유형 선택",
-        options=["BTO", "BTO-rs", "BTO-ann", "BTL", "BTO+BTL"],
-        index=2,  # BTO-ann 기본
+        options=_BIZ_OPTIONS,
+        index=_BIZ_OPTIONS.index(_preset.get("business_type", "BTO-ann")),
         help=(
             "BTO: 수익형 / BTO-rs: 위험분담형(Risk Sharing) / "
             "BTO-ann: 정부지급형(Annuity, BTO-a) / BTL: 임대형 / "
@@ -1040,8 +1101,8 @@ def main():
     st.sidebar.caption("슬라이더로 드래그하거나, 옆 칸에 실측치를 직접 입력하세요.")
     road_length = linked_slider_input("연장(km)", 5, 200, 45, 1, "road_length")
     total_capex = linked_slider_input("총사업비(억)", 1000, 100000, 20725, 100, "total_capex")
-    construction_years = st.sidebar.slider("건설기간(년)", 2, 10, 5)
-    operation_years = st.sidebar.slider("운영기간(년)", 15, 50, 30)
+    construction_years = st.sidebar.slider("건설기간(년)", 2, 10, _preset.get("construction_years", 5))
+    operation_years = st.sidebar.slider("운영기간(년)", 15, 50, _preset.get("operation_years", 30))
 
     # ─── 노선 특성 (Tier 1 통계 모드용) ───
     st.sidebar.subheader("🌄 노선 특성")
@@ -1049,10 +1110,11 @@ def main():
         "지형", options=["평지", "구릉", "산악"], index=0, horizontal=True,
         help="지형 난이도에 따라 CAPEX 보정 (평지 1.0 / 구릉 1.3 / 산악 1.8)"
     )
-    bridge_ratio = st.sidebar.slider("교량 비율(%)", 0, 50, 15, 1) / 100
-    tunnel_ratio = st.sidebar.slider("터널 비율(%)", 0, 70, 20, 1) / 100
+    bridge_ratio = st.sidebar.slider("교량 비율(%)", 0, 50, _preset.get("bridge_ratio", 15), 1) / 100
+    tunnel_ratio = st.sidebar.slider("터널 비율(%)", 0, 70, _preset.get("tunnel_ratio", 20), 1) / 100
     lanes = st.sidebar.radio(
-        "차로 수", options=[2, 4, 6, 8], index=1, horizontal=True
+        "차로 수", options=[2, 4, 6, 8],
+        index=[2, 4, 6, 8].index(_preset.get("lanes", 4)), horizontal=True
     )
 
     # ─── 정부 협약 조건 ───
@@ -1073,12 +1135,14 @@ def main():
     # ─── 수요 ───
     st.sidebar.subheader("🚗 수요")
     daily_traffic = linked_slider_input("일통행량(대)", 5000, 200000, 110000, 500, "daily_traffic")
-    growth = st.sidebar.slider("성장률(%)", -2.0, 8.0, 2.5, 0.1)
-    heavy_ratio = st.sidebar.slider("화물비율(%)", 5, 60, 30)
+    growth = st.sidebar.slider("성장률(%)", -2.0, 8.0, float(_preset.get("growth", 2.5)), 0.1)
+    heavy_ratio = st.sidebar.slider("화물비율(%)", 5, 60, _preset.get("heavy_ratio", 30))
 
     # ─── 통행료 ───
     st.sidebar.subheader("🔥 통행료")
-    toll_per_km = st.sidebar.slider("km단가(원)", 20, 300, _bd["toll"] if _bd["toll"] > 0 else 80, 5)
+    toll_per_km = st.sidebar.slider(
+        "km단가(원)", 20, 300,
+        _preset.get("toll_per_km", _bd["toll"] if _bd["toll"] > 0 else 80), 5)
     heavy_surcharge = st.sidebar.slider("대형할증", 1.0, 5.0, 2.50, 0.1)
 
     # ─── 금융구조 ───
@@ -1198,12 +1262,40 @@ def main():
             ) / 100
         else:
             opex_ratio_manual = None
+        bim_quantities = None
         if opex_use_bottomup:
             opex_routine_ratio = st.slider(
                 "일상 O&M 비율(% of 매출, 가정값)", 5, 35, 18, 1,
                 help="LCC는 자본적 유지보수만 산출하므로 일상 운영비 baseline을 더한다. "
                      "실측 보정 전까지 가정값.",
             ) / 100
+            # BIM(IFC) 업로드 → 형상 물량 자동추출 (없으면 연장 기반 추정)
+            _ifc_up = st.file_uploader(
+                "BIM(IFC) 업로드 — 물량 자동추출 (선택)", type=["ifc", "IFC"], key="bim_ifc",
+                help="업로드하면 형상→물량을 추출해 OPEX를 산정합니다(Qto 없으면 geom 역산). "
+                     "미업로드 시 연장 기반 추정물량 사용.",
+            )
+            if _ifc_up is not None:
+                import tempfile
+                import os as _os
+                from ifc_extract import extract_opex_quantities
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".ifc") as _tf:
+                        _tf.write(_ifc_up.getbuffer())
+                        _tmp = _tf.name
+                    _ext = extract_opex_quantities(_tmp)
+                    bim_quantities = bim_quantities_to_categories(_ext)
+                    try:
+                        _os.unlink(_tmp)
+                    except Exception:
+                        pass
+                    if bim_quantities:
+                        st.success(f"✅ BIM 물량 추출: {len(bim_quantities)}개 공종 "
+                                   f"(schema {_ext.get('schema','?')}, geom 역산 포함)")
+                    else:
+                        st.warning("분류된 물량이 없어 연장 기반 추정으로 진행합니다.")
+                except Exception as _e:
+                    st.error(f"IFC 처리 실패({_e}) — 연장 기반 추정으로 진행합니다.")
         else:
             opex_routine_ratio = 0.18
 
@@ -1256,15 +1348,22 @@ def main():
         opex_source = "수동 입력"
     elif opex_use_bottomup:
         # [C1] 물량기반 LCC 상향식 → 현금흐름 직결
-        lcc_df_bu, _lcc_total_bu = estimate_lcc_maintenance(
-            road_length, operation_years, wacc_info['wacc'])
+        # BIM 물량이 있으면 그것으로, 없으면 연장 기반 추정물량으로 LCC 산출
+        if bim_quantities:
+            lcc_df_bu, _lcc_total_bu = estimate_lcc_from_quantities(
+                bim_quantities, operation_years, wacc_info['wacc'])
+            _opex_src_label = "물량기반 LCC (BIM)"
+        else:
+            lcc_df_bu, _lcc_total_bu = estimate_lcc_maintenance(
+                road_length, operation_years, wacc_info['wacc'])
+            _opex_src_label = "물량기반 LCC (연장추정)"
         bu = estimate_opex_series_bottomup(
             lcc_df_bu, ann_rev, operation_years,
             routine_opex_ratio=opex_routine_ratio, growth_rate=growth / 100,
         )
         opex_ratio = bu['opex_ratio_avg']
         opex_series = np.array(bu['opex_series_억'])
-        opex_source = "물량기반 LCC (상향식·실험)"
+        opex_source = _opex_src_label
         # 하류 표시(설명·시계열)도 상향식 결과를 반영하도록 override
         opex_estimation = {**opex_estimation,
                            'opex_series_억': bu['opex_series_억'],
@@ -2064,12 +2163,18 @@ def main():
 
         st.markdown("---")
         st.subheader("LCC 유지관리비 추정")
-        lcc_df, lcc_total = estimate_lcc_maintenance(
-            road_length, operation_years, wacc_info['wacc'])
+        # 현금흐름과 동일 물량 기준으로 표시 — BIM 업로드 시 BIM 물량, 아니면 연장 추정
+        if bim_quantities:
+            lcc_df, lcc_total = estimate_lcc_from_quantities(
+                bim_quantities, operation_years, wacc_info['wacc'])
+            st.caption("물량 출처: 업로드된 BIM(IFC) 형상 추출")
+        else:
+            lcc_df, lcc_total = estimate_lcc_maintenance(
+                road_length, operation_years, wacc_info['wacc'])
 
         if opex_source.startswith("물량기반 LCC"):
-            st.success("✅ [C1] 이 LCC 자본적 유지보수가 현금흐름 OPEX로 직결되어 DSCR에 반영됩니다 "
-                       "(상향식 모드). 총 OPEX = 일상 O&M(가정) + 아래 LCC.")
+            st.success(f"✅ [C1] 이 LCC 자본적 유지보수가 현금흐름 OPEX로 직결되어 DSCR에 반영됩니다 "
+                       f"(상향식 모드 · {opex_source}). 총 OPEX = 일상 O&M(가정) + 아래 LCC.")
         else:
             st.info("ℹ️ 현재 현금흐름 OPEX는 '자동(매출비례)' 모드입니다. 사이드바에서 "
                     "'물량기반 LCC (상향식·실험)'를 선택하면 아래 LCC가 DSCR에 직결됩니다(C1).")

@@ -79,6 +79,24 @@ _CATEGORY_RULES = [
 ]
 
 
+# OPEX 카테고리 → EX 도로 BIM 공종/표준코드 (추적성). 근거: reference-ex-bim-codes 메모리.
+# ※ 단가는 OPEX 유지보수 = app.STANDARD_COSTS_2026(표준품셈 유지관리) 사용; 아래 cbs_단가코드는
+#   EX/CALS CAPEX 내역(표준시장단가) 추적용 참조값(자동 원가연결 시 활용).
+_CATEGORY_META = {
+    "CONCRETE":        {"공종": "구조물공/옹벽공/터널공", "공종코드": "14", "cbs_단가코드例": "(구조물 콘크리트)"},
+    "ASPHALT":         {"공종": "포장공",                 "공종코드": "—",  "cbs_단가코드例": "(아스콘 표층/기층)"},
+    "STEEL":           {"공종": "구조물공(강구조)",        "공종코드": "14", "cbs_단가코드例": "(강재)"},
+    "REBAR":           {"공종": "구조물공(철근)",          "공종코드": "14", "cbs_단가코드例": "(철근)"},
+    "BEARING":         {"공종": "구조물공(교좌장치 06)",   "공종코드": "14", "cbs_단가코드例": "(교량받침)"},
+    "EXPANSION_JOINT": {"공종": "부대공(신축이음)",        "공종코드": "—",  "cbs_단가코드例": "(신축이음)"},
+    "GUARDRAIL":       {"공종": "교통안전시설공(가드레일)", "공종코드": "—",  "cbs_단가코드例": "(방호울타리)"},
+    "DRAINAGE":        {"공종": "배수공",                 "공종코드": "—",  "cbs_단가코드例": "(측구/배수관)"},
+    "LIGHTING":        {"공종": "부대공/관리시설공(조명·표지)", "공종코드": "80", "cbs_단가코드例": "(조명/표지)"},
+    "PAINT":           {"공종": "구조물공(도장)",          "공종코드": "14", "cbs_단가코드例": "(도장)"},
+    "WATERPROOF":      {"공종": "구조물공(방수)",          "공종코드": "14", "cbs_단가코드例": "(방수)"},
+}
+
+
 def _classify_opex(el) -> tuple[str | None, str]:
     """요소 → (OPEX 카테고리, 측정종류). 매칭 없으면 (None, '')."""
     t = el.is_a()
@@ -195,9 +213,14 @@ def extract_opex_quantities(path: str) -> dict:
             slot["source"] = slot["source"] or "geom"
             src_count["geom"] += 1
 
-    quantities = {c: {"qty": round(d["qty"], 3), "unit": d["unit"],
-                      "source": d["source"], "n": d["n"]}
-                  for c, d in agg.items() if d["qty"] > 0}
+    quantities = {}
+    for c, d in agg.items():
+        if d["qty"] <= 0:
+            continue
+        meta = _CATEGORY_META.get(c, {})
+        quantities[c] = {"qty": round(d["qty"], 3), "unit": d["unit"],
+                         "source": d["source"], "n": d["n"],
+                         "공종": meta.get("공종", ""), "공종코드": meta.get("공종코드", "")}
     return {"schema": model.schema, "source_summary": src_count, "quantities": quantities}
 
 
