@@ -235,6 +235,6 @@ Forenode 융합 레이어   →  IFC를 받아 금융모델 입력값으로 번�
 
 ## 라이선스
 
-본 코드는 2026년 국토·교통 데이터 활용 경진대회 출품 목적으로 공개. 무단 상업적 활용 금지.
+본 코드 무단 (상업적) 활용 금지.
 
 © 2026 Nexus Infra Solutions, Beomgu Ji — All Rights Reserved.
