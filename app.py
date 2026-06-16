@@ -37,7 +37,8 @@ from opex_tab import render_opex_tab
 from solver_tab import render_solver_tab
 
 # Forenode v2 — 자동 산출 모듈
-from opex_estimator import estimate_opex_series, estimate_opex_series_bottomup
+from opex_estimator import (estimate_opex_series, estimate_opex_series_bottomup,
+                            montecarlo_opex_band, load_weibull_ci)
 from pretest_regressor import estimate_capex_from_route
 
 # ── Plotly (없으면 matplotlib fallback) ──
@@ -1413,6 +1414,22 @@ def main():
     # 기본 현금흐름 계산
     cf_df, metrics = build_cashflow(**base_params)
 
+    # ── [TODO①] OPEX 불확실성 밴드 (Weibull CI 전파) + DSCR 밴드 ──
+    opex_band = None
+    dscr_band = None
+    if opex_series is not None and len(opex_series) > 0:
+        try:
+            opex_band = montecarlo_opex_band(
+                opex_series, weibull_ci=load_weibull_ci(), n_sims=400)
+            # P10(낮은 OPEX)→높은 DSCR / P90(높은 OPEX)→낮은 DSCR
+            _, _m_lo = build_cashflow(**{**base_params, 'opex_series_억': np.array(opex_band['p10'])})
+            _, _m_hi = build_cashflow(**{**base_params, 'opex_series_억': np.array(opex_band['p90'])})
+            dscr_band = {'best': _m_lo.get('dscr_min'), 'base': metrics.get('dscr_min'),
+                         'worst': _m_hi.get('dscr_min')}
+        except Exception:
+            opex_band = None
+            dscr_band = None
+
     render_data_source_sidebar()
 
     # ============================================================
@@ -2122,6 +2139,35 @@ def main():
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.line_chart(cf_df.set_index('Year')[['ProjectFCF', 'CumProjectFCF']])
+
+        # ── OPEX 불확실성 밴드 (Weibull CI 전파) ──
+        if opex_band:
+            st.markdown("##### 🎚️ OPEX 불확실성 밴드 (P10–P90)")
+            if dscr_band and all(v is not None for v in dscr_band.values()):
+                dc1, dc2, dc3 = st.columns(3)
+                dc1.metric("DSCR · 낙관 (P10 OPEX)", f"{dscr_band['best']:.2f}")
+                dc2.metric("DSCR · 기준 (P50)", f"{dscr_band['base']:.2f}")
+                dc3.metric("DSCR · 보수 (P90 OPEX)", f"{dscr_band['worst']:.2f}")
+            yrs = list(range(1, len(opex_band['p50']) + 1))
+            if HAS_PLOTLY:
+                bf = go.Figure()
+                bf.add_trace(go.Scatter(x=yrs, y=opex_band['p90'], line=dict(width=0),
+                                        showlegend=False, hoverinfo='skip'))
+                bf.add_trace(go.Scatter(x=yrs, y=opex_band['p10'], fill='tonexty',
+                                        fillcolor='rgba(31,56,100,0.15)', line=dict(width=0),
+                                        name='P10–P90'))
+                bf.add_trace(go.Scatter(x=yrs, y=opex_band['p50'],
+                                        line=dict(color='#1F3864', width=2), name='P50(기준)'))
+                bf.update_layout(height=240, template="plotly_white",
+                                 margin=dict(t=10, b=20, l=10, r=10),
+                                 yaxis_title="OPEX(억/년)", xaxis_title="운영연차")
+                st.plotly_chart(bf, use_container_width=True)
+            else:
+                st.line_chart(pd.DataFrame(
+                    {'P10': opex_band['p10'], 'P50': opex_band['p50'], 'P90': opex_band['p90']},
+                    index=yrs))
+            st.caption(f"※ Weibull 특성수명 CI(η) + 단가 불확실성 전파 (1차 level 밴드, {opex_band['source']}, "
+                       f"n={opex_band['n_sims']}). 타이밍-수준 MC(semi-Markov)는 후순위.")
 
         with st.expander("📋 상세 현금흐름표"):
             display_cols = ['Year', 'CAPEX', 'Revenue', 'OPEX', 'EBITDA', 'Interest',
