@@ -995,11 +995,13 @@ def linked_slider_input(label, min_v, max_v, default, step, key, fmt=None, help=
 
 # 사업 프리셋 — 핵심 입력 자동 채움(대표 예시값, 선택 후 자유 수정 가능)
 PROJECT_PRESETS = {
-    "태안-안성 (94.6km · BTO · 신규 2026)": {
-        "business_type": "BTO", "road_length": 95, "total_capex": 37078,
+    # 태안-안성: 총사업비 37,078억 = 민간투자 21,637 + 건설보조금 7,212 + 보상비 8,229 (PIMAC 적격성조사)
+    # → Forenode capex = 민간투자비 21,637억. 통행료/성장률은 현행 민자 실측으로 보정.
+    "태안-안성 (94.6km · BTO · 민간투자비)": {
+        "business_type": "BTO", "road_length": 95, "total_capex": 21637,
         "construction_years": 6, "operation_years": 30, "daily_traffic": 30000,
-        "bridge_ratio": 20, "tunnel_ratio": 7, "lanes": 4, "toll_per_km": 110,
-        "growth": 2.0, "heavy_ratio": 30,
+        "bridge_ratio": 20, "tunnel_ratio": 7, "lanes": 4, "toll_per_km": 85,
+        "growth": 1.5, "heavy_ratio": 30,
     },
     "표준 4차로 (45km · 화성-안성형)": {
         "business_type": "BTO-ann", "road_length": 45, "total_capex": 20725,
