@@ -901,6 +901,45 @@ def estimate_lcc_maintenance(road_length_km: float, operation_years: int = 30,
         quantities_from_road_length(road_length_km), operation_years, discount_rate)
 
 
+def estimate_lcc_sawtooth_from_config(quantities: dict, operation_years: int = 30,
+                                      discount_rate: float = 0.045):
+    """[step2] config(별표5 주기·수선율)로 톱니파형 LCC 산출.
+    {MaterialCategory: qty} → (lcc_df, total_pv_억). config 없으면 기존 PI엔진 폴백.
+    전면교체(cycle_years, renewal_rate) + 부분수리(partial: 단주기·낮은 수선율) 이벤트를 연도에 배치."""
+    try:
+        import config_loader
+        mats = config_loader.materials()
+    except Exception:
+        mats = {}
+    if not mats:
+        return estimate_lcc_from_quantities(quantities, operation_years, discount_rate)
+
+    rows = []
+    total_pv = 0.0
+    for cat, qty in quantities.items():
+        m = mats.get(cat.name)
+        if not m or qty <= 0:
+            continue
+        unit = float(m.get("unit_cost_won", 0))
+        T = int(m.get("cycle_years", 0) or 0)
+        rho = float(m.get("renewal_rate", 1.0))
+        partial = m.get("partial") or {}
+        pT = int(partial.get("cycle_years", 0) or 0)
+        pr = float(partial.get("rate", 0))
+        for y in range(1, operation_years + 1):
+            cost, action = 0.0, ""
+            if T > 0 and y % T == 0:
+                cost, action = unit * qty * rho, "전면교체"
+            elif pT > 0 and y % pT == 0:
+                cost, action = unit * qty * pr, "부분수리"
+            if cost > 0:
+                pv = cost / (1 + discount_rate) ** y
+                total_pv += pv
+                rows.append({'Year': y, 'Material': cat.value, 'Action': action,
+                             'Cost_억': cost / 1e8, 'PV_억': pv / 1e8})
+    return pd.DataFrame(rows), total_pv / 1e8
+
+
 # ════════════════════════════════════════════════════════════
 # [BENCHMARK] 감사보고서 기반 실적 벤치마크
 # ════════════════════════════════════════════════════════════
@@ -1362,15 +1401,11 @@ def main():
         opex_source = "수동 입력"
     elif opex_use_bottomup:
         # [C1] 물량기반 LCC 상향식 → 현금흐름 직결
-        # BIM 물량이 있으면 그것으로, 없으면 연장 기반 추정물량으로 LCC 산출
-        if bim_quantities:
-            lcc_df_bu, _lcc_total_bu = estimate_lcc_from_quantities(
-                bim_quantities, operation_years, wacc_info['wacc'])
-            _opex_src_label = "물량기반 LCC (BIM)"
-        else:
-            lcc_df_bu, _lcc_total_bu = estimate_lcc_maintenance(
-                road_length, operation_years, wacc_info['wacc'])
-            _opex_src_label = "물량기반 LCC (연장추정)"
+        # [step2] config(별표5) 톱니파형 엔진 사용 (config 없으면 PI엔진 폴백)
+        _q_bu = bim_quantities if bim_quantities else quantities_from_road_length(road_length)
+        lcc_df_bu, _lcc_total_bu = estimate_lcc_sawtooth_from_config(
+            _q_bu, operation_years, wacc_info['wacc'])
+        _opex_src_label = "물량기반 LCC (BIM)" if bim_quantities else "물량기반 LCC (연장추정)"
         bu = estimate_opex_series_bottomup(
             lcc_df_bu, ann_rev, operation_years,
             routine_opex_ratio=opex_routine_ratio, growth_rate=growth / 100,
@@ -2222,14 +2257,14 @@ def main():
 
         st.markdown("---")
         st.subheader("LCC 유지관리비 추정")
-        # 현금흐름과 동일 물량 기준으로 표시 — BIM 업로드 시 BIM 물량, 아니면 연장 추정
+        # 현금흐름과 동일 물량·엔진(config 톱니파형) 기준으로 표시
+        _q_disp = bim_quantities if bim_quantities else quantities_from_road_length(road_length)
+        lcc_df, lcc_total = estimate_lcc_sawtooth_from_config(
+            _q_disp, operation_years, wacc_info['wacc'])
         if bim_quantities:
-            lcc_df, lcc_total = estimate_lcc_from_quantities(
-                bim_quantities, operation_years, wacc_info['wacc'])
-            st.caption("물량 출처: 업로드된 BIM(IFC) 형상 추출")
+            st.caption("물량 출처: 업로드된 BIM(IFC) 형상 추출 · 주기/수선율: 별표5(config)")
         else:
-            lcc_df, lcc_total = estimate_lcc_maintenance(
-                road_length, operation_years, wacc_info['wacc'])
+            st.caption("물량: 연장 기반 추정 · 주기/수선율: 별표5(config)")
 
         if opex_source.startswith("물량기반 LCC"):
             st.success(f"✅ [C1] 이 LCC 자본적 유지보수가 현금흐름 OPEX로 직결되어 DSCR에 반영됩니다 "
