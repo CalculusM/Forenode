@@ -1003,23 +1003,28 @@ PROJECT_PRESETS = {
         "bridge_ratio": 20, "tunnel_ratio": 7, "lanes": 4, "toll_per_km": 85,
         "growth": 1.5, "heavy_ratio": 30,
     },
-    "표준 4차로 (45km · 화성-안성형)": {
-        "business_type": "BTO-ann", "road_length": 45, "total_capex": 20725,
-        "construction_years": 5, "operation_years": 30, "daily_traffic": 110000,
-        "bridge_ratio": 15, "tunnel_ratio": 20, "lanes": 4, "toll_per_km": 130,
-        "growth": 2.5, "heavy_ratio": 30,
+    # 천안논산: 1세대 BTO+MRG(총사업비 15,953=민투 11,589). 통행료 '19년 47.9%↓(인하후 ≈61원/km)+정부보전.
+    # → capex=민투비 11,589, MRG 보전은 모델상 위험분담(BTO-rs)으로 근사.
+    "천안논산 (81km · BTO+MRG)": {
+        "business_type": "BTO-rs", "road_length": 81, "total_capex": 11589,
+        "construction_years": 5, "operation_years": 30, "daily_traffic": 45000,
+        "bridge_ratio": 15, "tunnel_ratio": 8, "lanes": 4, "toll_per_km": 61,
+        "growth": 1.5, "heavy_ratio": 27,
     },
-    "천안논산 (81km · BTO-rs)": {
-        "business_type": "BTO-rs", "road_length": 81, "total_capex": 16000,
-        "construction_years": 5, "operation_years": 30, "daily_traffic": 60000,
-        "bridge_ratio": 15, "tunnel_ratio": 8, "lanes": 4, "toll_per_km": 110,
-        "growth": 2.0, "heavy_ratio": 28,
+    # 제이영동(광주~원주 제2영동): 순수 BTO·MRG 없음(부실, '18 순손실 457억). 운영 30년('16~'46).
+    # 총사업비 15,978 → 민투비 ~12,000. 통행료 ≈78원/km.
+    "제이영동 (57km · BTO · MRG없음)": {
+        "business_type": "BTO", "road_length": 57, "total_capex": 12000,
+        "construction_years": 5, "operation_years": 30, "daily_traffic": 35000,
+        "bridge_ratio": 22, "tunnel_ratio": 30, "lanes": 4, "toll_per_km": 78,
+        "growth": 1.0, "heavy_ratio": 25,
     },
-    "제이영동 (57km · 산악·다터널)": {
-        "business_type": "BTO-rs", "road_length": 57, "total_capex": 18000,
-        "construction_years": 5, "operation_years": 37, "daily_traffic": 35000,
-        "bridge_ratio": 22, "tunnel_ratio": 30, "lanes": 4, "toll_per_km": 100,
-        "growth": 1.5, "heavy_ratio": 25,
+    # 화성-안성: BTO-a(손익공유, 적격성'25.10 통과). 총사업비 20,725 → 민투비 ~13,000 추정. 교통량/통행료 미확정.
+    "화성-안성 (45km · BTO-a · 예비)": {
+        "business_type": "BTO-ann", "road_length": 45, "total_capex": 13000,
+        "construction_years": 5, "operation_years": 30, "daily_traffic": 55000,
+        "bridge_ratio": 15, "tunnel_ratio": 20, "lanes": 4, "toll_per_km": 100,
+        "growth": 2.0, "heavy_ratio": 30,
     },
 }
 _BIZ_OPTIONS = ["BTO", "BTO-rs", "BTO-ann", "BTL", "BTO+BTL"]
