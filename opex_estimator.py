@@ -287,6 +287,79 @@ def estimate_opex_series_bottomup(
 
 
 # ════════════════════════════════════════════════════════════
+# [TODO①] 불확실성 밴드 — Weibull CI → OPEX P10/P50/P90 전파
+# ════════════════════════════════════════════════════════════
+# 배경: weibull_fit.py가 포장 열화 Weibull(β, η)과 95% CI(부트스트랩)를 산출하나
+#       OPEX 엔진과 미연결이었음. 여기서 η(특성수명) CI를 OPEX 수준 불확실성으로 전파한다.
+# 1차(level) 밴드: η가 작을수록 보수 빈도↑ → OPEX↑ (multiplier = η_hat/η_sample).
+#   + 단가 불확실성(lognormal). ※타이밍-수준 MC(semi-Markov)는 후순위(🔵).
+
+def load_weibull_ci(path: str = None) -> dict | None:
+    """weibull_params.json → {eta_hat, eta_lo, eta_hi, beta_hat, beta_lo, beta_hi}. 없으면 None."""
+    p = path or os.path.join(_BASE_DIR, "weibull_params.json")
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            d = json.load(f)
+    except Exception:
+        return None
+    eta_lo = d.get("eta_ci_lower")
+    eta_hi = d.get("eta_ci_upper")
+    if eta_lo is None and isinstance(d.get("eta_ci_95"), list):
+        eta_lo, eta_hi = d["eta_ci_95"]
+    beta_lo = d.get("beta_ci_lower")
+    beta_hi = d.get("beta_ci_upper")
+    if beta_lo is None and isinstance(d.get("beta_ci_95"), list):
+        beta_lo, beta_hi = d["beta_ci_95"]
+    if d.get("eta_hat") is None or eta_lo is None or eta_hi is None:
+        return None
+    return {"eta_hat": float(d["eta_hat"]), "eta_lo": float(eta_lo), "eta_hi": float(eta_hi),
+            "beta_hat": float(d.get("beta_hat", 1.0)),
+            "beta_lo": float(beta_lo) if beta_lo is not None else None,
+            "beta_hi": float(beta_hi) if beta_hi is not None else None}
+
+
+def montecarlo_opex_band(base_series, weibull_ci: dict = None, n_sims: int = 500,
+                         cost_cv: float = 0.12, seed: int = 20260612) -> dict:
+    """OPEX 시계열 → P10/P50/P90 불확실성 밴드 (몬테카를로).
+
+    Parameters
+    ----------
+    base_series : list/array  P50 OPEX 시계열(억/년)
+    weibull_ci  : load_weibull_ci() 결과. None이면 단가 불확실성만.
+    cost_cv     : 단가 변동계수(lognormal). 표준단가 미확정 시 보수적으로 크게.
+
+    Returns dict: p10/p50/p90/mean 시계열 + n_sims + source.
+    """
+    base = np.asarray(base_series, dtype=float)
+    if base.size == 0:
+        return {"p10": [], "p50": [], "p90": [], "mean": [], "n_sims": 0, "source": "empty"}
+    rng = np.random.default_rng(seed)
+    sims = np.empty((n_sims, base.size))
+    src = []
+    eta_sd = None
+    if weibull_ci:
+        eta_sd = max(1e-6, (weibull_ci["eta_hi"] - weibull_ci["eta_lo"]) / (2 * 1.96))
+        src.append("Weibull η CI")
+    src.append(f"단가 cv={cost_cv:.0%}")
+    for i in range(n_sims):
+        m = 1.0
+        if weibull_ci:
+            eta_s = max(0.1, rng.normal(weibull_ci["eta_hat"], eta_sd))
+            m *= weibull_ci["eta_hat"] / eta_s   # 특성수명↓ → 보수빈도↑ → OPEX↑
+        # 단가 lognormal (평균 보존: E[exp(N(-σ²/2, σ²))]=1)
+        m *= float(np.exp(rng.normal(-0.5 * cost_cv ** 2, cost_cv)))
+        sims[i] = base * m
+    return {
+        "p10": np.percentile(sims, 10, axis=0).round(2).tolist(),
+        "p50": np.percentile(sims, 50, axis=0).round(2).tolist(),
+        "p90": np.percentile(sims, 90, axis=0).round(2).tolist(),
+        "mean": sims.mean(axis=0).round(2).tolist(),
+        "n_sims": n_sims,
+        "source": " + ".join(src),
+    }
+
+
+# ════════════════════════════════════════════════════════════
 # 자가 검증
 # ════════════════════════════════════════════════════════════
 if __name__ == "__main__":
