@@ -53,3 +53,5 @@ app_patch_guide.py
 integration_guide.py
 indexed_files.csv
 폴더정리방법.txt
+# 디버그 로그
+debug.log

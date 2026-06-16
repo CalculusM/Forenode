@@ -1,0 +1,48 @@
+{
+  "_meta": {
+    "purpose": "동적 OPEX 엔진 표준 파라미터 단일 출처 (app.py 하드코딩 DETERIORATION_MODELS/STANDARD_COSTS_2026 외부화)",
+    "updated": "2026-06-12",
+    "sources": {
+      "cycle_renewal": "공동주택관리법 시행규칙 별표5(수선주기·수선율) + 도로포장 유지보수 실무편람/서울시 매뉴얼",
+      "deterioration": "app.py DETERIORATION_MODELS (열화곡선) — 별표5/품셈 기반 추정",
+      "unit_cost": "건설공사 표준품셈 2026 유지관리편 (단가 placeholder, 물가정보/조달청 일위대가로 갱신 예정)",
+      "inspection": "시설물안전법 시행령 별표3 (안전점검·정밀진단·성능평가 실시시기)",
+      "lcc": "생애주기비용(LCC) 분석 및 평가요령 (국토부 행정규칙)",
+      "env_factor": "ISO 15686 factor method (ESLC = RSLC x A..G)"
+    },
+    "note": "cycle_years=전면교체 주기(renewal_rate=1.0), partial=부분수리(단주기·낮은 수선율) → 톱니파형 OPEX. unit_cost 일부는 placeholder(확정 전 가정값)."
+  },
+
+  "lcc": {
+    "discount_rate_real": 0.045,
+    "analysis_years_default": 30,
+    "analysis_years_range": [30, 50]
+  },
+
+  "materials": {
+    "ASPHALT":         {"공종": "포장공",   "unit_cost_won": 80000,   "unit": "m3",  "cycle_years": 12, "renewal_rate": 1.0, "deterioration": {"type": "linear",      "rate": 5.0,  "life": 20}, "cost_confirmed": false},
+    "CONCRETE":        {"공종": "구조물공", "unit_cost_won": 135000,  "unit": "m3",  "cycle_years": 50, "renewal_rate": 1.0, "deterioration": {"type": "weibull", "shape": 2.5, "scale": 50, "life": 50}, "cost_confirmed": false},
+    "STEEL":           {"공종": "구조물공", "unit_cost_won": 2350000, "unit": "ton", "cycle_years": 40, "renewal_rate": 1.0, "deterioration": {"type": "exponential", "k": 0.02,  "life": 40}, "cost_confirmed": false},
+    "REBAR":           {"공종": "구조물공", "unit_cost_won": 950000,  "unit": "ton", "cycle_years": 50, "renewal_rate": 1.0, "deterioration": {"type": "exponential", "k": 0.015, "life": 50}, "cost_confirmed": false},
+    "BEARING":         {"공종": "구조물공(교좌장치)", "unit_cost_won": 5000000, "unit": "EA", "cycle_years": 25, "renewal_rate": 1.0, "deterioration": {"type": "weibull", "shape": 3.0, "scale": 25, "life": 25}, "cost_confirmed": false},
+    "EXPANSION_JOINT": {"공종": "부대공(신축이음)",   "unit_cost_won": 3500000, "unit": "m",  "cycle_years": 15, "renewal_rate": 1.0, "deterioration": {"type": "weibull", "shape": 2.0, "scale": 15, "life": 15}, "cost_confirmed": false},
+    "GUARDRAIL":       {"공종": "교통안전시설공",     "unit_cost_won": 45000,   "unit": "m",  "cycle_years": 30, "renewal_rate": 1.0, "deterioration": {"type": "linear", "rate": 3.3,  "life": 30}, "cost_confirmed": false},
+    "PAINT":           {"공종": "구조물공(도장)",     "unit_cost_won": 15000,   "unit": "m2", "cycle_years": 10, "renewal_rate": 1.0, "partial": {"cycle_years": 5, "rate": 0.5}, "deterioration": {"type": "linear", "rate": 10.0, "life": 10}, "cost_confirmed": false},
+    "WATERPROOF":      {"공종": "구조물공(방수)",     "unit_cost_won": 25000,   "unit": "m2", "cycle_years": 25, "renewal_rate": 1.0, "partial": {"cycle_years": 8, "rate": 0.1}, "deterioration": {"type": "weibull", "shape": 2.0, "scale": 20, "life": 20}, "cost_confirmed": false},
+    "DRAINAGE":        {"공종": "배수공",   "unit_cost_won": 80000,   "unit": "m",  "cycle_years": 40, "renewal_rate": 1.0, "deterioration": {"type": "linear", "rate": 2.5,  "life": 40}, "cost_confirmed": false},
+    "LIGHTING":        {"공종": "부대공/관리시설공",  "unit_cost_won": 2000000, "unit": "EA", "cycle_years": 15, "renewal_rate": 1.0, "deterioration": {"type": "linear", "rate": 6.7,  "life": 15}, "cost_confirmed": false}
+  },
+
+  "inspection_cycle_years": {
+    "_unit": "회/주기(년). 등급별 점검 간격. 점검비는 주기 고정 캐시플로로 삽입.",
+    "정기안전점검":   {"A": 0.5, "B": 0.5, "C": 0.5, "D": 0.333, "E": 0.333},
+    "정밀안전점검":   {"A": 3,   "B": 2,   "C": 1,   "D": 1,     "E": 1},
+    "정밀안전진단":   {"A": 6,   "B": 5,   "C": 4,   "D": 4,     "E": 4},
+    "성능평가":       {"A": 5,   "B": 5,   "C": 5,   "D": 5,     "E": 5}
+  },
+
+  "env_factor_iso15686": {
+    "_note": "노출등급(교통량·기후) 단순 3단계 룩업. T_적용 = T_기준 x factor.",
+    "low": 0.8, "normal": 1.0, "high": 1.2
+  }
+}
