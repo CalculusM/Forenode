@@ -310,6 +310,31 @@ def build_cashflow(
     # 자기자본 IRR
     equity_irr = calc_irr(equity_fcf.tolist())
 
+    # 협약 기준 사업수익률 (실질·세전) — 한국 민자 실시협약의 핵심 지표.
+    #   세전 사업FCF(매출−운영비−CAPEX, 세금 전)의 IRR을 물가로 디플레이트.
+    #   세후 실질은 real_irr로 병기.
+    pretax_project_fcf = np.zeros(total_years + 1)
+    for _y in range(1, total_years + 1):
+        pretax_project_fcf[_y] = (-capex_schedule[_y] if _y <= construction_years
+                                  else revenue[_y] - opex[_y])
+    pretax_irr = calc_irr(pretax_project_fcf.tolist())
+    agreed_return_real_pretax = ((1 + pretax_irr) / (1 + inflation) - 1
+                                 if not math.isnan(pretax_irr) else float('nan'))
+
+    # MIRR (수정 IRR) — 재투자율=할인율, 조달율=부채금리. IRR의 재투자·복수해 결함 교정.
+    def calc_mirr(cashflows, finance_rate, reinvest_rate):
+        cfs = [float(c) for c in cashflows]
+        n = len(cfs) - 1
+        if n <= 0:
+            return float('nan')
+        fv_pos = sum(cf * (1 + reinvest_rate) ** (n - t) for t, cf in enumerate(cfs) if cf > 0)
+        pv_neg = sum(cf / (1 + finance_rate) ** t for t, cf in enumerate(cfs) if cf < 0)
+        if pv_neg == 0 or fv_pos <= 0:
+            return float('nan')
+        return (fv_pos / (-pv_neg)) ** (1 / n) - 1
+    project_mirr = calc_mirr(project_fcf.tolist(), debt_rate, discount_rate)
+    equity_mirr = calc_mirr(equity_fcf.tolist(), debt_rate, discount_rate)
+
     # DSCR (연도별) — CFADS(세후 영업현금 = 매출 − 운영비 − 세금) ÷ 원리금
     dscr_arr = np.zeros(total_years + 1)
     for y in range(construction_years + 1, total_years + 1):
@@ -337,18 +362,27 @@ def build_cashflow(
     # LLCR (Loan Life Coverage Ratio) — 잔여 대출기간 CFADS 현가 ÷ 잔존부채
     # CFADS = 매출 − 운영비 − 세금 (DSCR 분자와 동일 정의)
     cfads = revenue - opex - tax
-    llcr_arr = np.zeros(total_years + 1)
+    # 대출 만기연도(잔존부채가 사실상 0이 되는 시점) — LLCR은 만기까지, PLCR은 사업종료까지
+    loan_maturity = total_years
+    for _y in range(total_years, construction_years, -1):
+        if debt_balance[_y] > 1e-6:
+            loan_maturity = _y
+            break
+    llcr_arr = np.zeros(total_years + 1)   # 잔여 대출기간 CFADS 현가 ÷ 잔존부채
+    plcr_arr = np.zeros(total_years + 1)   # 사업 잔여 전기간 CFADS 현가 ÷ 잔존부채 (≥ LLCR)
     for y in range(construction_years + 1, total_years + 1):
         if debt_balance[y] > 1e-9:
-            # y 시점 이후(포함) 운영연도의 CFADS를 debt_rate로 y로 할인
-            future_idx = np.arange(y, total_years + 1)
-            disc = np.array([1 / (1 + debt_rate)**(t - y) for t in future_idx])
-            pv_cfads = np.sum(cfads[future_idx] * disc)
-            llcr_arr[y] = pv_cfads / debt_balance[y]
+            idx_ll = np.arange(y, max(y, loan_maturity) + 1)
+            llcr_arr[y] = np.sum(cfads[idx_ll] / (1 + debt_rate) ** (idx_ll - y)) / debt_balance[y]
+            idx_pl = np.arange(y, total_years + 1)
+            plcr_arr[y] = np.sum(cfads[idx_pl] / (1 + debt_rate) ** (idx_pl - y)) / debt_balance[y]
     op_llcr = llcr_arr[construction_years + 1: total_years + 1]
     op_llcr_pos = op_llcr[op_llcr > 0]
     llcr_min = float(np.min(op_llcr_pos)) if len(op_llcr_pos) > 0 else 0.0
     llcr_avg = float(np.mean(op_llcr_pos)) if len(op_llcr_pos) > 0 else 0.0
+    op_plcr = plcr_arr[construction_years + 1: total_years + 1]
+    op_plcr_pos = op_plcr[op_plcr > 0]
+    plcr_min = float(np.min(op_plcr_pos)) if len(op_plcr_pos) > 0 else 0.0
     ebitda_avg = float(np.mean(ebitda[construction_years + 1:])) if operation_years > 0 else 0.0
 
     # 선순위 전용 DSCR (overlay) — 선순위 트랜치를 독립 annuity(선순위 금리)로 모델링한 커버리지.
@@ -405,7 +439,11 @@ def build_cashflow(
         'npv': npv,
         'nominal_irr': nominal_irr,
         'real_irr': real_irr,
+        'agreed_return_real_pretax': agreed_return_real_pretax,  # 협약 기준 사업수익률(실질·세전)
         'equity_irr': equity_irr,
+        'project_mirr': project_mirr,
+        'equity_mirr': equity_mirr,
+        'plcr_min': plcr_min,
         'roe': roe,
         'dscr_min': dscr_min,
         'dscr_avg': dscr_avg,
@@ -1578,7 +1616,7 @@ def main():
     with col4:
         roe_color = "green" if metrics['roe'] > 0 else "red"
         st.markdown(f"""<div class="metric-card {roe_color}">
-            <h4>ROE (배당수익률)</h4><h2>{metrics['roe']*100:.1f}%</h2></div>""",
+            <h4>자기자본순이익률(ROE)</h4><h2>{metrics['roe']*100:.1f}%</h2></div>""",
             unsafe_allow_html=True)
     with col5:
         dscr_color = "green" if metrics['dscr_min'] >= 1.0 else "red"
@@ -1865,7 +1903,7 @@ def main():
             st.markdown("**🏢 사업주(SPC 출자자) — 자기자본 회수 (Equity IRR·배당)**")
             s1, s2, s3, s4 = st.columns(4)
             s1.metric("자기자본IRR", _rl_eirr_txt)
-            s2.metric("ROE(배당수익률)", f"{metrics['roe']*100:.1f}%")
+            s2.metric("자기자본순이익률(ROE)", f"{metrics['roe']*100:.1f}%")
             s3.metric("요구수익률 Ke", f"{ke*100:.1f}%")
             s4.metric("NPV(프로젝트·@WACC)", f"{metrics['npv']:,.0f}억")
             if _rl_eirr_ok and _rl_eirr >= ke:
@@ -1874,6 +1912,17 @@ def main():
                 st.warning(f"자기자본IRR {_rl_eirr_txt} < Ke {ke*100:.1f}% — 통행료·자본구조·정부 보전 조정 필요.")
             else:
                 st.error("자기자본IRR 산출 불가/음수 — 현 가정에서 출자 회수 곤란.")
+            with st.expander("📐 추가 재무지표 (협약수익률·MIRR·PLCR)"):
+                e1, e2, e3, e4 = st.columns(4)
+                _ag = metrics.get('agreed_return_real_pretax')
+                e1.metric("협약 사업수익률(실질·세전)", f"{_ag*100:.1f}%" if _ag == _ag else "—")
+                _rr = metrics.get('real_irr')
+                e2.metric("실질 사업수익률(세후)", f"{_rr*100:.1f}%" if _rr == _rr else "—")
+                _pm = metrics.get('project_mirr')
+                e3.metric("사업 MIRR", f"{_pm*100:.1f}%" if _pm == _pm else "—")
+                e4.metric("PLCR(min)", f"{metrics.get('plcr_min', 0):.2f}")
+                st.caption("협약수익률=실시협약 기준(실질·세전, 세후 병기) · MIRR=IRR 재투자·복수해 결함 교정 · "
+                           "PLCR=사업 전기간 부채커버(≥LLCR). IRR 단독 판단 금지, NPV·DSCR 병행.")
             st.caption(
                 "심화 ▸ **💵 배당 타임라인**(위 스냅샷) · **🔄 재구조화 단계**(MRG 재협상·관리운영권) · "
                 "what-if ▸ **🎯 요구수익률 솔버**(사업주 프리셋: 목표 IRR 역산)."
