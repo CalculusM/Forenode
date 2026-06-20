@@ -133,11 +133,14 @@ def build_cashflow(
         
         revenue[y] = annual_revenue_억 * rev_growth * toll_adj
         
-        # OPEX
+        # OPEX — revenue와 동일 basis(성장 반영, 인플레 미적용)로 일치시킴.
+        #   ※ 버그수정: estimate_opex_series 시계열은 이미 성장(growth)을 반영하므로
+        #     여기서 infl_factor를 또 곱하면 revenue(성장만) 대비 OPEX만 인플레만큼
+        #     매년 부풀려져 말년에 OPEX>매출 → CFADS 음수(DSCR_min 음수·LLCR<1) 아티팩트 발생.
         if opex_series_억 is not None and op_year - 1 < len(opex_series_억):
-            opex[y] = opex_series_억[op_year - 1] * infl_factor
+            opex[y] = opex_series_억[op_year - 1]
         else:
-            opex[y] = annual_revenue_억 * opex_ratio * infl_factor
+            opex[y] = annual_revenue_억 * opex_ratio * rev_growth
         
         # MRG 보전금 (수요 위험 — BTO-rs, BTO-ann)
         # 협약 추정수입(통행료 조정 전) 대비 mrg_ratio를 floor로 보장.
