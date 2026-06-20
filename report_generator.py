@@ -202,6 +202,32 @@ def _chart_opex_series(opex_estimation: dict) -> bytes:
     return buf.read()
 
 
+def _chart_opex_band(opex_estimation: dict) -> bytes:
+    """동적 OPEX 시계열 + 불확실성 밴드(P10/P50/P90). band 없으면 단일선."""
+    opex = opex_estimation['opex_series_억']
+    years = list(range(1, len(opex) + 1))
+    band = opex_estimation.get('band')
+    fig, ax = plt.subplots(figsize=(6.6, 4.6))
+    if band and band.get('p10') and band.get('p90'):
+        ax.fill_between(years, band['p10'], band['p90'], alpha=0.18,
+                        color='#1F3864', label='P10–P90')
+        ax.plot(years, band.get('p50', opex), color='#1F3864', linewidth=2, label='P50 (기준)')
+        ax.legend(fontsize=8, loc='upper left')
+    else:
+        ax.fill_between(years, opex, alpha=0.18, color='#1F3864')
+        ax.plot(years, opex, color='#1F3864', linewidth=2, marker='o', markersize=2)
+    ax.set_xlabel('운영 연차')
+    ax.set_ylabel('OPEX (억원/년)')
+    ax.set_title('동적 OPEX 시계열 · 불확실성 밴드')
+    ax.grid(True, alpha=0.3)
+    buf = io.BytesIO()
+    plt.tight_layout()
+    plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    buf.seek(0)
+    return buf.read()
+
+
 def _chart_capex_comparison(capex_ref: dict, user_capex: int) -> bytes:
     """CAPEX 비교 막대 차트"""
     labels = ['사용자 입력', '회귀 추정\n(중앙값)', '회귀 하한\n(-20%)', '회귀 상한\n(+20%)']
@@ -385,88 +411,118 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     ))
     story.append(Spacer(1, 6 * mm))
     
-    metrics = ctx['metrics']
-    
-    # KPI 표 (3×2)
-    npv = metrics['npv']
-    irr = metrics['nominal_irr']
-    real_irr = metrics['real_irr']
-    dscr_min = metrics['dscr_min']
-    dscr_avg = metrics['dscr_avg']
-    roe = metrics['roe']
-    bc = metrics['bc_ratio']
-    
-    kpi_data = [
-        ['지표', '값', '평가', '지표', '값', '평가'],
-        [
-            'NPV', f'{npv:,.0f} 억',
-            '흑자' if npv >= 0 else '적자',
-            'IRR (명목)', f'{irr*100:.2f}%',
-            f'WACC {ctx["wacc"]*100:.1f}% 대비',
-        ],
-        [
-            'IRR (불변)', f'{real_irr*100:.2f}%', '',
-            'DSCR (최소)', f'{dscr_min:.2f}',
-            '양호' if dscr_min >= 1.2 else ('경계' if dscr_min >= 1.0 else '위험'),
-        ],
-        [
-            'DSCR (평균)', f'{dscr_avg:.2f}', '',
-            'ROE', f'{roe*100:.2f}%', '',
-        ],
-        [
-            'B/C ratio', f'{bc:.2f}',
-            '적합' if bc >= 1.0 else '부적합',
-            'PSC ratio', f'{bc:.2f}',
-            '(B/C 동일)',
-        ],
+    m = ctx['metrics']
+
+    def _pct(v):
+        return f'{v*100:.1f}%' if isinstance(v, (int, float)) and v == v else '—'
+
+    def _num(v):
+        return f'{v:.2f}' if isinstance(v, (int, float)) and v == v else '—'
+
+    npv = m.get('npv', 0)
+    dscr_min = m.get('dscr_min', 0) or 0
+    bc = m.get('bc_ratio', m.get('bc', 0)) or 0
+
+    # ── 2분할 대시보드: 좌 KPI 표(신지표 포함) / 우 동적 OPEX 밴드 차트 ──
+    kpi_rows = [
+        ['지표', '값', '평가'],
+        ['NPV (프로젝트)', f"{npv:,.0f}억", '흑자' if npv >= 0 else '적자'],
+        ['IRR (명목)', _pct(m.get('nominal_irr')), f"WACC {ctx['wacc']*100:.1f}%"],
+        ['IRR (실질·세후)', _pct(m.get('real_irr')), ''],
+        ['협약수익률 (실질·세전)', _pct(m.get('agreed_return_real_pretax')), '★ 핵심'],
+        ['Equity IRR', _pct(m.get('equity_irr')), '출자자'],
+        ['MIRR (사업)', _pct(m.get('project_mirr')), '재투자 교정'],
+        ['DSCR (최소)', _num(dscr_min), '양호' if dscr_min >= 1.2 else ('경계' if dscr_min >= 1.0 else '위험')],
+        ['DSCR (평균)', _num(m.get('dscr_avg')), ''],
+        ['Senior DSCR (최소)', _num(m.get('senior_dscr_min')), '선순위'],
+        ['LLCR (최소)', _num(m.get('llcr_min')), '대주'],
+        ['PLCR (최소)', _num(m.get('plcr_min')), '≥ LLCR'],
+        ['ROE', _pct(m.get('roe')), ''],
+        ['B/C · PSC', _num(bc), '적합' if bc >= 1.0 else '부적합'],
     ]
-    t = Table(kpi_data, colWidths=[24*mm, 22*mm, 28*mm, 24*mm, 22*mm, 28*mm])
-    t.setStyle(TableStyle([
+    kpi_t = Table(kpi_rows, colWidths=[36 * mm, 22 * mm, 22 * mm])
+    kpi_t.setStyle(TableStyle([
         ('FONTNAME', (0, 0), (-1, -1), _KOR_FONT),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1F3864')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CCCCCC')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F5F7FB')]),
+        ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor('#FDF1DC')),
+        ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#CCCCCC')),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+        ('TOPPADDING', (0, 0), (-1, -1), 2.3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2.3),
     ]))
-    story.append(t)
-    story.append(Spacer(1, 8 * mm))
-    
+    try:
+        _chart_img = Image(io.BytesIO(_chart_opex_band(ctx['opex_estimation'])),
+                           width=84 * mm, height=60 * mm)
+    except Exception:
+        _chart_img = Paragraph('', body_style)
+    dash = Table([[kpi_t, _chart_img]], colWidths=[82 * mm, 88 * mm])
+    dash.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    story.append(dash)
+    story.append(Spacer(1, 6 * mm))
+
     # VfM 판단
     story.append(Paragraph("VfM 적격성 판단", h2_style))
-    
     if bc >= 1.3 and dscr_min >= 1.20:
         judgment = "민자 매우 적합"
-        rec = "정부 보전금 없이도 민간 사업주가 수익을 낼 수 있는 구조. BTO 또는 BTO-rs 사업유형 검토 권장."
+        rec = "정부 보전금 없이도 민간 사업주가 수익을 낼 수 있는 구조. BTO/BTO-rs 검토 권장."
     elif bc >= 1.0 and dscr_min >= 1.05:
         judgment = "민자 적합"
-        rec = "현재 조건으로 사업 추진 가능. 민감도 분석에서 핵심 리스크 변수 확인 필요."
+        rec = "현재 조건으로 사업 추진 가능. 민감도·스트레스에서 핵심 리스크 변수 확인 필요."
     elif bc >= 0.85:
         judgment = "경계선 — 재구조화 검토"
-        rec = "사업 조건 보완 필요. MRG 상향, 운영기간 연장, BTO-ann 전환 등 검토 권장."
+        rec = "사업 조건 보완 필요. MRG 상향·운영기간 연장·BTO-ann 전환 등 검토."
     else:
-        judgment = "민자 부적합"
-        rec = "재정사업 전환 또는 사업계획 전면 재검토 권장."
-    
-    judgment_data = [
-        ['판단 결과', judgment],
-        ['권고 사항', rec],
-    ]
-    t = Table(judgment_data, colWidths=[35 * mm, 115 * mm])
+        judgment = "민자 부적합 (정부지원 의존)"
+        rec = "민간 자력 회수 곤란. 건설보조금·MRG 등 정부지원 또는 재정사업 전환 검토."
+    judgment_data = [['판단 결과', judgment], ['권고 사항', rec]]
+    t = Table(judgment_data, colWidths=[35 * mm, 135 * mm])
     t.setStyle(TableStyle([
         ('FONTNAME', (0, 0), (-1, -1), _KOR_FONT),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('FONTSIZE', (0, 0), (-1, -1), 9.5),
         ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#E3F2FD')),
         ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#1F3864')),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CCCCCC')),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('LEFTPADDING', (0, 0), (-1, -1), 10),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 7),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
     ]))
     story.append(t)
+
+    # ── 주체별 관점 강조 (역할 선택 시) ──
+    _ROLE_FOCUS = {
+        '주무관청': ('주무관청 / CEPHIS', 'VfM·PSC · 협약수익률 · 운영비 산정근거(별표5·표준품셈)'),
+        '대주': ('금융주관사 / 대주단', 'DSCR(최소·평균) · LLCR · PLCR · Senior DSCR · 부채 커버넌트'),
+        '사업주': ('SPC / 사업주(출자자)', 'Equity IRR · MIRR · 배당 타임라인 · 핸드백 리저브'),
+        '신평사': ('신용평가사', 'OPEX 가정 물리근거 · 스트레스 · 하방 시나리오 · 등급 근거'),
+        '운용사': ('자산운용사', '잔존가치 · 재구조화 · 자금재조달(LLCR/PLCR)'),
+    }
+    _rk = ctx.get('role')
+    if _rk in _ROLE_FOCUS:
+        story.append(Spacer(1, 5 * mm))
+        _rn, _rf = _ROLE_FOCUS[_rk]
+        rt = Table([[f'관점: {_rn}', f'핵심 지표: {_rf}']], colWidths=[45 * mm, 125 * mm])
+        rt.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), _KOR_FONT),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BACKGROUND', (0, 0), (0, 0), colors.HexColor('#1F3864')),
+            ('TEXTCOLOR', (0, 0), (0, 0), colors.white),
+            ('BACKGROUND', (1, 0), (1, 0), colors.HexColor('#FDF1DC')),
+            ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#CCCCCC')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(rt)
     story.append(PageBreak())
     
     # ════════════════════════════════════════════════════════
