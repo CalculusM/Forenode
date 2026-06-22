@@ -1595,6 +1595,36 @@ def main():
         f"(±20%: {capex_reference['capex_low_억']:,}~{capex_reference['capex_high_억']:,}) {_capex_check}"
     )
 
+    # ── PDF 보고서·심화탭이 공유하는 분석 컨텍스트 (KPI 위에서 미리 조립) ──
+    phase_context = {
+        'business_type': business_type,
+        'road_length': road_length,
+        'lanes': lanes,
+        'terrain': terrain,
+        'bridge_ratio': bridge_ratio,
+        'tunnel_ratio': tunnel_ratio,
+        'total_capex_user': total_capex,
+        'operation_years': operation_years,
+        'construction_years': construction_years,
+        'annual_revenue': ann_rev,
+        'mrg_ratio': mrg_ratio,
+        'mcc_ratio': mcc_ratio,
+        'restructuring_year': restructuring_year,
+        'equity_recovery_method': equity_recovery_method,
+        'debt_repayment_method': debt_repayment_method,
+        'opex_estimation': opex_estimation,
+        'capex_reference': capex_reference,
+        'metrics': metrics,
+        'wacc': wacc_info['wacc'],
+        # 선순위·후순위 자금구조 (v2.1 추가)
+        'senior_ratio': senior_ratio,
+        'senior_rate': senior_rate,
+        'sub_rate': sub_rate,
+        # 해지시지급금 (v2.1 추가, 시점 4 재구조화 활용)
+        # 통상 해지시지급금은 건설비용과 동일하게 책정 (나무위키·KDB 자료)
+        'termination_payment': total_capex,
+    }
+
     # KPI 카드 (1열: 사업주 지분 관점 / 2열: 대주단·사업성 관점)
     _eirr = metrics.get('equity_irr', float('nan'))
     _eirr_ok = _eirr == _eirr  # NaN guard
@@ -1635,6 +1665,46 @@ def main():
         st.markdown(f"""<div class="metric-card {bc_color}">
             <h4>B/C ratio</h4><h2>{metrics['bc_ratio']:.2f}</h2></div>""",
             unsafe_allow_html=True)
+
+    st.markdown("")
+
+    # ════════════════════════════════════════════════════════
+    # 📄 PDF 보고서 — 분석 직후 최상단에서 즉시 생성·다운로드
+    # ════════════════════════════════════════════════════════
+    from datetime import datetime
+    _pc1, _pc2 = st.columns([3, 1])
+    with _pc1:
+        st.markdown("##### 📄 분석 결과를 PDF 보고서로 즉시 출력")
+        st.caption(
+            "지금 화면의 분석 결과(KPI·OPEX 밴드·현금흐름 지표)를 Forenode 표준 PDF 보고서로 생성합니다. "
+            "변수를 바꾼 뒤에는 다시 생성하세요."
+        )
+    with _pc2:
+        if st.button("📄 PDF 보고서 생성", type="primary",
+                     use_container_width=True, key="pdf_generate_top"):
+            try:
+                from report_generator import generate_pdf_report
+                with st.spinner("📊 PDF 보고서 생성 중…"):
+                    st.session_state['forenode_pdf_bytes'] = generate_pdf_report(
+                        phase_context=phase_context,
+                        project_name=project_name or "민자도로 분석 사업",
+                    )
+                st.session_state['forenode_pdf_name'] = (
+                    f"Forenode_보고서_{(project_name or '민자도로').replace(' ', '_')}"
+                    f"_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+                )
+            except Exception as _pdf_err:
+                st.session_state.pop('forenode_pdf_bytes', None)
+                st.error(f"PDF 생성 중 오류: {_pdf_err}")
+    if st.session_state.get('forenode_pdf_bytes'):
+        st.download_button(
+            "⬇️ 생성된 PDF 보고서 다운로드",
+            data=st.session_state['forenode_pdf_bytes'],
+            file_name=st.session_state.get('forenode_pdf_name', 'Forenode_보고서.pdf'),
+            mime="application/pdf",
+            use_container_width=True,
+            key="pdf_download_top",
+        )
 
     st.markdown("")
 
@@ -1832,35 +1902,8 @@ def main():
     )
     
     # 시점 탭에 전달할 컨텍스트 (자동 산출 결과 포함)
-    phase_context = {
-        'business_type': business_type,
-        'road_length': road_length,
-        'lanes': lanes,
-        'terrain': terrain,
-        'bridge_ratio': bridge_ratio,
-        'tunnel_ratio': tunnel_ratio,
-        'total_capex_user': total_capex,
-        'operation_years': operation_years,
-        'construction_years': construction_years,
-        'annual_revenue': ann_rev,
-        'mrg_ratio': mrg_ratio,
-        'mcc_ratio': mcc_ratio,
-        'restructuring_year': restructuring_year,
-        'equity_recovery_method': equity_recovery_method,
-        'debt_repayment_method': debt_repayment_method,
-        'opex_estimation': opex_estimation,
-        'capex_reference': capex_reference,
-        'metrics': metrics,
-        'wacc': wacc_info['wacc'],
-        # 선순위·후순위 자금구조 (v2.1 추가)
-        'senior_ratio': senior_ratio,
-        'senior_rate': senior_rate,
-        'sub_rate': sub_rate,
-        # 해지시지급금 (v2.1 추가, 시점 4 재구조화 활용)
-        # 통상 해지시지급금은 건설비용과 동일하게 책정 (나무위키·KDB 자료)
-        'termination_payment': total_capex,
-    }
-    
+    # phase_context 는 상단(KPI 카드 위)에서 이미 조립됨 — PDF 보고서 버튼과 심화 탭이 공유
+
     # ════════════════════════════════════════════════════════════════
     # 🔭 관점 라우터 — 6주체별 핵심 결과 + 심화 도구/what-if 바로가기
     # ════════════════════════════════════════════════════════════════
