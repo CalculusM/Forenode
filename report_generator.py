@@ -504,6 +504,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
         '사업주': ('SPC / 사업주(출자자)', 'Equity IRR · MIRR · 배당 타임라인 · 핸드백 리저브'),
         '신평사': ('신용평가사', 'OPEX 가정 물리근거 · 스트레스 · 하방 시나리오 · 등급 근거'),
         '운용사': ('자산운용사', '잔존가치 · 재구조화 · 자금재조달(LLCR/PLCR)'),
+        '회계법인': ('회계법인 / 감사인', 'EBITDA · CFADS 재현성 · 세금(정액 감가상각) · 연도별 현금흐름 검증'),
     }
     _rk = ctx.get('role')
     if _rk in _ROLE_FOCUS:

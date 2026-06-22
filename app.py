@@ -1519,6 +1519,10 @@ def main():
             opex_band = None
             dscr_band = None
 
+    # PDF 보고서 밴드 차트(_chart_opex_band)가 P10–P90을 그릴 수 있도록 부착
+    if opex_band:
+        opex_estimation['band'] = opex_band
+
     render_data_source_sidebar()
 
     # ============================================================
@@ -1616,6 +1620,15 @@ def main():
         'capex_reference': capex_reference,
         'metrics': metrics,
         'wacc': wacc_info['wacc'],
+        # 관점(역할) — 아래 관점 라우터(key='role_lens')의 선택을 PDF 역할 섹션에 반영.
+        # 앱 라벨 → report _ROLE_FOCUS 키로 매핑('전체'·미선택은 None → 일반 보고서).
+        'role': {
+            "대주단": "대주",
+            "사업주": "사업주",
+            "자산운용사·연기금": "운용사",
+            "정부(PIMAC·주무관청)": "주무관청",
+            "회계법인": "회계법인",
+        }.get(st.session_state.get('role_lens')),
         # 선순위·후순위 자금구조 (v2.1 추가)
         'senior_ratio': senior_ratio,
         'senior_rate': senior_rate,
