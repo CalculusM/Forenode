@@ -48,36 +48,44 @@ from reportlab.graphics.shapes import Drawing, Line, Circle, String
 # ════════════════════════════════════════════════════════════
 # 한글 폰트 자동 검색 + 등록
 # ════════════════════════════════════════════════════════════
-def _register_korean_font():
-    """OS별 한글 폰트 자동 등록. 등록 성공한 폰트명 반환."""
-    candidates = []
+# 등록된 한글 폰트의 파일 경로 (matplotlib와 공유)
+_KOR_FONT_PATH = None
+
+
+def _korean_font_candidates():
+    """(폰트명, 경로) 후보. 리포 동봉 폰트(fonts/)를 OS·배포환경 무관 최우선으로 둔다."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    cands = [
+        # 1) 리포에 동봉한 폰트가 있으면 어떤 환경에서도 최우선 사용(배포 안정성)
+        ("NanumGothic", os.path.join(here, "fonts", "NanumGothic.ttf")),
+        ("NotoSansKR", os.path.join(here, "fonts", "NotoSansKR-Regular.ttf")),
+    ]
     system = platform.system()
-    
     if system == "Windows":
-        candidates = [
-            ("MalgunGothic", "C:/Windows/Fonts/malgun.ttf"),
-            ("MalgunGothicBold", "C:/Windows/Fonts/malgunbd.ttf"),
-        ]
+        cands.append(("MalgunGothic", "C:/Windows/Fonts/malgun.ttf"))
     elif system == "Darwin":  # macOS
-        candidates = [
-            ("AppleGothic", "/System/Library/Fonts/AppleSDGothicNeo.ttc"),
-        ]
-    else:  # Linux
-        candidates = [
+        cands.append(("AppleGothic", "/System/Library/Fonts/AppleSDGothicNeo.ttc"))
+    else:  # Linux (Streamlit Cloud 포함) — packages.txt의 fonts-nanum이 설치하는 경로
+        cands += [
             ("NanumGothic", "/usr/share/fonts/truetype/nanum/NanumGothic.ttf"),
+            ("NanumGothicBold", "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf"),
             ("NotoSansCJK", "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
-            ("NotoSansCJKBlack", "/usr/share/fonts/opentype/noto/NotoSansCJK-Black.ttc"),
         ]
-    
-    for name, path in candidates:
+    return cands
+
+
+def _register_korean_font():
+    """OS·배포환경별 한글 폰트 자동 등록. 성공한 폰트명 반환(+경로 저장)."""
+    global _KOR_FONT_PATH
+    for name, path in _korean_font_candidates():
         if os.path.exists(path):
             try:
                 pdfmetrics.registerFont(TTFont(name, path))
+                _KOR_FONT_PATH = path
                 return name
             except Exception:
                 continue
-    
-    # 폴백: 기본 폰트 (한글 깨질 수 있음)
+    # 폴백: 기본 폰트 (한글 깨짐 — 배포 시 packages.txt에 fonts-nanum 필요)
     return "Helvetica"
 
 
@@ -85,20 +93,22 @@ _KOR_FONT = _register_korean_font()
 
 
 def _setup_matplotlib_korean():
-    """matplotlib 한글 표시 설정"""
-    system = platform.system()
-    if system == "Windows":
-        plt.rcParams['font.family'] = 'Malgun Gothic'
-    elif system == "Darwin":
-        plt.rcParams['font.family'] = 'AppleGothic'
-    else:
-        # Linux: NanumGothic 또는 NotoSansCJK
-        for f in ['NanumGothic', 'Noto Sans CJK KR', 'Noto Sans CJK HK']:
-            try:
-                plt.rcParams['font.family'] = f
-                break
-            except Exception:
-                continue
+    """matplotlib 한글 표시 — 등록된 폰트 파일을 직접 addfont 하여 폰트캐시 문제를 우회."""
+    try:
+        import matplotlib.font_manager as fm
+        if _KOR_FONT_PATH and os.path.exists(_KOR_FONT_PATH):
+            fm.fontManager.addfont(_KOR_FONT_PATH)
+            plt.rcParams['font.family'] = fm.FontProperties(fname=_KOR_FONT_PATH).get_name()
+        else:
+            system = platform.system()
+            if system == "Windows":
+                plt.rcParams['font.family'] = 'Malgun Gothic'
+            elif system == "Darwin":
+                plt.rcParams['font.family'] = 'AppleGothic'
+            else:
+                plt.rcParams['font.family'] = 'NanumGothic'
+    except Exception:
+        pass
     plt.rcParams['axes.unicode_minus'] = False
 
 
