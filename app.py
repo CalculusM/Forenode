@@ -2045,6 +2045,46 @@ def main():
 
     st.markdown("---")
 
+    # ════════════════════════════════════════════════════════
+    # 🔎 가정 검증 오버레이 — 수요 낙관편향 · 예비 신용등급 (검증 도구)
+    # ════════════════════════════════════════════════════════
+    with st.expander("🔎 가정 검증 오버레이 — 수요 낙관편향·예비 신용등급 (검증 도구)", expanded=False):
+        try:
+            from demand_bias import demand_optimism_band, BENCHMARK_PRIORS
+            from verification_overlays import implied_rating
+            _vc1, _vc2 = st.columns([3, 2])
+            with _vc1:
+                st.markdown("**📉 수요 낙관편향 점검**")
+                st.caption(
+                    "입력 교통량을 과거 (실측/예측) 분포로 보정 — 적자를 흑자로 바꾸는 게 아니라, "
+                    "수요 가정이 과거 실적 대비 낙관적인지 '검증'합니다. (근거: Bain·S&P 2009 / KOTI 2014 사후평가)"
+                )
+                _prior = st.selectbox("벤치마크 분포(prior)", list(BENCHMARK_PRIORS.keys()),
+                                      key="demand_prior")
+                _db = demand_optimism_band(daily_traffic, prior=_prior)
+                _icon = {"high": "🔴", "mid": "🟡", "low": "🟢"}.get(_db["level"], "⚪")
+                st.markdown(
+                    f"입력(예측) **{daily_traffic:,}대/일** → 과거 실적 보정 시 "
+                    f"**실제 가능 중앙값 {_db['p50']:,.0f}대/일** (예측의 {_db['median_ratio']*100:.0f}%) · "
+                    f"P10~P90 **{_db['p10']:,.0f}~{_db['p90']:,.0f}**")
+                st.markdown(f"{_icon} **{_db['flag']}** — 예측 대비 평균 미달폭 약 **{_db['haircut_pct']:.0f}%**")
+                _rev_p50 = ann_rev * _db['median_ratio']
+                st.caption(
+                    f"수입 환산(교통량 선형 가정): 연매출 {ann_rev:,.0f}억 → 보정 중앙값 ≈ **{_rev_p50:,.0f}억**. "
+                    f"근거: {_db['source']}")
+                st.caption("⚠️ reference-class 추정 밴드 — 점추정 아님. 노선별 예측↔실측 매칭 시 정밀화.")
+            with _vc2:
+                st.markdown("**🏅 예비 신용등급 (근사)**")
+                _dmin = metrics.get('dscr_min', float('nan'))
+                _ir = implied_rating(_dmin)
+                st.metric("최소 DSCR", f"{_dmin:.2f}" if _dmin == _dmin else "—")
+                st.markdown(f"→ **{_ir['implied_band']}**")
+                st.caption(_ir['note'])
+        except Exception as _ov_err:
+            st.caption(f"검증 오버레이 일시 오류: {_ov_err}")
+
+    st.markdown("---")
+
     st.markdown("### 🗓️ 사업 시점별 분석")
     st.caption(
         "민자도로 라이프사이클에 따른 분석 제공"
@@ -2214,6 +2254,17 @@ def main():
                 sc2.metric("NPV 표준편차", f"{mc['npv_std']:,.0f}억")
                 sc3.metric("적자 확률", f"{mc['prob_negative_npv']*100:.1f}%")
                 sc4.metric("DSCR<1 확률", f"{mc['prob_dscr_below_1']*100:.1f}%")
+
+                # 하방 보강 — VaR(5%)·P10 (단정 아닌 확률·분위로 제시)
+                try:
+                    from verification_overlays import downside_metrics
+                    _dm = downside_metrics(mc.get('npv'), mc.get('dscr'))
+                    if 'npv_var5' in _dm:
+                        st.caption(
+                            f"📉 하방 보강 — NPV VaR(5%, 최악 5분위): **{_dm['npv_var5']:,.0f}억** · "
+                            f"NPV P10 {_dm.get('npv_p10', 0):,.0f}억 · DSCR P10 {_dm.get('dscr_p10', 0):.2f}")
+                except Exception:
+                    pass
 
                 if HAS_PLOTLY:
                     fig = make_subplots(rows=1, cols=2,
