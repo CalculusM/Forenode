@@ -2079,6 +2079,7 @@ def main():
                 _ir = implied_rating(_dmin)
                 st.metric("최소 DSCR", f"{_dmin:.2f}" if _dmin == _dmin else "—")
                 st.markdown(f"→ **{_ir['implied_band']}**")
+                st.caption(f"📍 시장 위치: {_ir.get('market_position', '—')}")
                 st.caption(_ir['note'])
         except Exception as _ov_err:
             st.caption(f"검증 오버레이 일시 오류: {_ov_err}")
