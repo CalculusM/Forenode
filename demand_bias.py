@@ -76,6 +76,26 @@ def demand_optimism_band(forecast_traffic, prior="도로 — 국제(Bain 2009)",
     }
 
 
+def prob_ratio_below(threshold=0.70, prior="도로 — 국제(Bain 2009)",
+                     n_sims=3000, seed=20260625):
+    """P(실측/예측 < threshold) — 재협상 트리거 도달 확률의 사전(ex-ante) 근사.
+
+    유료도로법 §23의5: 3년 연속 실측 교통량·통행료수입이 실시협약 대비 70% 미달 시
+    주무관청이 실시협약 변경을 요구할 수 있음(KOTI RR-23-19 pp.151-152).
+    수요예측 오차는 연차 간 상관이 강한 '수준(level)' 현상이므로 단년 확률을
+    3년 연속 조건의 근사 상한으로 사용. 램프업(개통 초기 저조 후 회복,
+    예: 마창대교 40%→96.6%, KOTI MP-24-11 p.75)은 미반영 — 보수적 추정.
+    """
+    p = BENCHMARK_PRIORS.get(prior, BENCHMARK_PRIORS["도로 — 국제(Bain 2009)"])
+    rng = np.random.default_rng(seed)
+    if p["dist"] == "normal":
+        ratios = rng.normal(p["p1"], p["p2"], n_sims)
+    else:
+        ratios = rng.lognormal(np.log(p["p1"]), p["p2"], n_sims)
+    ratios = np.clip(ratios, 0.05, 2.0)
+    return float((ratios < float(threshold)).mean())
+
+
 def revenue_haircut_band(annual_revenue_eok, prior="도로 — 국제(Bain 2009)"):
     """연매출(억)에 수요 prior를 적용한 '실제 가능' 매출 밴드(수입은 교통량에 ~선형 가정)."""
     b = demand_optimism_band(1.0, prior=prior)  # ratio 분포만 사용

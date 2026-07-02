@@ -1657,7 +1657,7 @@ def main():
     with col3:
         irr_txt = f"{metrics['nominal_irr']*100:.1f}% / {metrics['real_irr']*100:.1f}%"
         st.markdown(f"""<div class="metric-card blue">
-            <h4>프로젝트IRR(명목/불변)</h4><h2>{irr_txt}</h2></div>""",
+            <h4>프로젝트IRR(명목/불변·세후)</h4><h2>{irr_txt}</h2></div>""",
             unsafe_allow_html=True)
     with col4:
         roe_color = "green" if metrics['roe'] > 0 else "red"
@@ -1679,6 +1679,11 @@ def main():
             <h4>B/C ratio</h4><h2>{metrics['bc_ratio']:.2f}</h2></div>""",
             unsafe_allow_html=True)
 
+    st.caption(
+        "ⓘ 수익률 표기 기준: 프로젝트 IRR=세후(명목/불변) · 협약수익률=실질·세전(역할별 지표 참조). "
+        "민자 실시협약·재구조화 벤치마크는 노선마다 세전경상·세후실질을 병기하므로 비교 시 기준 확인 필수 "
+        "(KOTI MP-24-11, 2024, pp.78-86)."
+    )
     st.markdown("")
 
     # ════════════════════════════════════════════════════════
@@ -2046,12 +2051,13 @@ def main():
     st.markdown("---")
 
     # ════════════════════════════════════════════════════════
-    # 🔎 가정 검증 오버레이 — 수요 낙관편향 · 예비 신용등급 (검증 도구)
+    # 🔎 가정 검증 오버레이 — 수요 낙관편향 · 예비 신용등급 · 재협상 트리거 (검증 도구)
     # ════════════════════════════════════════════════════════
-    with st.expander("🔎 가정 검증 오버레이 — 수요 낙관편향·예비 신용등급 (검증 도구)", expanded=False):
+    with st.expander("🔎 가정 검증 오버레이 — 수요 낙관편향·예비 신용등급·재협상 트리거 (검증 도구)", expanded=False):
         try:
-            from demand_bias import demand_optimism_band, BENCHMARK_PRIORS
-            from verification_overlays import implied_rating
+            from demand_bias import demand_optimism_band, prob_ratio_below, BENCHMARK_PRIORS
+            from verification_overlays import (implied_rating, renegotiation_triggers,
+                                               agreed_return_position, TRIGGER_RULES)
             _vc1, _vc2 = st.columns([3, 2])
             with _vc1:
                 st.markdown("**📉 수요 낙관편향 점검**")
@@ -2081,6 +2087,50 @@ def main():
                 st.markdown(f"→ **{_ir['implied_band']}**")
                 st.caption(f"📍 시장 위치: {_ir.get('market_position', '—')}")
                 st.caption(_ir['note'])
+                st.markdown("**📐 수익률 시장 위치 (양방향)**")
+                _rirr = metrics.get('real_irr', float('nan'))
+                _ap = agreed_return_position(_rirr)
+                _ap_icon = {"over": "🔴", "under": "🔴", "above": "🟡",
+                            "low": "🟡", "recent": "🟢"}.get(_ap["level"], "⚪")
+                _rirr_txt = f"{_rirr*100:.1f}%" if _rirr == _rirr else "—"
+                st.markdown(f"{_ap_icon} 실질 IRR(세후) **{_rirr_txt}** → {_ap['position']}")
+                st.caption(_ap['note'])
+
+            # ⚖️ 재협상 트리거 모니터 — 법정 임계값 대비 점검
+            st.markdown("---")
+            st.markdown("**⚖️ 재협상 트리거 모니터** — 법정 임계값 대비 점검")
+            _tg1, _tg2 = st.columns(2)
+            with _tg1:
+                _thr = TRIGGER_RULES["ratio_threshold"]
+                _p70 = prob_ratio_below(_thr, prior=_prior)
+                _p_icon = "🔴" if _p70 >= 0.50 else ("🟡" if _p70 >= 0.25 else "🟢")
+                st.markdown(
+                    f"{_p_icon} **사전 점검** — 선택한 과거 실적 분포(prior) 기준, 실측이 "
+                    f"협약 대비 **{_thr*100:.0f}% 미달에 머물 확률 ≈ {_p70*100:.0f}%**")
+                st.caption(
+                    "협약 체결 후 3년 연속 교통량·수입이 협약 대비 70% 미달이면 주무관청이 "
+                    "실시협약 변경을 요구할 수 있음 — 수요 가정 검증이 곧 재협상 리스크 관리. "
+                    "램프업(개통 초기 저조 후 회복) 미반영 보수 추정.")
+                st.caption("근거: 유료도로법 §23의5 (KOTI RR-23-19, 2023, pp.151-152)")
+            with _tg2:
+                st.markdown("**운영 중 사업 점검** — 최근 3개년 실측/협약 비율(%)")
+                _ta, _tb, _tc = st.columns(3)
+                _r1 = _ta.number_input("2년 전", 0, 200, 100, key="tg_r1")
+                _r2 = _tb.number_input("1년 전", 0, 200, 100, key="tg_r2")
+                _r3 = _tc.number_input("직전 연도", 0, 200, 100, key="tg_r3")
+                _tg = renegotiation_triggers(
+                    actual_ratios=[_r1 / 100, _r2 / 100, _r3 / 100])
+                _tg_c = _tg["checks"][0]
+                if _tg_c["status"] == "trigger":
+                    st.error(f"🔴 트리거 성립 — {_tg_c['name']} · {_tg_c['detail']}")
+                elif _tg_c["status"] == "watch":
+                    st.warning(f"🟡 일부 연도 임계 미달 — {_tg_c['detail']}")
+                else:
+                    st.success(f"🟢 임계 이상 — {_tg_c['detail']}")
+            st.caption(
+                "민간투자사업기본계획: 추정 수요 30% 이상 감소 또는 총사업비 20% 이상 증가 시 "
+                "민자적격성 재검증 의뢰 대상 (KOTI RR-23-19 pp.185·187). "
+                "재구조화로 간 노선의 재구조화 前 실측/예측은 31~70% 수준 (KOTI MP-24-11 pp.65-86).")
         except Exception as _ov_err:
             st.caption(f"검증 오버레이 일시 오류: {_ov_err}")
 

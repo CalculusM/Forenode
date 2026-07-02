@@ -437,7 +437,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     kpi_rows = [
         ['지표', '값', '평가'],
         ['NPV (프로젝트)', f"{npv:,.0f}억", '흑자' if npv >= 0 else '적자'],
-        ['IRR (명목)', _pct(m.get('nominal_irr')), f"WACC {ctx['wacc']*100:.1f}%"],
+        ['IRR (명목·세후)', _pct(m.get('nominal_irr')), f"WACC {ctx['wacc']*100:.1f}%"],
         ['IRR (실질·세후)', _pct(m.get('real_irr')), ''],
         ['협약수익률 (실질·세전)', _pct(m.get('agreed_return_real_pretax')), '★ 핵심'],
         ['Equity IRR', _pct(m.get('equity_irr')), '출자자'],

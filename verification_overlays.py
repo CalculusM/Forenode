@@ -53,7 +53,104 @@ def implied_rating(dscr_min, opba="중(3~5)"):
     }
 
 
-# ── 2) 하방확률·VaR (MC 분포에서) ──
+# ── 2) 재협상·적격성 재검증 트리거 (법정 임계값) ──
+# 근거: 유료도로법 §23의5 — 3년 연속 실측 교통량/통행료수입이 실시협약 대비 70% 미달
+#   등의 사유 발생 시 주무관청이 실시협약 변경을 요구할 수 있음(불응 시 재정지원금
+#   미지급 가능). 민간투자사업기본계획 — 추정 수요 30% 이상 감소 또는 총사업비 20%
+#   이상 증가 시 민자적격성 재검증 의뢰. (KOTI RR-23-19, 2023, pp.151-152·185·187)
+TRIGGER_RULES = {
+    "ratio_threshold": 0.70,      # 실측/협약 임계
+    "consecutive_years": 3,       # 연속 미달 연수
+    "demand_revision_cut": 0.30,  # 수요 재추정 감소율 임계
+    "capex_overrun": 0.20,        # 총사업비 증가율 임계
+    "source": "유료도로법 §23의5 · 민간투자사업기본계획 (KOTI RR-23-19 pp.151-152·185·187)",
+}
+
+
+def renegotiation_triggers(actual_ratios=None, demand_revision_cut=None,
+                           capex_overrun=None):
+    """운영 중 사업의 법정 재협상·재검증 트리거 사후(ex-post) 점검.
+
+    actual_ratios : 연도별 (실측/협약) 비율 리스트(최신이 마지막). 예: [0.66, 0.68, 0.65]
+    demand_revision_cut : 수요 재추정 감소율(소수, 0.30=30% 감소)
+    capex_overrun : 총사업비 증가율(소수, 0.20=20% 증가)
+    반환: {"checks": [{"name","status(ok/watch/trigger)","detail"}...], "worst": ...}
+    """
+    checks = []
+    if actual_ratios:
+        r = [float(x) for x in actual_ratios if x == x]
+        thr, n_need = TRIGGER_RULES["ratio_threshold"], TRIGGER_RULES["consecutive_years"]
+        below = [x < thr for x in r]
+        hit = len(below) >= n_need and all(below[-n_need:])
+        status = "trigger" if hit else ("watch" if any(below) else "ok")
+        checks.append({
+            "name": f"실시협약 변경 요구 (교통량·수입 {thr*100:.0f}% / {n_need}년 연속)",
+            "status": status,
+            "detail": "최근 실측/협약 = " + " → ".join(f"{x*100:.0f}%" for x in r),
+        })
+    if demand_revision_cut is not None and demand_revision_cut == demand_revision_cut:
+        d = float(demand_revision_cut)
+        status = "trigger" if d >= TRIGGER_RULES["demand_revision_cut"] else (
+            "watch" if d >= TRIGGER_RULES["demand_revision_cut"] * 0.67 else "ok")
+        checks.append({
+            "name": "민자적격성 재검증 (수요 30%↑ 감소)",
+            "status": status, "detail": f"수요 재추정 감소율 {d*100:.0f}%",
+        })
+    if capex_overrun is not None and capex_overrun == capex_overrun:
+        c = float(capex_overrun)
+        status = "trigger" if c >= TRIGGER_RULES["capex_overrun"] else (
+            "watch" if c >= TRIGGER_RULES["capex_overrun"] * 0.67 else "ok")
+        checks.append({
+            "name": "민자적격성 재검증 (총사업비 20%↑ 증가)",
+            "status": status, "detail": f"총사업비 증가율 {c*100:.0f}%",
+        })
+    order = {"trigger": 2, "watch": 1, "ok": 0}
+    worst = max((c["status"] for c in checks), key=lambda s: order[s]) if checks else "na"
+    return {"rules": TRIGGER_RULES, "checks": checks, "worst": worst}
+
+
+# ── 3) 협약수익률(약정 사업수익률) 시장 벤치마크 ──
+# 근거: KOTI RR-24-12(2024) pp.52-53 — 국내 도로 실시협약 54건 약정 사업수익률(세후):
+#   최소 3.70% · 평균 6.41% · 최대 12.0%, 초기(MRG 시대) 9~12% → 최근 체결분 4~6%대.
+#   같은 연구는 수익률 '과소평가'(2000년 이후 10년 국고채 미만)도 투자 위축 요인으로
+#   지적(p.66) → 적정성 검증은 과대·과소 양방향.
+MARKET_AGREED_RETURNS = {
+    "n": 54, "min": 3.70, "avg": 6.41, "max": 12.0,
+    "recent_low": 4.0, "recent_high": 6.0,
+    "source": "KOTI RR-24-12 pp.52-53 (도로 54건 약정 사업수익률·세후)",
+}
+
+
+def agreed_return_position(after_tax_return):
+    """세후 수익률(소수)을 KOTI 54건 약정 수익률 분포와 비교 — 양방향 적정성.
+
+    ⚠️ 세후 기준끼리만 비교(협약수익률[실질·세전]과 직접 비교 금지 —
+    KOTI MP-24-11 pp.78-86: 노선마다 세전경상·세후실질 병기, 기준 불일치 시 오독).
+    """
+    if after_tax_return is None or after_tax_return != after_tax_return:
+        return {"position": "산출 불가", "level": "na", "rate_pct": None,
+                "note": MARKET_AGREED_RETURNS["source"]}
+    r = float(after_tax_return) * 100.0
+    m = MARKET_AGREED_RETURNS
+    if r > m["max"]:
+        pos, level = f"시장 전례 상단({m['max']:.1f}%) 초과 — 과대 가능성 검토", "over"
+    elif r >= 9.0:
+        pos, level = f"초기 협약(MRG 시대 9~12%) 수준 — 현 시장 대비 높음", "above"
+    elif r >= m["avg"]:
+        pos, level = (f"시장 평균({m['avg']:.2f}%) 상회 — 중기 협약 권역"
+                      f"(서울춘천 6.98%~수도권1순환 8.51%)", "above")
+    elif r >= m["recent_low"]:
+        pos, level = f"최근 체결 수준({m['recent_low']:.0f}~{m['recent_high']:.0f}%) 권역", "recent"
+    elif r >= m["min"]:
+        pos, level = f"시장 하단(전례 최저 {m['min']:.2f}%) 근접", "low"
+    else:
+        pos, level = (f"시장 전례 최저({m['min']:.2f}%) 미만 — 과소(투자유인 부족) "
+                      f"가능성 검토", "under")
+    return {"position": pos, "level": level, "rate_pct": r,
+            "note": f"비교기준: {m['source']} · 세후끼리 비교 · 과소평가도 투자 위축 요인"}
+
+
+# ── 4) 하방확률·VaR (MC 분포에서) ──
 def downside_metrics(npv_samples=None, dscr_min_samples=None,
                      equity_irr_samples=None, dscr_threshold=1.0):
     """몬테카를로 표본에서 하방확률·VaR 산출. 표본 없으면 해당 키 생략."""
@@ -92,3 +189,16 @@ if __name__ == "__main__":
     eirr = rng.normal(0.08, 0.06, 1000)
     dm = downside_metrics(npv, dscr, eirr)
     print("하방확률·VaR:", {k: round(v, 3) for k, v in dm.items()})
+    # 재협상 트리거 스모크
+    for ratios, want in [([0.66, 0.68, 0.65], "trigger"),
+                         ([0.66, 0.75, 0.65], "watch"),
+                         ([0.95, 1.02, 0.98], "ok")]:
+        t = renegotiation_triggers(actual_ratios=ratios)
+        assert t["worst"] == want, (ratios, t["worst"])
+        print(f"트리거 {ratios} → {t['worst']} · {t['checks'][0]['detail']}")
+    t2 = renegotiation_triggers(demand_revision_cut=0.35, capex_overrun=0.10)
+    print("재검증:", [(c["name"], c["status"]) for c in t2["checks"]])
+    # 협약수익률 위치 스모크
+    for rr in [0.13, 0.07, 0.05, 0.038, 0.02, float("nan")]:
+        ap = agreed_return_position(rr)
+        print(f"세후수익률 {rr if rr == rr else '—'} → [{ap['level']}] {ap['position']}")
