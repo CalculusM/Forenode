@@ -1,6 +1,6 @@
 """
 ============================================================
-BIM·AI 기반 민자도로 수익성 분석 시스템 (완전체)
+Forenode — 공공데이터 기반 민자도로 수익성·적정성 검증 (BIM은 선택 입력)
 ============================================================
 실행: streamlit run app.py
 필수: pip install streamlit numpy pandas plotly requests
@@ -1112,7 +1112,7 @@ _BIZ_OPTIONS = ["BTO", "BTO-rs", "BTO-ann", "BTL", "BTO+BTL"]
 
 def main():
     st.set_page_config(
-        page_title="BIM·AI 민자도로 수익성 분석",
+        page_title="Forenode — 민자도로 수익성·적정성 검증",
         page_icon="🛣️",
         layout="wide",
         initial_sidebar_state="expanded",
@@ -1190,114 +1190,107 @@ def main():
     _bd = _BIZ_DEFAULTS[business_type]
     st.sidebar.caption(f"※ {_bd['desc']}")
 
-    # ─── 사업 기본 ───
-    st.sidebar.subheader("🏗️ 사업 기본")
-    st.sidebar.caption("슬라이더로 드래그하거나, 옆 칸에 실측치를 직접 입력하세요.")
+    # ─── 핵심 입력 (항상 노출: 연장·사업비·교통량·요금) ───
+    st.sidebar.subheader("🏗️ 핵심 입력")
+    st.sidebar.caption("슬라이더로 드래그하거나, 옆 칸에 실측치를 직접 입력하세요. "
+                       "나머지 조건은 아래 접힌 그룹(▼)에서 조정합니다.")
     road_length = linked_slider_input("연장(km)", 5, 200, 45, 1, "road_length")
     total_capex = linked_slider_input("총사업비(억)", 1000, 100000, 20725, 100, "total_capex")
-    construction_years = st.sidebar.slider("건설기간(년)", 2, 10, _preset.get("construction_years", 5))
-    operation_years = st.sidebar.slider("운영기간(년)", 15, 50, _preset.get("operation_years", 30))
-
-    # ─── 노선 특성 (Tier 1 통계 모드용) ───
-    st.sidebar.subheader("🌄 노선 특성")
-    terrain = st.sidebar.radio(
-        "지형", options=["평지", "구릉", "산악"], index=0, horizontal=True,
-        help="지형 난이도에 따라 CAPEX 보정 (평지 1.0 / 구릉 1.3 / 산악 1.8)"
-    )
-    bridge_ratio = st.sidebar.slider("교량 비율(%)", 0, 50, _preset.get("bridge_ratio", 15), 1) / 100
-    tunnel_ratio = st.sidebar.slider("터널 비율(%)", 0, 70, _preset.get("tunnel_ratio", 20), 1) / 100
-    lanes = st.sidebar.radio(
-        "차로 수", options=[2, 4, 6, 8],
-        index=[2, 4, 6, 8].index(_preset.get("lanes", 4)), horizontal=True
-    )
-
-    # ─── 정부 협약 조건 ───
-    st.sidebar.subheader("💰 정부 협약 조건")
-    mrg_ratio = st.sidebar.slider(
-        "MRG 보장률(%)", 0, 100, _bd["mrg"], 5,
-        help="MRG = 최소수입보장. 정부가 통행료 수입을 보장하는 비율 (예측 대비). BTO-rs/BTO-ann 활용"
-    ) / 100
-    mcc_ratio = st.sidebar.slider(
-        "MCC 비용보전율(%)", 0, 100, _bd["mcc"], 5,
-        help="MCC = 최소비용보전. 정부가 운영비 초과분을 보전하는 비율. BTO-a/BTL 핵심 변수 (2024.10 정부 활성화 방안 명시)"
-    ) / 100
-    restructuring_year = st.sidebar.slider(
-        "재구조화 시점(운영년차)", 0, operation_years, 0, 1,
-        help="0=재구조화 없음. 1~운영기간 사이 값은 해당 시점에 통행료 -10% 조정"
-    )
-
-    # ─── 수요 ───
-    st.sidebar.subheader("🚗 수요")
     daily_traffic = linked_slider_input("일통행량(대)", 5000, 200000, 110000, 500, "daily_traffic")
-    growth = st.sidebar.slider("성장률(%)", -2.0, 8.0, float(_preset.get("growth", 2.5)), 0.1)
-    heavy_ratio = st.sidebar.slider("화물비율(%)", 5, 60, _preset.get("heavy_ratio", 30))
-
-    # ─── 통행료 ───
-    st.sidebar.subheader("🔥 통행료")
     toll_per_km = st.sidebar.slider(
-        "km단가(원)", 20, 300,
+        "통행료 km단가(원)", 20, 300,
         _preset.get("toll_per_km", _bd["toll"] if _bd["toll"] > 0 else 80), 5)
-    heavy_surcharge = st.sidebar.slider("대형할증", 1.0, 5.0, 2.50, 0.1)
 
-    # ─── 금융구조 ───
-    st.sidebar.subheader("🏦 금융구조")
-    equity_ratio = st.sidebar.slider("자기자본비율(%)", 5, 50, _bd["equity"]) / 100
-    base_rate = st.sidebar.slider("기준금리(%)", 0.0, 8.0, 2.50, 0.25) / 100
-    # 자기자본비용 Ke — CAPM(Ke = rf + β·MRP)으로 산출. rf는 기준금리.
-    capm_beta = st.sidebar.slider(
-        "베타(β)", 0.3, 2.0, 0.70, 0.05,
-        help="인프라 자산의 체계적 위험. 통상 도로 0.6~0.9 (방어적). 높을수록 Ke↑"
-    )
-    capm_mrp = st.sidebar.slider(
-        "시장위험프리미엄 MRP(%)", 3.0, 10.0, 6.0, 0.5,
-        help="시장수익률−무위험수익률. 국내 통상 5~7%"
-    ) / 100
-    ke = base_rate + capm_beta * capm_mrp
-    st.sidebar.caption(f"📊 자기자본비용 Ke = {base_rate*100:.2f}% + {capm_beta:.2f}×{capm_mrp*100:.1f}% = **{ke*100:.2f}%** (CAPM)")
-    
-    # 선순위·후순위 분리 (실무 자금구조)
-    senior_ratio_pct = st.sidebar.slider(
-        "타인자본 중 선순위 비중(%)", 50, 95, 70, 5,
-        help="실무 표준: 선순위 70% + 후순위 30%. 선순위는 먼저 상환, 후순위는 나중 상환 (금리 차등)"
-    )
-    senior_ratio = senior_ratio_pct / 100
-    
-    senior_spread = st.sidebar.slider(
-        "선순위 가산금리(bp)", 50, 400, 150, 10,
-        help="기준금리에 더해지는 선순위 가산금리 (실무 100~250bp)"
-    ) / 10000
-    sub_spread = st.sidebar.slider(
-        "후순위 가산금리(bp)", 200, 1500, 400, 10,
-        help="후순위는 선순위보다 높은 금리 (정상시장 300~600bp; 부실 PPP 주주차입은 1000~1400bp까지)"
-    ) / 10000
-    
-    senior_rate = base_rate + senior_spread
-    sub_rate = base_rate + sub_spread
-    
-    # 가중평균 부채금리 (계산 결과)
-    debt_rate = senior_ratio * senior_rate + (1 - senior_ratio) * sub_rate
-    st.sidebar.caption(f"📊 가중평균 부채금리: **{debt_rate*100:.2f}%** (선순위 {senior_rate*100:.2f}% × {senior_ratio_pct}% + 후순위 {sub_rate*100:.2f}% × {100-senior_ratio_pct}%)")
-    
-    # 호환성용 기존 spread 변수 유지
-    spread = senior_spread
+    # ─── 노선·수요 상세 (접힘) ───
+    with st.sidebar.expander("▼ 노선·수요 상세 (기간·지형·성장률)"):
+        construction_years = st.slider("건설기간(년)", 2, 10, _preset.get("construction_years", 5))
+        operation_years = st.slider("운영기간(년)", 15, 50, _preset.get("operation_years", 30))
+        terrain = st.radio(
+            "지형", options=["평지", "구릉", "산악"], index=0, horizontal=True,
+            help="지형 난이도에 따라 CAPEX 보정 (평지 1.0 / 구릉 1.3 / 산악 1.8)"
+        )
+        bridge_ratio = st.slider("교량 비율(%)", 0, 50, _preset.get("bridge_ratio", 15), 1) / 100
+        tunnel_ratio = st.slider("터널 비율(%)", 0, 70, _preset.get("tunnel_ratio", 20), 1) / 100
+        lanes = st.radio(
+            "차로 수", options=[2, 4, 6, 8],
+            index=[2, 4, 6, 8].index(_preset.get("lanes", 4)), horizontal=True
+        )
+        growth = st.slider("교통량 성장률(%)", -2.0, 8.0, float(_preset.get("growth", 2.5)), 0.1)
+        heavy_ratio = st.slider("화물비율(%)", 5, 60, _preset.get("heavy_ratio", 30))
+        heavy_surcharge = st.slider("대형 차량 할증배율", 1.0, 5.0, 2.50, 0.1)
 
-    # ─── 대주단 커버넌트 (텀시트 기준 입력) ───
-    st.sidebar.subheader("🏦 대주단 커버넌트")
-    st.sidebar.caption("딜 텀시트의 DSCR 기준을 직접 입력하세요. 판정·민감도·스컬프팅에 일괄 적용됩니다.")
-    cov_base = st.sidebar.number_input(
-        "Base-case DSCR", min_value=1.00, max_value=2.00, value=1.30, step=0.05,
-        help="목표 커버넌트. 통상 1.25~1.40. 스컬프팅·base 판정 기준."
-    )
-    cov_lockup = st.sidebar.number_input(
-        "Lock-up(배당제한) DSCR", min_value=1.00, max_value=2.00, value=1.20, step=0.05,
-        help="이 밑이면 배당(분배) 제한. 통상 1.10~1.20."
-    )
-    cov_default = st.sidebar.number_input(
-        "Default DSCR", min_value=1.00, max_value=2.00, value=1.05, step=0.05,
-        help="이 밑이면 기술적 디폴트 근처. 통상 1.00~1.10."
-    )
+    # ─── 협약·정부 조건 (접힘) ───
+    with st.sidebar.expander("▼ 협약·정부 조건 (MRG·MCC·재구조화)"):
+        mrg_ratio = st.slider(
+            "MRG 보장률(%)", 0, 100, _bd["mrg"], 5,
+            help="MRG = 최소수입보장. 정부가 통행료 수입을 보장하는 비율 (예측 대비). BTO-rs/BTO-ann 활용"
+        ) / 100
+        mcc_ratio = st.slider(
+            "MCC 비용보전율(%)", 0, 100, _bd["mcc"], 5,
+            help="MCC = 최소비용보전. 정부가 운영비 초과분을 보전하는 비율. BTO-a/BTL 핵심 변수 (2024.10 정부 활성화 방안 명시)"
+        ) / 100
+        restructuring_year = st.slider(
+            "재구조화 시점(운영년차)", 0, operation_years, 0, 1,
+            help="0=재구조화 없음. 1~운영기간 사이 값은 해당 시점에 통행료 -10% 조정"
+        )
 
-    infl = st.sidebar.slider("물가상승률(%)", 0.0, 6.0, 2.0, 0.1)
+    # ─── 금융 구조 (접힘) ───
+    with st.sidebar.expander("▼ 금융 구조 (자본·금리·커버넌트·물가)"):
+        equity_ratio = st.slider("자기자본비율(%)", 5, 50, _bd["equity"]) / 100
+        base_rate = st.slider("기준금리(%)", 0.0, 8.0, 2.50, 0.25) / 100
+        # 자기자본비용 Ke — CAPM(Ke = rf + β·MRP)으로 산출. rf는 기준금리.
+        capm_beta = st.slider(
+            "베타(β)", 0.3, 2.0, 0.70, 0.05,
+            help="인프라 자산의 체계적 위험. 통상 도로 0.6~0.9 (방어적). 높을수록 Ke↑"
+        )
+        capm_mrp = st.slider(
+            "시장위험프리미엄 MRP(%)", 3.0, 10.0, 6.0, 0.5,
+            help="시장수익률−무위험수익률. 국내 통상 5~7%"
+        ) / 100
+        ke = base_rate + capm_beta * capm_mrp
+        st.caption(f"📊 자기자본비용 Ke = {base_rate*100:.2f}% + {capm_beta:.2f}×{capm_mrp*100:.1f}% = **{ke*100:.2f}%** (CAPM)")
+    
+        # 선순위·후순위 분리 (실무 자금구조)
+        senior_ratio_pct = st.slider(
+            "타인자본 중 선순위 비중(%)", 50, 95, 70, 5,
+            help="실무 표준: 선순위 70% + 후순위 30%. 선순위는 먼저 상환, 후순위는 나중 상환 (금리 차등)"
+        )
+        senior_ratio = senior_ratio_pct / 100
+
+        senior_spread = st.slider(
+            "선순위 가산금리(bp)", 50, 400, 150, 10,
+            help="기준금리에 더해지는 선순위 가산금리 (실무 100~250bp)"
+        ) / 10000
+        sub_spread = st.slider(
+            "후순위 가산금리(bp)", 200, 1500, 400, 10,
+            help="후순위는 선순위보다 높은 금리 (정상시장 300~600bp; 부실 PPP 주주차입은 1000~1400bp까지)"
+        ) / 10000
+
+        senior_rate = base_rate + senior_spread
+        sub_rate = base_rate + sub_spread
+
+        # 가중평균 부채금리 (계산 결과)
+        debt_rate = senior_ratio * senior_rate + (1 - senior_ratio) * sub_rate
+        st.caption(f"📊 가중평균 부채금리: **{debt_rate*100:.2f}%** (선순위 {senior_rate*100:.2f}% × {senior_ratio_pct}% + 후순위 {sub_rate*100:.2f}% × {100-senior_ratio_pct}%)")
+
+        # 호환성용 기존 spread 변수 유지
+        spread = senior_spread
+
+        st.markdown("**🏦 대주단 커버넌트** — 딜 텀시트의 DSCR 기준. 판정·민감도·스컬프팅에 일괄 적용.")
+        cov_base = st.number_input(
+            "Base-case DSCR", min_value=1.00, max_value=2.00, value=1.30, step=0.05,
+            help="목표 커버넌트. 통상 1.25~1.40. 스컬프팅·base 판정 기준."
+        )
+        cov_lockup = st.number_input(
+            "Lock-up(배당제한) DSCR", min_value=1.00, max_value=2.00, value=1.20, step=0.05,
+            help="이 밑이면 배당(분배) 제한. 통상 1.10~1.20."
+        )
+        cov_default = st.number_input(
+            "Default DSCR", min_value=1.00, max_value=2.00, value=1.05, step=0.05,
+            help="이 밑이면 기술적 디폴트 근처. 통상 1.00~1.10."
+        )
+
+        infl = st.slider("물가상승률(%)", 0.0, 6.0, 2.0, 0.1)
 
     # ─── 고급 옵션 ───
     with st.sidebar.expander("▼ 고급 옵션"):
@@ -1369,6 +1362,9 @@ def main():
                 help="업로드하면 형상→물량을 추출해 OPEX를 산정합니다(Qto 없으면 geom 역산). "
                      "미업로드 시 연장 기반 추정물량 사용.",
             )
+            st.caption(
+                "ⓘ BIM은 선택 입력입니다 — 없어도 협약·공공데이터만으로 전체 분석이 "
+                "동작하며, 연결하면 물량 산출이 자동화되어 정밀도가 올라갑니다.")
             if _ifc_up is not None:
                 import tempfile
                 import os as _os
@@ -1563,7 +1559,7 @@ def main():
             </svg>
             <div>
                 <div class="forenode-logo-text">Forenode</div>
-                <div class="forenode-subtitle">BIM·AI 민자사업 인텔리전스</div>
+                <div class="forenode-subtitle">공공데이터 기반 민자도로 수익성·적정성 검증 — 여러 참여자가 같은 기준으로</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1638,10 +1634,10 @@ def main():
         'termination_payment': total_capex,
     }
 
-    # KPI 카드 (1열: 사업주 지분 관점 / 2열: 대주단·사업성 관점)
+    # KPI 카드 — 핵심 4종 (나머지 3종은 '전체 지표 보기'로 이동, 2026-07 UI 개편)
     _eirr = metrics.get('equity_irr', float('nan'))
     _eirr_ok = _eirr == _eirr  # NaN guard
-    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+    col1, col2, col3, col4 = st.columns(4)
 
     npv_color = "green" if metrics['npv'] >= 0 else "red"
     with col1:
@@ -1655,35 +1651,89 @@ def main():
             <h4>자기자본IRR</h4><h2>{eirr_txt}</h2></div>""",
             unsafe_allow_html=True)
     with col3:
-        irr_txt = f"{metrics['nominal_irr']*100:.1f}% / {metrics['real_irr']*100:.1f}%"
-        st.markdown(f"""<div class="metric-card blue">
-            <h4>프로젝트IRR(명목/불변·세후)</h4><h2>{irr_txt}</h2></div>""",
-            unsafe_allow_html=True)
-    with col4:
-        roe_color = "green" if metrics['roe'] > 0 else "red"
-        st.markdown(f"""<div class="metric-card {roe_color}">
-            <h4>자기자본순이익률(ROE)</h4><h2>{metrics['roe']*100:.1f}%</h2></div>""",
-            unsafe_allow_html=True)
-    with col5:
         dscr_color = "green" if metrics['dscr_min'] >= 1.0 else "red"
         st.markdown(f"""<div class="metric-card {dscr_color}">
             <h4>DSCR (최소/평균)</h4><h2>{metrics['dscr_min']:.2f} / {metrics['dscr_avg']:.2f}</h2></div>""",
             unsafe_allow_html=True)
-    with col6:
-        st.markdown(f"""<div class="metric-card blue">
-            <h4>WACC</h4><h2>{wacc_info['wacc']*100:.2f}%</h2></div>""",
-            unsafe_allow_html=True)
-    with col7:
+    with col4:
         bc_color = "green" if metrics['bc_ratio'] >= 1.0 else "orange"
         st.markdown(f"""<div class="metric-card {bc_color}">
             <h4>B/C ratio</h4><h2>{metrics['bc_ratio']:.2f}</h2></div>""",
             unsafe_allow_html=True)
+
+    with st.expander("📊 전체 지표 보기 (프로젝트IRR·ROE·WACC)"):
+        _k1, _k2, _k3 = st.columns(3)
+        irr_txt = f"{metrics['nominal_irr']*100:.1f}% / {metrics['real_irr']*100:.1f}%"
+        with _k1:
+            st.markdown(f"""<div class="metric-card blue">
+                <h4>프로젝트IRR(명목/불변·세후)</h4><h2>{irr_txt}</h2></div>""",
+                unsafe_allow_html=True)
+        with _k2:
+            roe_color = "green" if metrics['roe'] > 0 else "red"
+            st.markdown(f"""<div class="metric-card {roe_color}">
+                <h4>자기자본순이익률(ROE)</h4><h2>{metrics['roe']*100:.1f}%</h2></div>""",
+                unsafe_allow_html=True)
+        with _k3:
+            st.markdown(f"""<div class="metric-card blue">
+                <h4>WACC</h4><h2>{wacc_info['wacc']*100:.2f}%</h2></div>""",
+                unsafe_allow_html=True)
 
     st.caption(
         "ⓘ 수익률 표기 기준: 프로젝트 IRR=세후(명목/불변) · 협약수익률=실질·세전(역할별 지표 참조). "
         "민자 실시협약·재구조화 벤치마크는 노선마다 세전경상·세후실질을 병기하므로 비교 시 기준 확인 필수 "
         "(KOTI MP-24-11, 2024, pp.78-86)."
     )
+
+    # ── 🔎 가정 검증 요약 배지 — 판정을 분명한 문장으로 끝맺는다 (상세: 가정 검증 오버레이) ──
+    try:
+        from demand_bias import demand_optimism_band as _dob, prob_ratio_below as _prb, \
+            BENCHMARK_PRIORS as _BP
+        from verification_overlays import implied_rating as _irt, \
+            agreed_return_position as _arp, TRIGGER_RULES as _TR
+        _bp_key = st.session_state.get("demand_prior") or list(_BP.keys())[0]
+        _b_db = _dob(daily_traffic, prior=_bp_key)
+        _b_dicon = {"high": "🔴", "mid": "🟡", "low": "🟢"}.get(_b_db["level"], "⚪")
+        _b_p70 = _prb(_TR["ratio_threshold"], prior=_bp_key)
+        if _b_p70 >= 0.50:
+            _b_tg = f"🔴 재협상 트리거(협약比 70%) 도달 위험이 높습니다 (P≈{_b_p70*100:.0f}%)"
+        elif _b_p70 >= 0.25:
+            _b_tg = f"🟡 재협상 트리거 도달 가능성에 주의하세요 (P≈{_b_p70*100:.0f}%)"
+        else:
+            _b_tg = f"🟢 재협상 트리거까지 여유가 있습니다 (P≈{_b_p70*100:.0f}%)"
+        _b_ap = _arp(metrics.get('real_irr', float('nan')))
+        _b_ap_txt = {
+            "over": "🔴 수익률이 시장 전례 상단을 초과합니다 — 과대 여부를 검토하세요",
+            "above": "🟡 수익률이 시장 평균을 상회합니다 — 산정 근거를 확인하세요",
+            "recent": "🟢 수익률이 시장 체결 권역 안에 있습니다",
+            "btoa": "🟢 수익률이 BTO-a 신규 협약 권역 안에 있습니다",
+            "low": "🟡 수익률이 시장 하단에 근접합니다 — 투자유인을 점검하세요",
+            "under": "🔴 수익률이 시장 전례 하단 미만입니다 — 과소(투자유인 부족) 여부를 검토하세요",
+        }.get(_b_ap["level"], "⚪ 수익률 시장 위치를 산출할 수 없습니다")
+        _b_ir = _irt(metrics.get('dscr_min', float('nan')))
+        _b_ir_txt = {
+            "ig": "🟢 예비 신용등급이 투자등급 영역입니다",
+            "edge": "🟡 예비 신용등급이 투자등급 경계입니다 — 하방 시나리오를 확인하세요",
+            "spec": "🟡 예비 신용등급이 투기등급 영역입니다 — 신용보강을 검토하세요",
+            "default": "🔴 예비 신용등급이 디폴트 위험 영역입니다 — 구조 재설계가 필요합니다",
+        }.get(_b_ir["level"], "⚪ 예비 신용등급을 산출할 수 없습니다")
+        st.markdown(
+            f"**🔎 가정 검증 요약** · {_b_dicon} {_b_db['flag']} · {_b_tg} · "
+            f"{_b_ap_txt} · {_b_ir_txt}")
+        st.caption("근거·벤치마크·운영 중 사업 점검은 아래 '🔎 가정 검증 오버레이'에서 확인하세요.")
+    except Exception:
+        pass
+
+    # ── 🔭 관점별 보기 (role-first — 2026-07 UI 개편: KPI 직후로 승격) ──
+    st.markdown("### 🔭 관점별 보기")
+    st.caption(
+        "주체를 고르면 그 입장에서 가장 중요한 지표·판정과, 더 파볼 심화 도구·what-if 위치를 안내합니다."
+    )
+    _role = st.radio(
+        "관점(역할)",
+        ["전체", "대주단", "사업주", "자산운용사·연기금", "정부(PIMAC·주무관청)", "회계법인"],
+        horizontal=True, label_visibility="collapsed", key="role_lens",
+    )
+    _role_slot = st.container(border=True)
     st.markdown("")
 
     # ════════════════════════════════════════════════════════
@@ -1777,7 +1827,7 @@ def main():
     rc5.metric("NPV 적자 여부", "적자" if _npv < 0 else "흑자")
     st.caption(
         "전체 토네이도·몬테카를로·낙관편향·부채 스컬프팅·리스크 등록부는 아래 "
-        "**[📊 재무 분석 ▸ 🎯 민감도·리스크 등록부]** 탭에서 — 대주단·운용사 실사(DD) 산출물."
+        "**[⏱ 사전 검토 ▸ 🎯 민감도·리스크 등록부]** 탭에서 — 대주단·운용사 실사(DD) 산출물."
     )
 
     # ── 배당 타임라인 (사업주 현금회수 관점) ──
@@ -1922,20 +1972,7 @@ def main():
     # 시점 탭에 전달할 컨텍스트 (자동 산출 결과 포함)
     # phase_context 는 상단(KPI 카드 위)에서 이미 조립됨 — PDF 보고서 버튼과 심화 탭이 공유
 
-    # ════════════════════════════════════════════════════════════════
-    # 🔭 관점 라우터 — 6주체별 핵심 결과 + 심화 도구/what-if 바로가기
-    # ════════════════════════════════════════════════════════════════
-    st.markdown("### 🔭 관점별 보기")
-    st.caption(
-        "주체를 고르면 그 입장에서 가장 중요한 지표·판정과, 더 파볼 심화 도구·what-if 위치를 안내합니다. "
-        "아래 단계별 분석·솔버·심화 도구로 가는 길잡이입니다."
-    )
-    _role = st.radio(
-        "관점(역할)",
-        ["전체", "대주단", "사업주", "자산운용사·연기금", "정부(PIMAC·주무관청)", "회계법인"],
-        horizontal=True, label_visibility="collapsed", key="role_lens",
-    )
-
+    # (🔭 관점별 보기는 2026-07 UI 개편으로 KPI 직후로 이동 — 아래 _render_role_router 호출부 참조)
     _rl_eirr = metrics.get('equity_irr', float('nan'))
     _rl_eirr_ok = _rl_eirr == _rl_eirr
     _rl_eirr_txt = f"{_rl_eirr*100:.1f}%" if _rl_eirr_ok else "—"
@@ -1945,7 +1982,7 @@ def main():
     _rl_govt = metrics.get('total_govt_burden', 0.0)
     _rl_dmin = metrics['dscr_min']
 
-    with st.container(border=True):
+    with _role_slot:
         if _role == "대주단":
             st.markdown("**📐 대주단 — 부채 회수 안정성 (DSCR·LLCR·스컬프팅)**")
             d1, d2, d3, d4 = st.columns(4)
@@ -1960,8 +1997,9 @@ def main():
             else:
                 st.success(f"DSCR_min {_rl_dmin:.2f} ≥ lock-up {cov_lockup:.2f} — 부채 회수 안정권.")
             st.caption(
-                "심화 ▸ **📊 재무 분석 ▸ 🎯 민감도·리스크 등록부**(토네이도·몬테카를로·부채 스컬프팅·낙관편향) · **📈 현금흐름**(연도별 DSCR·선순위 DSCR) · "
-                "what-if ▸ **🎯 요구수익률 솔버**(대주단 프리셋)."
+                "심화 ▸ **⏱ 사전 검토 ▸ 민감도·리스크 등록부**(토네이도·몬테카를로·부채 스컬프팅·낙관편향) · "
+                "**🏗 시공·자금조달 ▸ 현금흐름**(연도별 DSCR·선순위 DSCR) · "
+                "what-if ▸ **🔄 재구조화 ▸ 요구수익률 솔버**(대주단 프리셋)."
             )
         elif _role == "사업주":
             st.markdown("**🏢 사업주(SPC 출자자) — 자기자본 회수 (Equity IRR·배당)**")
@@ -1988,8 +2026,8 @@ def main():
                 st.caption("협약수익률=실시협약 기준(실질·세전, 세후 병기) · MIRR=IRR 재투자·복수해 결함 교정 · "
                            "PLCR=사업 전기간 부채커버(≥LLCR). IRR 단독 판단 금지, NPV·DSCR 병행.")
             st.caption(
-                "심화 ▸ **💵 배당 타임라인**(위 스냅샷) · **🔄 재구조화 단계**(MRG 재협상·관리운영권) · "
-                "what-if ▸ **🎯 요구수익률 솔버**(사업주 프리셋: 목표 IRR 역산)."
+                "심화 ▸ **💵 배당 타임라인**(아래 expander) · **🔄 재구조화 단계**(MRG 재협상·관리운영권) · "
+                "what-if ▸ **🔄 재구조화 ▸ 요구수익률 솔버**(사업주 프리셋: 목표 IRR 역산)."
             )
         elif _role == "자산운용사·연기금":
             st.markdown("**💼 자산운용사·연기금(FI) — 안정 수익 + 잔여가치**")
@@ -2003,8 +2041,8 @@ def main():
             else:
                 st.warning("IRR 또는 DSCR이 운용 기준선(IRR≥10%·DSCR≥1.15) 미달 — 하방 분포 확인 필요.")
             st.caption(
-                "심화 ▸ **🎯 민감도·리스크 등록부**(몬테카를로 P10·하방확률) · **📊 MC NPV** · "
-                "what-if ▸ **🎯 요구수익률 솔버**(자산운용사·연기금 프리셋)."
+                "심화 ▸ **⏱ 사전 검토 ▸ 민감도·리스크 등록부**(몬테카를로 P10·하방확률)·**MC NPV** · "
+                "what-if ▸ **🔄 재구조화 ▸ 요구수익률 솔버**(자산운용사·연기금 프리셋)."
             )
         elif _role == "정부(PIMAC·주무관청)":
             st.markdown("**🏛️ 정부(KDI PIMAC·주무관청) — VfM·재정부담**")
@@ -2018,8 +2056,8 @@ def main():
             else:
                 st.warning("B/C < 1.0 또는 NPV < 0 — 민자 적격성·정부 보전(MRG/MCC) 설계 재검토 필요.")
             st.caption(
-                "심화 ▸ **⏱ 사전 검토 단계**(민자 적격성) · **🚦 시장·법제 ▸ 통행료 적정성·SPC 벤치마크** · "
-                "what-if ▸ **🎯 요구수익률 솔버**(KDI PIMAC·주무관청 프리셋)."
+                "심화 ▸ **⏱ 사전 검토**(민자 적격성·통행료 적정성·SPC 벤치마크) · "
+                "what-if ▸ **🔄 재구조화 ▸ 요구수익률 솔버**(KDI PIMAC·주무관청 프리셋)."
             )
         elif _role == "회계법인":
             st.markdown("**🧮 회계법인 — 현금흐름 재현성·검증**")
@@ -2039,13 +2077,13 @@ def main():
             )
             st.caption(
                 "납품물 ▸ 위 CSV를 표준 .xlsx에 붙여넣어 주무관청·대주단 모델과 **연도별 셀 단위 대조**. · "
-                "심화 ▸ **📈 현금흐름 ▸ 📋 상세 현금흐름표**(EBITDA·DSCR·선순위 DSCR·LLCR + 산정 규약) · "
-                "**ℹ️ 분석 가정**(위 expander)."
+                "심화 ▸ **🏗 시공·자금조달 ▸ 현금흐름**(상세 현금흐름표: EBITDA·DSCR·선순위 DSCR·LLCR + 산정 규약) · "
+                "**ℹ️ 분석 가정**(아래 expander)."
             )
         else:  # 전체
             st.caption(
-                "전체 보기 — 위 KPI·리스크 스냅샷이 종합 요약입니다. 특정 주체를 고르면 그 입장의 "
-                "핵심 지표·판정과 바로 갈 심화 도구/솔버 위치만 추려서 보여줍니다."
+                "전체 보기 — 위 KPI 4종과 검증 요약, 아래 리스크 스냅샷이 종합 요약입니다. "
+                "특정 주체를 고르면 그 입장의 핵심 지표·판정과 바로 갈 심화 도구/솔버 위치만 추려서 보여줍니다."
             )
 
     st.markdown("---")
@@ -2139,81 +2177,35 @@ def main():
 
     st.markdown("---")
 
-    st.markdown("### 🗓️ 사업 시점별 분석")
+    st.markdown("### 🗓️ 사업 시점별 분석 — 단계를 고르면 그 시점의 심화 도구까지 한곳에")
     st.caption(
-        "민자도로 라이프사이클에 따른 분석 제공"
+        "민자도로 라이프사이클 4단계가 주 내비게이션입니다. 각 단계 안에 해당 시점의 심화 도구를 "
+        "배치했습니다 (2026-07 UI 개편 — 구 '심화 분석 도구' 11종을 시점별로 재배치)."
     )
 
     phase_tabs_ui = st.tabs([
         "⏱ 사전 검토", "🏗 시공·자금조달", "🛣 운영", "🔄 재구조화"
     ])
-    
+
+    # ── ⏱ 사전 검토: 단계 브리핑 + 타당성·수요·시장 심화 도구 6종 ──
     with phase_tabs_ui[0]:
         render_phase_pretest(phase_context)
-    with phase_tabs_ui[1]:
-        render_phase_construction(phase_context)
-    with phase_tabs_ui[2]:
-        render_phase_operation(phase_context)
-    with phase_tabs_ui[3]:
-        render_phase_restructuring(phase_context)
-    
-    st.markdown("---")
-
-    # ════════════════════════════════════════════════════════════════
-    # 🎯 전략 의사결정 — 요구수익률 솔버 (강조 영역)
-    # ════════════════════════════════════════════════════════════════
-    st.markdown(
-        """<div style="background:linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%);
-            border-left:6px solid #EF9F27;border-radius:8px;
-            padding:18px 22px;margin:16px 0;">
-            <div style="font-size:13px;color:#888;font-weight:600;">━ 전략 의사결정 ━</div>
-            <div style="font-size:22px;font-weight:bold;color:#1F3864;margin-top:4px;">
-                🎯 요구수익률 솔버
-            </div>
-            <div style="font-size:13px;color:#555;margin-top:6px;">
-                5대 고객 그룹별 요구수익률 자동 진단 + 변수 조정 시나리오 자동 도출.
-            </div>
-        </div>""",
-        unsafe_allow_html=True,
-    )
-    
-    with st.container():
-        render_solver_tab(base_params, metrics, build_cashflow, phase_context)
-
-    st.markdown("---")
-    
-    # ════════════════════════════════════════════════════════════════
-    # 📊 심화 분석 도구 — 4그룹 (재무·시설/열화·시장/법제·AI 모델)
-    # ════════════════════════════════════════════════════════════════
-    st.markdown("#### 📊 심화 분석 도구")
-    st.caption(
-        "**4개 영역 11개 도구** — 재무 분석(4) · 시설·열화(3) · 시장·법제(3) · AI 모델 검증(1). "
-        "각 영역 내 도구는 독립 실행 가능하며 상호 교차 검증 자료로 활용됩니다."
-    )
-    
-    # 4그룹 최상위 탭
-    group_tabs = st.tabs([
-        "📊 재무 분석",
-        "🛣 시설·열화",
-        "🚦 시장·법제",
-        "🤖 AI 모델 검증",
-    ])
-    
-    # ── 그룹 A: 재무 분석 (5) — 민감도·리스크 등록부, MC NPV, Tornado, 현금흐름, 금융구조 ──
-    with group_tabs[0]:
-        tabs = st.tabs([
+        st.markdown("---")
+        st.markdown("##### 🔬 사전 검토 심화 도구")
+        tabs_pre = st.tabs([
             "🎯 민감도·리스크 등록부",
             "📊 MC NPV (Monte Carlo)",
             "🌪️ Tornado (민감도)",
-            "📈 현금흐름",
-            "🏦 금융구조",
+            "🔥 통행료 적정성",
+            "📋 SPC 벤치마크",
+            "🤖 XGBoost 수익성 등급",
         ])
-        # 호환성 매핑: 기존 본문은 별칭으로 그대로 사용
-        tab_sensitivity = tabs[0]
-        tab_mc = tabs[1]
-        tab_tornado = tabs[2]
-        tab_cashflow = tabs[3]
-        tab_finance = tabs[4]
+        tab_sensitivity = tabs_pre[0]
+        tab_mc = tabs_pre[1]
+        tab_tornado = tabs_pre[2]
+        tab_toll = tabs_pre[3]
+        tab_benchmark = tabs_pre[4]
+        tab_xgboost = tabs_pre[5]
 
         with tab_sensitivity:
             # 지연 import: scenario_engine 이 app.build_cashflow 를 역참조하므로
@@ -2227,38 +2219,63 @@ def main():
                 cov_lockup=cov_lockup,
                 cov_default=cov_default,
             )
-    
-    # ── 그룹 B: 시설·열화 (3) — 열화곡선, Weibull, OPEX ──
-    with group_tabs[1]:
-        tabs_b = st.tabs([
+
+    # ── 🏗 시공·자금조달: 단계 브리핑 + 금융구조·현금흐름 ──
+    with phase_tabs_ui[1]:
+        render_phase_construction(phase_context)
+        st.markdown("---")
+        st.markdown("##### 🔬 시공·자금조달 심화 도구")
+        tabs_con = st.tabs([
+            "🏦 금융구조",
+            "📈 현금흐름",
+        ])
+        tab_finance = tabs_con[0]
+        tab_cashflow = tabs_con[1]
+
+    # ── 🛣 운영: 단계 브리핑 + 시설·열화·OPEX ──
+    with phase_tabs_ui[2]:
+        render_phase_operation(phase_context)
+        st.markdown("---")
+        st.markdown("##### 🔬 운영 심화 도구")
+        tabs_op = st.tabs([
             "📉 열화곡선",
             "🔧 Weibull 열화 분포",
             "💰 OPEX 시계열 모델",
         ])
-        tab_deterioration = tabs_b[0]
-        tab_weibull = tabs_b[1]
-        tab_opex = tabs_b[2]
-    
-    # ── 그룹 C: 시장·법제 (3) — 통행료, 벤치마크, 법제 RAG ──
-    with group_tabs[2]:
-        tabs_c = st.tabs([
-            "🔥 통행료 적정성",
-            "📋 SPC 벤치마크",
+        tab_deterioration = tabs_op[0]
+        tab_weibull = tabs_op[1]
+        tab_opex = tabs_op[2]
+
+    # ── 🔄 재구조화: 단계 브리핑 + 요구수익률 솔버·법제 RAG ──
+    with phase_tabs_ui[3]:
+        render_phase_restructuring(phase_context)
+        st.markdown("---")
+        st.markdown("##### 🔬 재구조화 심화 도구")
+        tabs_rst = st.tabs([
+            "🎯 요구수익률 솔버",
             "📚 법제 RAG 자문",
         ])
-        tab_toll = tabs_c[0]
-        tab_benchmark = tabs_c[1]
-        tab_rag = tabs_c[2]
+        tab_solver = tabs_rst[0]
+        tab_rag = tabs_rst[1]
+
+        with tab_solver:
+            st.markdown(
+                """<div style="background:linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%);
+                    border-left:6px solid #EF9F27;border-radius:8px;
+                    padding:12px 18px;margin:8px 0;">
+                    <div style="font-size:13px;color:#888;font-weight:600;">━ 전략 의사결정 ━</div>
+                    <div style="font-size:18px;font-weight:bold;color:#1F3864;margin-top:2px;">
+                        🎯 요구수익률 솔버
+                    </div>
+                    <div style="font-size:12px;color:#555;margin-top:4px;">
+                        5대 고객 그룹별 요구수익률 자동 진단 + 변수 조정 시나리오 자동 도출.
+                    </div>
+                </div>""",
+                unsafe_allow_html=True,
+            )
+            render_solver_tab(base_params, metrics, build_cashflow, phase_context)
     
-    # ── 그룹 D: AI 모델 검증 (1) — XGBoost 수익성 등급 ──
-    with group_tabs[3]:
-        tabs_d = st.tabs([
-            "🎯 XGBoost 수익성 등급 (LOOCV 93.2%)",
-        ])
-        tab_xgboost = tabs_d[0]
-    
-    # ── 호환성 매핑: 기존 tabs[0~10] 별칭 (코드 변경 최소화) ──
-    # 솔버는 위에서 이미 render했으므로 tabs[11]은 사용 안 함
+    # ── 호환성 매핑: 기존 tabs[0~10] 별칭 (본문 코드 변경 최소화 — 시점 탭 내부로 재배치됨) ──
     tabs = [tab_mc, tab_tornado, tab_cashflow, tab_deterioration, tab_toll,
             tab_finance, tab_benchmark, tab_rag, tab_xgboost, tab_weibull, tab_opex]
 
@@ -2787,10 +2804,10 @@ def main():
     # ── 하단 정보 ──
     st.markdown("---")
     st.caption(
-        "BIM·AI 민자도로 수익성 분석 시스템 | "
+        "Forenode — 공공데이터 기반 민자도로 수익성·적정성 검증 | "
         "2026 건설공사 표준품셈 반영 | "
         "DART 감사보고서 벤치마크 | "
-        "ECOS 기준금리 연동"
+        "ECOS 기준금리 연동 | BIM(IFC)은 선택 입력"
     )
 
 

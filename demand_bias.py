@@ -68,13 +68,14 @@ def demand_optimism_band(forecast_traffic, prior="도로 — 국제(Bain 2009)",
     p10, p50, p90 = (float(x) for x in np.percentile(sims, [10, 50, 90]))
     median_ratio = float(p["median_ratio"])
     haircut = (1.0 - median_ratio) * 100.0
-    # 플래그: 과거 실적상 실측이 예측의 median_ratio 수준 → 그만큼 낙관 가능성
+    # 플래그: 과거 실적상 실측이 예측의 median_ratio 수준 → 그만큼 낙관 가능성.
+    # 문구 원칙: 모호한 명사형 종결 금지 — 판정과 권고를 분명하게 끝맺는다.
     if median_ratio < 0.60:
-        flag, level = "낙관 가능성 매우 높음", "high"
+        flag, level = "수요 낙관편향 위험 높음 — 보수적 재검토가 필요합니다", "high"
     elif median_ratio < 0.85:
-        flag, level = "낙관 가능성 있음", "mid"
+        flag, level = "수요 낙관편향 주의 — 하방 시나리오를 함께 확인하세요", "mid"
     else:
-        flag, level = "보통", "low"
+        flag, level = "수요 가정이 과거 실적 범위 안에 있습니다 — 특이사항 없음", "low"
     return {
         "prior": prior, "source": p["source"],
         "forecast": float(forecast_traffic),
