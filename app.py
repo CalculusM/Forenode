@@ -1695,30 +1695,45 @@ def main():
         _b_dicon = {"high": "🔴", "mid": "🟡", "low": "🟢"}.get(_b_db["level"], "⚪")
         _b_p70 = _prb(_TR["ratio_threshold"], prior=_bp_key)
         if _b_p70 >= 0.50:
-            _b_tg = f"🔴 재협상 트리거(협약比 70%) 도달 위험이 높습니다 (P≈{_b_p70*100:.0f}%)"
+            _tg_icon, _tg_msg = "🔴", "도달 위험이 높습니다 — 수요 가정을 보수적으로 재검토하세요"
         elif _b_p70 >= 0.25:
-            _b_tg = f"🟡 재협상 트리거 도달 가능성에 주의하세요 (P≈{_b_p70*100:.0f}%)"
+            _tg_icon, _tg_msg = "🟡", "도달 가능성이 있습니다 — 하방 시나리오를 함께 확인하세요"
         else:
-            _b_tg = f"🟢 재협상 트리거까지 여유가 있습니다 (P≈{_b_p70*100:.0f}%)"
+            _tg_icon, _tg_msg = "🟢", "도달 가능성이 낮습니다 — 특이사항 없음"
         _b_ap = _arp(metrics.get('real_irr', float('nan')))
-        _b_ap_txt = {
-            "over": "🔴 수익률이 시장 전례 상단을 초과합니다 — 과대 여부를 검토하세요",
-            "above": "🟡 수익률이 시장 평균을 상회합니다 — 산정 근거를 확인하세요",
-            "recent": "🟢 수익률이 시장 체결 권역 안에 있습니다",
-            "btoa": "🟢 수익률이 BTO-a 신규 협약 권역 안에 있습니다",
-            "low": "🟡 수익률이 시장 하단에 근접합니다 — 투자유인을 점검하세요",
-            "under": "🔴 수익률이 시장 전례 하단 미만입니다 — 과소(투자유인 부족) 여부를 검토하세요",
-        }.get(_b_ap["level"], "⚪ 수익률 시장 위치를 산출할 수 없습니다")
+        _ap_icon = {"over": "🔴", "under": "🔴", "above": "🟡", "low": "🟡",
+                    "recent": "🟢", "btoa": "🟢"}.get(_b_ap["level"], "⚪")
+        _ap_msg = {
+            "over": "시장 전례 상단(12.0%)을 초과합니다 — 과대 산정 여부를 검토하세요",
+            "above": "시장 평균(6.41%)을 상회합니다 — 산정 근거를 확인하세요",
+            "recent": "BTO 후기 체결 권역(4~6%) 안에 있습니다 — 특이사항 없음",
+            "btoa": "BTO-a 신규 협약 권역(2.85~4%) 안에 있습니다 — 특이사항 없음",
+            "low": "시장 하단에 근접합니다 — 투자유인을 점검하세요",
+            "under": "시장 전례 하단(2.85%) 미만입니다 — 과소(투자유인 부족) 여부를 검토하세요",
+        }.get(_b_ap["level"], "시장 위치를 산출할 수 없습니다")
         _b_ir = _irt(metrics.get('dscr_min', float('nan')))
-        _b_ir_txt = {
-            "ig": "🟢 예비 신용등급이 투자등급 영역입니다",
-            "edge": "🟡 예비 신용등급이 투자등급 경계입니다 — 하방 시나리오를 확인하세요",
-            "spec": "🟡 예비 신용등급이 투기등급 영역입니다 — 신용보강을 검토하세요",
-            "default": "🔴 예비 신용등급이 디폴트 위험 영역입니다 — 구조 재설계가 필요합니다",
-        }.get(_b_ir["level"], "⚪ 예비 신용등급을 산출할 수 없습니다")
+        _ir_icon = {"ig": "🟢", "edge": "🟡", "spec": "🟡",
+                    "default": "🔴"}.get(_b_ir["level"], "⚪")
+        _ir_msg = {
+            "ig": "투자등급 영역입니다 — 특이사항 없음",
+            "edge": "투자등급 경계입니다 — 하방 시나리오를 확인하세요",
+            "spec": "투기등급 영역입니다 — 신용보강을 검토하세요",
+            "default": "디폴트 위험 영역입니다 — 사업구조 재설계가 필요합니다",
+        }.get(_b_ir["level"], "산출할 수 없습니다")
+        _b_rirr = metrics.get('real_irr', float('nan'))
+        _b_rirr_txt = f"{_b_rirr*100:.1f}%" if _b_rirr == _b_rirr else "—"
+        _b_dmin = metrics.get('dscr_min', float('nan'))
+        _b_dmin_txt = f"{_b_dmin:.2f}" if _b_dmin == _b_dmin else "—"
+        st.markdown("**🔎 가정 검증 요약**")
         st.markdown(
-            f"**🔎 가정 검증 요약** · {_b_dicon} {_b_db['flag']} · {_b_tg} · "
-            f"{_b_ap_txt} · {_b_ir_txt}")
+            f"{_b_dicon} **수요** — 입력 교통량은 과거 실적 분포 기준, 예측의 "
+            f"{_b_db['median_ratio']*100:.0f}%가 실현 중앙값입니다. {_b_db['flag']}.\n\n"
+            f"{_tg_icon} **재협상 트리거** — 실측이 협약 대비 {_TR['ratio_threshold']*100:.0f}% "
+            f"미달에 머물 확률이 약 {_b_p70*100:.0f}%입니다. 법정 트리거(유료도로법 §23의5)에 "
+            f"{_tg_msg}.\n\n"
+            f"{_ap_icon} **협약수익률 위치** — 이 시나리오의 실질 사업수익률(세후) "
+            f"{_b_rirr_txt}는 {_ap_msg}.\n\n"
+            f"{_ir_icon} **예비 신용등급** — 최소 DSCR {_b_dmin_txt} 기준 {_ir_msg}.")
         st.caption("근거·벤치마크·운영 중 사업 점검은 아래 '🔎 가정 검증 오버레이'에서 확인하세요.")
     except Exception:
         pass
