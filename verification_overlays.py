@@ -111,13 +111,17 @@ def renegotiation_triggers(actual_ratios=None, demand_revision_cut=None,
 
 # ── 3) 협약수익률(약정 사업수익률) 시장 벤치마크 ──
 # 근거: KOTI RR-24-12(2024) pp.52-53 — 국내 도로 실시협약 54건 약정 사업수익률(세후):
-#   최소 3.70% · 평균 6.41% · 최대 12.0%, 초기(MRG 시대) 9~12% → 최근 체결분 4~6%대.
-#   같은 연구는 수익률 '과소평가'(2000년 이후 10년 국고채 미만)도 투자 위축 요인으로
+#   최소 3.70% · 평균 6.41% · 최대 12.0%, 초기(MRG 시대) 9~12% → 이후 체결분 4~6%대.
+#   KOTI RR-25-10(2025) pp.42-44 — 최신 3시대 분포(불변 세후): 운영 23개 평균 5.60% /
+#   협상 중 BTO-a 4개 평균 3.23% / 기획 단계 13개 평균 2.85%.
+#   RR-24-12는 수익률 '과소평가'(2000년 이후 10년 국고채 미만)도 투자 위축 요인으로
 #   지적(p.66) → 적정성 검증은 과대·과소 양방향.
 MARKET_AGREED_RETURNS = {
     "n": 54, "min": 3.70, "avg": 6.41, "max": 12.0,
     "recent_low": 4.0, "recent_high": 6.0,
-    "source": "KOTI RR-24-12 pp.52-53 (도로 54건 약정 사업수익률·세후)",
+    "btoa_pipeline": 2.85, "btoa_nego": 3.23, "operating_avg": 5.60,
+    "source": "KOTI RR-24-12 pp.52-53 (도로 54건 약정 사업수익률·세후) · "
+              "RR-25-10 pp.42-44 (운영 5.60%·BTO-a 협상 3.23%·기획 2.85%, 불변 세후)",
 }
 
 
@@ -140,12 +144,14 @@ def agreed_return_position(after_tax_return):
         pos, level = (f"시장 평균({m['avg']:.2f}%) 상회 — 중기 협약 권역"
                       f"(서울춘천 6.98%~수도권1순환 8.51%)", "above")
     elif r >= m["recent_low"]:
-        pos, level = f"최근 체결 수준({m['recent_low']:.0f}~{m['recent_high']:.0f}%) 권역", "recent"
-    elif r >= m["min"]:
-        pos, level = f"시장 하단(전례 최저 {m['min']:.2f}%) 근접", "low"
+        pos, level = (f"BTO 후기 체결 수준({m['recent_low']:.0f}~{m['recent_high']:.0f}%) "
+                      f"권역 · 운영 23개 평균 {m['operating_avg']:.2f}% 부근", "recent")
+    elif r >= m["btoa_pipeline"]:
+        pos, level = (f"BTO-a 신규 세대 권역(기획 {m['btoa_pipeline']:.2f}%~협상 "
+                      f"{m['btoa_nego']:.2f}%) — 현행 신규 협약 눈높이", "btoa")
     else:
-        pos, level = (f"시장 전례 최저({m['min']:.2f}%) 미만 — 과소(투자유인 부족) "
-                      f"가능성 검토", "under")
+        pos, level = (f"BTO-a 신규 세대 하단({m['btoa_pipeline']:.2f}%) 미만 — "
+                      f"과소(투자유인 부족) 가능성 검토", "under")
     return {"position": pos, "level": level, "rate_pct": r,
             "note": f"비교기준: {m['source']} · 세후끼리 비교 · 과소평가도 투자 위축 요인"}
 

@@ -2079,6 +2079,9 @@ def main():
                     f"수입 환산(교통량 선형 가정): 연매출 {ann_rev:,.0f}억 → 보정 중앙값 ≈ **{_rev_p50:,.0f}억**. "
                     f"근거: {_db['source']}")
                 st.caption("⚠️ reference-class 추정 밴드 — 점추정 아님. 노선별 예측↔실측 매칭 시 정밀화.")
+                st.caption(
+                    "ⓘ prior는 '교통량' 기준. '수입' 기준은 체계적으로 더 낮음(협약 대비 통행료 수입 "
+                    "10년 평균 62.3% vs 교통량 81.4% — KOTI RR-25-10 p.45·p.140) — 수입 검증 시 별도 보정.")
             with _vc2:
                 st.markdown("**🏅 예비 신용등급 (근사)**")
                 _dmin = metrics.get('dscr_min', float('nan'))
@@ -2091,7 +2094,7 @@ def main():
                 _rirr = metrics.get('real_irr', float('nan'))
                 _ap = agreed_return_position(_rirr)
                 _ap_icon = {"over": "🔴", "under": "🔴", "above": "🟡",
-                            "low": "🟡", "recent": "🟢"}.get(_ap["level"], "⚪")
+                            "low": "🟡", "recent": "🟢", "btoa": "🟢"}.get(_ap["level"], "⚪")
                 _rirr_txt = f"{_rirr*100:.1f}%" if _rirr == _rirr else "—"
                 st.markdown(f"{_ap_icon} 실질 IRR(세후) **{_rirr_txt}** → {_ap['position']}")
                 st.caption(_ap['note'])
@@ -2314,6 +2317,10 @@ def main():
                         st.caption(
                             f"📉 하방 보강 — NPV VaR(5%, 최악 5분위): **{_dm['npv_var5']:,.0f}억** · "
                             f"NPV P10 {_dm.get('npv_p10', 0):,.0f}억 · DSCR P10 {_dm.get('dscr_p10', 0):.2f}")
+                    st.caption(
+                        "ⓘ 민감도 변수·범위 참조: KOTI RR-25-10(통행료수입 25~125%·총사업비 70~130%·"
+                        "할인율 3~8% 등). 사전 민감도 범위(공사비 85~100%·운영비 80~100%)를 실적"
+                        "(106%·70%)이 이탈한 실증 사례 있음(p.163) — 범위는 실적 분포로 보정 권장.")
                 except Exception:
                     pass
 
