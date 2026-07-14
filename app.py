@@ -68,6 +68,9 @@ def build_cashflow(
     debt_rate: float = 0.045,
     business_type: str = "BTO-ann",
     mrg_ratio: float = 0.0,
+    mrg_years: int = 0,
+    forecast_revenue_억: float = None,
+    revenue_series_억: np.ndarray = None,
     mcc_ratio: float = 0.0,
     restructuring_year: int = 0,
     equity_recovery_method: str = "원금+수익률",  # 보완 6: '회수안함' / '원금만' / '원금+수익률'
@@ -81,6 +84,16 @@ def build_cashflow(
         business_type   : 사업유형 (BTO/BTO-rs/BTO-ann/BTL/BTO+BTL)
         mrg_ratio       : MRG 보장률 (0.0~1.0). 정부 보전금 발동 기준
         mcc_ratio       : MCC 비용보전율 (0.0~1.0). BTO-a 사업의 운영비 정부 보전
+
+    신규 인자 (v3 — 인천공항 백테스트 L1·L2·L4 반영, 2026-07):
+        mrg_years       : MRG 보장기간(운영연차 기준). 0이면 운영기간 전체(하위호환).
+                          실협약은 보통 15~20년 한정(예: 인천공항 20년) — L4.
+        forecast_revenue_억 : 협약 추정수입 1년차(억). MRG floor의 기준 수입.
+                          미지정 시 annual_revenue_억 사용(입력수입=협약수입 가정, 종전 동작).
+                          실현 시나리오(annual_revenue_억)와 분리 입력하면 수요 미달형
+                          MRG 보전이 올바르게 계산된다 — L1.
+        revenue_series_억 : 실현 수입 시계열(운영연차별, 억). 지정 시 annual_revenue_억×
+                          growth 대신 사용 — 램프업·경쟁도로 단차 등 비단조 경로 표현 — L2.
         restructuring_year: 재구조화 시점 (0=재구조화 없음, 1~운영기간)
         equity_recovery_method: 자기자본 회수 방법 (BTL 표준 3가지, KDB 자료)
             '회수안함'   : 자기자본을 회수하지 않고 타인자본 금리에 더해서 상환
@@ -97,6 +110,7 @@ def build_cashflow(
                 'construction_years', 'operation_years', 'opex_ratio',
                 'equity_ratio', 'debt_rate',
                 'business_type', 'mrg_ratio', 'mcc_ratio', 'restructuring_year',
+                'mrg_years', 'forecast_revenue_억', 'revenue_series_억',
                 'equity_recovery_method', 'debt_repayment_method']:
         kwargs.pop(key, None)
 
@@ -131,8 +145,12 @@ def build_cashflow(
         if restructuring_year > 0 and op_year >= restructuring_year:
             toll_adj = 0.90
         
-        revenue[y] = annual_revenue_억 * rev_growth * toll_adj
-        
+        # L2: 실현 수입 시계열이 주어지면 스칼라×성장률 대신 직접 사용 (램프업·단차 표현)
+        if revenue_series_억 is not None and op_year - 1 < len(revenue_series_억):
+            revenue[y] = float(revenue_series_억[op_year - 1]) * toll_adj
+        else:
+            revenue[y] = annual_revenue_억 * rev_growth * toll_adj
+
         # OPEX — revenue와 동일 basis(성장 반영, 인플레 미적용)로 일치시킴.
         #   ※ 버그수정: estimate_opex_series 시계열은 이미 성장(growth)을 반영하므로
         #     여기서 infl_factor를 또 곱하면 revenue(성장만) 대비 OPEX만 인플레만큼
@@ -145,10 +163,12 @@ def build_cashflow(
         # MRG 보전금 (수요 위험 — BTO-rs, BTO-ann)
         # 협약 추정수입(통행료 조정 전) 대비 mrg_ratio를 floor로 보장.
         # 실제(재구조화 통행료 인하 등 반영) 수입이 floor 미만이면 정부가 차액을 보전한다.
-        # ※ 보장률을 '실적 실현율'로 환산해 매출을 깎던 종전 로직(0.80 하드코딩)을 제거 —
-        #   입력 시나리오를 그대로 실적으로 보고 floor 미달분만 보전(진성 MRG).
-        if mrg_ratio > 0:
-            forecast_rev = annual_revenue_억 * rev_growth  # 추정수입(통행료 조정 전)
+        # L1: floor 기준은 forecast_revenue_억(협약 추정수입) — 실현 시나리오와 분리.
+        #   미지정 시 annual_revenue_억(종전 동작: 입력수입=협약수입 가정).
+        # L4: 보장기간(mrg_years)을 넘긴 연차는 보전 없음 (0 = 전체 기간, 하위호환).
+        if mrg_ratio > 0 and (mrg_years <= 0 or op_year <= mrg_years):
+            _base_forecast = forecast_revenue_억 if forecast_revenue_억 is not None else annual_revenue_억
+            forecast_rev = _base_forecast * rev_growth  # 협약 추정수입(통행료 조정 전)
             guarantee_floor = forecast_rev * mrg_ratio
             if revenue[y] < guarantee_floor:
                 mrg_subsidy[y] = guarantee_floor - revenue[y]

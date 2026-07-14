@@ -138,11 +138,12 @@ def estimate_opex_series(
     bridge_ratio: float = 0.15,
     growth_rate: float = 0.025,
     inflation: float = 0.02,
+    road_length_km: float = None,
 ) -> dict:
     """
     사업유형 + 노선 특성 + 학습 데이터 패턴으로
     운영기간 OPEX 시계열을 산출.
-    
+
     Returns
     -------
     dict with keys:
@@ -152,6 +153,13 @@ def estimate_opex_series(
         - peak_year      : OPEX 정점 연차
         - peak_amount_억 : 정점 OPEX 금액
         - explanation    : 산출 근거 한 줄
+        - per_km_억      : (road_length_km 지정 시) 연평균 OPEX 원단위 (억/km/년)
+        - warning        : (원단위가 실측 벤치마크 범위 밖일 때) 경고문 — L3 크로스체크
+
+    L3 주의(인천공항 백테스트 2026-07): 매출비례 방식은 고요금 노선(km당 수입이 큰
+    민자도로)에서 OPEX를 구조적으로 과대 추정한다 — 인천공항 실측 현금 OPEX는
+    매출의 ~13%인데 기본비율은 30%대. road_length_km를 주면 원단위(억/km/년)로
+    크로스체크해 범위 밖이면 warning을 반환한다(자동 개입 없음 — 검증 도구 원칙).
     """
     # 1. 사업유형 기본 비율
     base_ratio = BIZ_BASE_OPEX.get(business_type, 0.35)
@@ -190,7 +198,22 @@ def estimate_opex_series(
         f"노선보정 {route_factor:.2f} = 평균 {adjusted_base*100:.1f}% | "
         f"학습데이터(도로공사 11년치 4,380건) 연차 패턴 적용"
     )
-    
+
+    # L3 크로스체크: 원단위(억/km/년) — 실측 벤치마크 대비 범위 검사.
+    # 벤치마크: 인천공항고속도로 실측 현금 OPEX(상각·이자 제외, DART FY2015~25 재구성)
+    #   ≈ 경상 약 10억/km/년 · 2000년 불변 약 5.8억/km/년 (backtest_case_incheon).
+    #   범위(1~12억/km/년)는 이 단일 실측 + 여유폭의 잠정치 — 1군 백테스트 확산 시 갱신.
+    per_km = None
+    warning = None
+    if road_length_km and road_length_km > 0:
+        per_km = float(opex_arr.mean()) / float(road_length_km)
+        if per_km > 12.0 or per_km < 1.0:
+            warning = (
+                f"매출비례 추정 원단위 {per_km:.1f}억/km/년이 실측 벤치마크 범위(1~12억/km/년)를 "
+                f"벗어났습니다 — 고요금 노선은 매출비례가 과대되기 쉬우니 물량 기반(bottom-up LCC) "
+                f"산출 또는 실측 원단위로 재검토하세요"
+            )
+
     return {
         "opex_ratio_avg": adjusted_base,
         "opex_series_억": opex_series,
@@ -199,6 +222,8 @@ def estimate_opex_series(
         "explanation": explanation,
         "base_ratio": base_ratio,
         "route_factor": route_factor,
+        "per_km_억": per_km,
+        "warning": warning,
     }
 
 
