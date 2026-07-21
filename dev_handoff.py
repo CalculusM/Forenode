@@ -32,7 +32,7 @@ KST = timezone(timedelta(hours=9))
 CONSENT_TEXT = (
     "본 시나리오의 **입력 변수**와 Forenode가 **자체 산출한 분석 근거**를, "
     "서비스 품질 개선 및 모델 재학습 목적으로 Forenode(개발자)가 활용하는 데 동의합니다. "
-    "데이터는 외부 제3자에게 공개·유출되지 않으며, 동의는 계약 과정에서 언제든 철회할 수 있습니다."
+    "동의는 언제든 철회할 수 있습니다."
 )
 
 
@@ -64,7 +64,7 @@ def render_handoff_section(scenario: dict, *, project_name: str = "") -> None:
         st.caption(
             "현재 **입력값과 산출 결과**를 한 파일로 묶어 내려받은 뒤, 안내받은 채널(이메일 등)로 "
             "Forenode 담당자에게 보내주시면 정밀 분석 결과를 회신드립니다. "
-            "이 파일은 **고객님 PC에만 저장**되며, 앱이 외부로 자동 전송하지 않습니다."
+            "이 파일은 **고객님 PC에만 저장**됩니다."
         )
 
         consent = st.checkbox(CONSENT_TEXT, value=False, key="dev_handoff_consent")
