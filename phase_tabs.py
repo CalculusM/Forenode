@@ -204,8 +204,8 @@ def render_phase_pretest(ctx: dict):
     )
 
     col_v1, col_v2, col_v3, col_v4 = st.columns(4)
-    col_v1.metric("PSC ratio (B/C)", f"{psc_ratio:.2f}",
-                  delta="≥1.0 적합" if psc_ratio >= 1.0 else "<1.0 부족",
+    col_v1.metric("수입/비용 현가비율", f"{psc_ratio:.2f}",
+                  delta="≥1.0 확보" if psc_ratio >= 1.0 else "<1.0 부족",
                   delta_color="normal" if psc_ratio >= 1.0 else "inverse")
     col_v2.metric("NPV", f"{npv:,.0f} 억",
                   delta="흑자" if npv >= 0 else "적자",
@@ -270,7 +270,7 @@ def render_phase_construction(ctx: dict):
     sub_rate = ctx.get('sub_rate', 0.065)
     # equity_ratio는 base_params에 없을 수 있으므로 metrics에서 역산하거나 기본값
     # 호환성: ctx에 직접 추가 안 했으면 BIZ 기본값으로 추정
-    equity_ratio = {"BTO": 0.25, "BTO-rs": 0.20, "BTO-ann": 0.15, "BTL": 0.10, "BTO+BTL": 0.18}.get(business_type, 0.20)
+    equity_ratio = {"BTO": 0.25, "BTO-rs": 0.20, "BTO-a": 0.15, "BTL": 0.10, "BTO+BTL": 0.18}.get(business_type, 0.20)
     
     # 자금 규모 (절대값)
     equity_amount = total_capex * equity_ratio
@@ -570,7 +570,7 @@ def render_phase_construction(ctx: dict):
         ci_fi_si_defaults = {
             "BTO":     {"ci": 40, "fi": 50, "si": 10},
             "BTO-rs":  {"ci": 30, "fi": 60, "si": 10},
-            "BTO-ann": {"ci": 25, "fi": 65, "si": 10},
+            "BTO-a": {"ci": 25, "fi": 65, "si": 10},
             "BTL":     {"ci": 20, "fi": 70, "si": 10},
             "BTO+BTL": {"ci": 28, "fi": 62, "si": 10},
         }

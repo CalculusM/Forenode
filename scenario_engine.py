@@ -51,7 +51,7 @@ class BaseCase:
     inflation: float = 0.02
     growth_rate: float = 0.025
     equity_ratio: float = 0.25
-    business_type: str = "BTO-ann"
+    business_type: str = "BTO-a"
     tax_rate: float = 0.22
     mrg_ratio: float = 0.0
     mcc_ratio: float = 0.0
@@ -84,7 +84,7 @@ def make_base_case(
     terrain: str = "평지",
     bridge_ratio: float = 0.15,
     tunnel_ratio: float = 0.20,
-    business_type: str = "BTO-ann",
+    business_type: str = "BTO-a",
     daily_traffic: int = 50000,
     toll_per_km: float = 80.0,
     construction_years: int = 5,

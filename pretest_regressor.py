@@ -14,7 +14,7 @@ Forenode — 사전 검토 단계 통계 회귀 모델 (pretest_regressor.py)
 입력 변수:
   - 연장(km), 차로 수, 지형(평지/구릉/산악)
   - 교량 비율(%), 터널 비율(%)
-  - 사업유형(BTO/BTO-rs/BTO-ann/BTL)
+  - 사업유형(BTO/BTO-rs/BTO-a/BTL)
 
 출력:
   - 추정 CAPEX (억원, ±20% 참고범위 — 실무 통상 가정 휴리스틱)
@@ -47,7 +47,7 @@ BUSINESS_TYPE_DEFAULTS = {
         "toll_per_km": 90,
         "description": "위험분담형 — 정부와 사업자가 위험·수익 분담",
     },
-    "BTO-ann": {
+    "BTO-a": {
         "equity_ratio": 0.15,
         "opex_ratio": 0.35,
         "mrg_ratio": 0.90,
@@ -83,7 +83,7 @@ def estimate_capex_from_route(
     terrain: str = "평지",
     bridge_ratio: float = 0.15,
     tunnel_ratio: float = 0.20,
-    business_type: str = "BTO-ann",
+    business_type: str = "BTO-a",
 ) -> dict:
     """
     노선 특성에서 CAPEX 추정 (1차 통계 모델).
@@ -147,7 +147,7 @@ def estimate_capex_from_route(
 
 
 def estimate_opex_ratio(
-    business_type: str = "BTO-ann",
+    business_type: str = "BTO-a",
     terrain: str = "평지",
     tunnel_ratio: float = 0.20,
 ) -> float:
@@ -174,7 +174,7 @@ def estimate_opex_ratio(
 
 def get_business_defaults(business_type: str) -> dict:
     """사업유형별 기본값 반환 (사이드바 자동 채움용)"""
-    return BUSINESS_TYPE_DEFAULTS.get(business_type, BUSINESS_TYPE_DEFAULTS["BTO-ann"])
+    return BUSINESS_TYPE_DEFAULTS.get(business_type, BUSINESS_TYPE_DEFAULTS["BTO-a"])
 
 
 # ════════════════════════════════════════════════════════════
