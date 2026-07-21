@@ -2133,8 +2133,8 @@ def main():
             with _vc1:
                 st.markdown("**📉 수요 낙관편향 점검**")
                 st.caption(
-                    "입력 교통량을 과거 (실측/예측) 분포로 보정 — 적자를 흑자로 바꾸는 게 아니라, "
-                    "수요 가정이 과거 실적 대비 낙관적인지 '검증'합니다. (근거: Bain·S&P 2009 / KOTI 2014 사후평가)"
+                    "입력 교통량을 과거 실측/예측 분포로 보정해 수요 가정의 낙관 정도를 검증합니다. "
+                    "(근거: Bain·S&P 2009 / KOTI 2014 사후평가)"
                 )
                 _prior = st.selectbox("벤치마크 분포(prior)", list(BENCHMARK_PRIORS.keys()),
                                       key="demand_prior")
@@ -2149,7 +2149,7 @@ def main():
                 st.caption(
                     f"수입 환산(교통량 선형 가정): 연매출 {ann_rev:,.0f}억 → 보정 중앙값 ≈ **{_rev_p50:,.0f}억**. "
                     f"근거: {_db['source']}")
-                st.caption("⚠️ reference-class 추정 밴드 — 점추정 아님. 노선별 예측↔실측 매칭 시 정밀화.")
+                st.caption("reference-class 추정 밴드 — 노선별 예측↔실측 매칭 시 정밀화.")
                 st.caption(
                     "ⓘ prior는 '교통량' 기준. '수입' 기준은 체계적으로 더 낮음(협약 대비 통행료 수입 "
                     "10년 평균 62.3% vs 교통량 81.4% — KOTI RR-25-10 p.45·p.140) — 수입 검증 시 별도 보정.")
@@ -2491,14 +2491,13 @@ def main():
                 col: '{:,.1f}' for col in display_cols if col != 'Year'
             }), use_container_width=True)
 
-            with st.expander("ⓘ EBITDA·LLCR 산정 규약 (민감도 탭과 소수점 차이가 나는 이유)"):
+            with st.expander("ⓘ EBITDA·LLCR 산정 규약"):
                 st.markdown(
                     "- **EBITDA** = 매출 − 운영비 (감가상각·이자·세금 전). 대주단 표준 현금흐름 대용.\n"
                     "- **LLCR**(Loan Life Coverage Ratio) = 해당 연도 이후 잔여 CFADS의 현재가치(부채금리 할인) "
                     "÷ 잔존 부채. CFADS = 매출 − 운영비 − 세금(= DSCR 분자와 동일 정의).\n"
                     "- 이 표의 LLCR은 **연말 잔존부채** 기준, 🎯 민감도·리스크 탭의 LLCR_min은 "
-                    "**연초(=직전 연도 말) 잔존부채** 기준으로 계산합니다. 둘 다 통용되는 관행이며, "
-                    "그 시점 규약 차이로 같은 사업이라도 소수점 단위 차이가 날 수 있습니다(오류 아님)."
+                    "**연초(=직전 연도 말) 잔존부채** 기준 — 시점 규약 차이로 소수점 차이가 발생할 수 있습니다."
                 )
 
     # ━━━━━━━━━━ TAB 4: 열화곡선 ━━━━━━━━━━

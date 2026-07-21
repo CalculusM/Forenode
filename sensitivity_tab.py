@@ -57,9 +57,8 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
                            cov_default: float = _DSCR_DEFAULT):
     st.subheader("민감도 · 시나리오 · 리스크 등록부")
     st.caption(
-        "수요·통행량은 **외부 입력 가정**으로 둡니다(Forenode는 수요를 예측하지 않습니다). "
-        "이 탭은 그 가정을 흔들었을 때 DSCR·LLCR·IRR·NPV가 어떻게 움직이는지와, "
-        "대주단·운용사 실사에서 요구하는 리스크 등록부를 자동 산출합니다."
+        "수요·통행량은 **외부 입력 가정**입니다. 이 탭은 그 가정을 흔들었을 때 "
+        "DSCR·LLCR·IRR·NPV의 변화와, 대주단·운용사 실사에서 요구하는 리스크 등록부를 산출합니다."
     )
 
     base = _base_case_from_params(base_params, daily_traffic, road_length_km)
