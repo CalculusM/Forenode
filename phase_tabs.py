@@ -219,8 +219,7 @@ def render_phase_pretest(ctx: dict):
 
     st.markdown("")
     st.caption(
-        "💡 **사전 검토 다음 단계** — 사업이 고시되어 설계정보(BIM)가 확보되면 "
-        "물량 산출을 자동화해 정밀도를 높일 수 있습니다(선택 입력 — 없어도 전체 분석이 동작합니다)."
+        "사업 고시 후 설계정보(BIM) 확보 시 물량 산출을 자동화해 정밀도를 높일 수 있습니다(선택 입력)."
     )
 
 
@@ -564,8 +563,7 @@ def render_phase_construction(ctx: dict):
         # CI/FI/SI 자기자본 구성 (보완 9 흡수)
         st.markdown("**💼 자기자본 구성 (CI · FI · SI)**")
         st.caption(
-            "민자사업 자기자본은 **CI(건설투자자), FI(금융투자자), SI(운영투자자)** 3그룹으로 구성. "
-            "MRG 시대(2000년대 초반)는 CI:FI = 10:90~30:70 비율이 일반적, 현재는 사업유형별 상이."
+            "민자 자기자본은 **CI(건설)·FI(금융)·SI(운영)** 3그룹으로 구성 — 비율은 사업유형별 상이."
         )
         
         # 사업유형별 CI/FI/SI 기본값 (실무 관행 기반)
@@ -802,10 +800,7 @@ def render_phase_construction(ctx: dict):
             key="phase2_ifc_upload",
         )
         st.info(
-            "🚧 **BIM 통합 모드 — Stage 2 개발 예정**\n\n"
-            "안심구역 데이터(구조물 영상분석 + 교량 점검내역, PET 동형암호결합)와 "
-            "IFC 자재 BoM을 통합하여 CAPEX 정확도를 ±20%(통계) → ±5%(BIM)로 개선합니다. "
-            "현재 통계 모드 분석은 위 LTA·STA·통합 화면을 활용하세요."
+            "🚧 **BIM 통합 모드 — 개발 예정.** 현재는 통계 모드 분석(위 LTA·STA·통합 화면)을 활용하세요."
         )
 
 
@@ -899,9 +894,7 @@ def render_phase_operation(ctx: dict):
 
     st.markdown("")
     st.caption(
-        "💡 **운영기간 활용 예** — 매년 CEPHIS 운영평가 자료 생성, "
-        "통행량 미달 시 MRG 청구 근거 자료, 5~10년 주기 자금재조달 검토. "
-        "**Stage 2(8월)** 실제 통행 실적 CSV 업로드 기능 추가 예정."
+        "매년 운영평가 자료·MRG 청구 근거·자금재조달 검토에 활용합니다."
     )
 
 
@@ -1023,9 +1016,7 @@ def render_phase_restructuring(ctx: dict):
 
     st.markdown("")
     st.caption(
-        "💡 **재구조화 활용 예** — 운영기간 만료 직전 SPC 또는 자산운용사가 정부와 협상. "
-        "또는 자산 거래(M&A) 시 잔여 가치 평가. "
-        "**Stage 2** 안전·환경 투자 패키지 자동 산출 추가 예정."
+        "운영기간 만료 전 정부 협상, 자산 거래(M&A) 잔여가치 평가에 활용합니다."
     )
     
     # ════════════════════════════════════════════════════════════
@@ -1034,9 +1025,8 @@ def render_phase_restructuring(ctx: dict):
     st.markdown("---")
     st.markdown("##### ⚠️ 해지시지급금 분석 — SPC 파산 시 정부 부담")
     st.caption(
-        "**해지시지급금**(Termination Payment) = SPC가 도산하거나 실시협약이 해지될 때 "
-        "정부가 SPC에 지급해야 하는 금액. 통상 **건설비용과 같도록** 책정됨 (KDB·민간투자법 표준). "
-        "운영주체 부재 시 정부가 시설을 인수해야 하므로 재정 부담이 큼 (예: 서울 9호선 인수 검토 사례)."
+        "**해지시지급금** = 실시협약 해지 시 정부가 SPC에 지급하는 금액 — "
+        "통상 건설비용 수준(민간투자법 표준)으로 정부 재정 부담이 큽니다."
     )
     
     termination_payment = ctx.get('termination_payment', ctx['total_capex_user'])
@@ -1127,6 +1117,5 @@ def render_phase_restructuring(ctx: dict):
         )
     
     st.caption(
-        "💡 본 분석은 시뮬레이션 모델로, 실제 협상은 실시협약 조항·정치적 고려·이용자 편익에 따라 달라짐. "
-        "**활용 예**: KDI PIMAC 재구조화 분쟁조정, CEPHIS 사업구조 개선 정책 수립, 자산운용사 M&A 입찰가 산정."
+        "본 분석은 시뮬레이션이며, 실제 협상 결과는 실시협약 조항·정치적 고려·이용자 편익에 따라 달라집니다."
     )
