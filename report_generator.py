@@ -447,8 +447,8 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
         ['Senior DSCR (최소)', _num(m.get('senior_dscr_min')), '선순위'],
         ['LLCR (최소)', _num(m.get('llcr_min')), '대주'],
         ['PLCR (최소)', _num(m.get('plcr_min')), '≥ LLCR'],
-        ['ROE', _pct(m.get('roe')), ''],
-        ['B/C · PSC', _num(bc), '적합' if bc >= 1.0 else '부적합'],
+        ['투입자본 평균수익률', _pct(m.get('roe')), ''],
+        ['수입/비용 현가비율', _num(bc), '≥1.0' if bc >= 1.0 else '<1.0'],
     ]
     kpi_t = Table(kpi_rows, colWidths=[36 * mm, 22 * mm, 22 * mm])
     kpi_t.setStyle(TableStyle([
@@ -557,7 +557,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     in_range = (ctx['capex_reference']['capex_low_억']
                 <= ctx['total_capex_user']
                 <= ctx['capex_reference']['capex_high_억'])
-    range_text = "회귀 신뢰구간 (±20%) 내 위치 — 적정" if in_range else "회귀 신뢰구간 밖 — 재검토 필요"
+    range_text = "회귀 참고범위(±20%) 내 위치 — 적정" if in_range else "회귀 참고범위(±20%) 밖 — 재검토 필요"
     story.append(Paragraph(
         f"사용자 입력 {ctx['total_capex_user']:,}억 vs 회귀 추정 "
         f"{ctx['capex_reference']['capex_estimate_억']:,}억. {range_text}.",
@@ -654,7 +654,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     
     story.append(Paragraph("2. 분석 모델", h2_style))
     story.append(Paragraph(
-        "<b>CAPEX 회귀 모델</b>: 노선 특성(연장·차로·지형·교량·터널)에서 km당 단가 추정 (±20% 신뢰구간).<br/>"
+        "<b>CAPEX 회귀 모델</b>: 노선 특성(연장·차로·지형·교량·터널)에서 km당 단가 추정 (±20% 참고범위·통상 가정).<br/>"
         "<b>OPEX 자동 산출</b>: 사업유형 기본 비율 + 노선 보정 + 학습 데이터 연차 패턴.<br/>"
         "<b>현금흐름 모델</b>: S-curve CAPEX 분배, MRG 보전금, 재구조화 통행료 조정 반영.<br/>"
         "<b>Monte Carlo NPV</b>: 1,000회 시뮬레이션으로 NPV 분포 추정.<br/>"

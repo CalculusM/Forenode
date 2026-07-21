@@ -17,9 +17,9 @@ Forenode — 사전 검토 단계 통계 회귀 모델 (pretest_regressor.py)
   - 사업유형(BTO/BTO-rs/BTO-ann/BTL)
 
 출력:
-  - 추정 CAPEX (억원, ±20% 신뢰구간 포함)
+  - 추정 CAPEX (억원, ±20% 참고범위 — 실무 통상 가정 휴리스틱)
   - 추정 OPEX 비율 (%)
-  - 적격성 판단 (VfM 지표)
+  - 수익성 간이판정 (수입PV/CAPEX 비율 — PIMAC VfM과 다른 지표)
 
 기술 스택:
   - sklearn.linear_model.LinearRegression (1차 모델)
@@ -178,7 +178,7 @@ def get_business_defaults(business_type: str) -> dict:
 
 
 # ════════════════════════════════════════════════════════════
-# 적격성 판단 (VfM)
+# 수익성 간이판정 (수입PV/CAPEX)
 # ════════════════════════════════════════════════════════════
 def vfm_judgment(
     capex_estimate: float,
@@ -187,10 +187,10 @@ def vfm_judgment(
     discount_rate: float = 0.05,
 ) -> dict:
     """
-    민자 적격성 간이 판단 (VfM 지표).
-    
-    민간 투자가 재정 투자 대비 효율적인지 평가.
-    KDI PIMAC 표준 절차의 간이 버전.
+    민자 수익성 간이판정 — 수입 PV / CAPEX 비율 기반.
+
+    ※ PIMAC VfM(PSC vs PFI 정부부담 현가 비교)과 다른 지표 — 명칭 혼동 방지
+    ('26-07 실무 정합 감사 §중요). 정식 VfM 판정은 PIMAC 방법론으로 별도 수행.
     """
     # 30년 운영 총수익 (현재가치)
     total_revenue_pv = 0
@@ -201,16 +201,16 @@ def vfm_judgment(
     psc_ratio = total_revenue_pv / capex_estimate if capex_estimate > 0 else 0
     
     if psc_ratio >= 1.3:
-        judgment = "민자 매우 적합"
+        judgment = "수익성 매우 양호"
         color = "green"
     elif psc_ratio >= 1.0:
-        judgment = "민자 적합"
+        judgment = "수익성 확보"
         color = "blue"
     elif psc_ratio >= 0.8:
-        judgment = "경계선 (재구조화 검토)"
+        judgment = "경계선 (구조 재검토)"
         color = "orange"
     else:
-        judgment = "민자 부적합 (재정 사업 권장)"
+        judgment = "수익성 미달 (정부 보전 설계 또는 재정사업 검토)"
         color = "red"
     
     return {

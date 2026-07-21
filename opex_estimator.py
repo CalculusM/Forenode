@@ -52,7 +52,7 @@ _FREQ = _load_json("opex_pavement_freq.json")
 BIZ_BASE_OPEX = {
     "BTO": 0.30,
     "BTO-rs": 0.32,
-    "BTO-ann": 0.35,
+    "BTO-a": 0.35,
     "BTL": 0.40,
 }
 
@@ -395,9 +395,9 @@ if __name__ == "__main__":
     print("OPEX 자동 산출 검증")
     print("=" * 70)
     
-    # 화성-안성 (BTO-ann, 45km, 평지, 터널 20%, 교량 15%)
+    # 화성-안성 (BTO-a, 45km, 평지, 터널 20%, 교량 15%)
     result = estimate_opex_series(
-        business_type="BTO-ann",
+        business_type="BTO-a",
         annual_revenue_억=1500,
         operation_years=30,
         terrain="평지",
@@ -405,7 +405,7 @@ if __name__ == "__main__":
         bridge_ratio=0.15,
     )
     
-    print(f"\n[화성-안성 BTO-ann]")
+    print(f"\n[화성-안성 BTO-a]")
     print(f"  평균 OPEX 비율: {result['opex_ratio_avg']*100:.2f}%")
     print(f"  정점 연차: {result['peak_year']}년차 ({result['peak_amount_억']:.1f}억)")
     print(f"  근거: {result['explanation']}")
@@ -416,13 +416,13 @@ if __name__ == "__main__":
     
     # 4가지 사업유형 비교
     print(f"\n[4가지 사업유형 비교 — 평균 OPEX 비율]")
-    for biz in ["BTO", "BTO-rs", "BTO-ann", "BTL"]:
+    for biz in ["BTO", "BTO-rs", "BTO-a", "BTL"]:
         r = estimate_opex_series(biz, 1500, 30, "평지", 0.20, 0.15)
         print(f"  {biz:10s}: {r['opex_ratio_avg']*100:5.2f}% | 1년차 {r['opex_series_억'][0]:.1f}억 | 정점 {r['peak_year']:2d}년차 {r['peak_amount_억']:.1f}억")
     
     # 노선 특성 비교
-    print(f"\n[노선 특성 비교 — BTO-ann 기준]")
+    print(f"\n[노선 특성 비교 — BTO-a 기준]")
     for terrain, t, b in [("평지", 0.10, 0.10), ("평지", 0.30, 0.20),
                            ("구릉", 0.20, 0.15), ("산악", 0.40, 0.25)]:
-        r = estimate_opex_series("BTO-ann", 1500, 30, terrain, t, b)
+        r = estimate_opex_series("BTO-a", 1500, 30, terrain, t, b)
         print(f"  {terrain} 터널{t*100:.0f}% 교량{b*100:.0f}%: 평균 {r['opex_ratio_avg']*100:.2f}%")

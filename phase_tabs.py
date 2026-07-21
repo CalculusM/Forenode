@@ -60,10 +60,10 @@ def render_phase_pretest(ctx: dict):
         ),
     )
 
-    st.markdown("#### ⏱ 사전 검토 단계 — 민자 적격성 조사")
+    st.markdown("#### ⏱ 사전 검토 단계 — 수익성 간이판정·회귀 참고치")
     st.caption(
         "**활용 주체**: KDI PIMAC · 주무관청 · 자문사 | "
-        "**분석 업무**: PFS(예비타당성), VfM(민자 vs 재정 비교), 사업제안 평가"
+        "**분석 업무**: 예비 검토(PFS 보조) · 수익성 간이판정 · 사업제안 평가"
     )
 
     st.markdown("---")
@@ -94,7 +94,7 @@ def render_phase_pretest(ctx: dict):
     with col_r:
         in_range = capex_ref['capex_low_억'] <= user_capex <= capex_ref['capex_high_억']
         status = "✅ 적정 범위" if in_range else "⚠️ 범위 밖"
-        st.metric("회귀 신뢰구간 (±20%)",
+        st.metric("회귀 참고범위 (±20%·통상 가정)",
                   f"{capex_ref['capex_low_억']:,} ~ {capex_ref['capex_high_억']:,}",
                   delta=status,
                   delta_color="normal" if in_range else "inverse")
@@ -155,8 +155,8 @@ def render_phase_pretest(ctx: dict):
 
     st.markdown("")
 
-    # D. VfM 판단
-    st.markdown("##### ⚖️ VfM 적격성 판단")
+    # D. 수익성 간이판정 (구 'VfM' 표기 제거 — '26-07 실무 정합 감사)
+    st.markdown("##### ⚖️ 수익성 간이판정 — 수입/비용 현가비율 기반")
 
     metrics = ctx['metrics']
     npv = metrics['npv']
@@ -166,14 +166,14 @@ def render_phase_pretest(ctx: dict):
     psc_ratio = bc
 
     if psc_ratio >= 1.3 and dscr_min >= 1.20:
-        judgment = "민자 매우 적합"
+        judgment = "수익성 매우 양호"
         color = "#1D9E75"
         recommendation = (
             "정부 보전금 없이도 민간 사업주가 수익을 낼 수 있는 구조입니다. "
             "BTO 또는 BTO-rs 사업유형 검토 권장."
         )
     elif psc_ratio >= 1.0 and dscr_min >= 1.05:
-        judgment = "민자 적합"
+        judgment = "수익성 확보"
         color = "#1F3864"
         recommendation = (
             "현재 MRG·자기자본비율 등 조건으로 사업 추진 가능. "
@@ -184,14 +184,14 @@ def render_phase_pretest(ctx: dict):
         color = "#EF9F27"
         recommendation = (
             "사업 조건 보완 필요. MRG 보장률 상향, 운영기간 연장, "
-            "또는 BTO-ann 전환 등 시나리오 비교를 권합니다 (재구조화 탭 참조)."
+            "또는 BTO-a 전환 등 시나리오 비교를 권합니다 (재구조화 탭 참조)."
         )
     else:
-        judgment = "민자 부적합"
+        judgment = "수익성 미달"
         color = "#D45F5F"
         recommendation = (
-            "민자 추진 시 수익성 확보가 어렵습니다. "
-            "재정사업 전환 또는 사업계획 전면 재검토를 권합니다."
+            "현행 조건으로는 수익성 확보가 어렵습니다. "
+            "정부 보전 설계, 재정사업 전환 또는 사업계획 재검토를 권합니다."
         )
 
     st.markdown(
