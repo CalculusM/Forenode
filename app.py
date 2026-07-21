@@ -27,7 +27,6 @@ from typing import List, Dict, Optional, Tuple
 from enum import Enum
 from rag_tab import render_rag_tab
 from data_sources import (
-    render_data_source_sidebar,
     render_data_flow_banner,
     render_data_flow_diagram,
 )
@@ -1539,7 +1538,13 @@ def main():
     if opex_band:
         opex_estimation['band'] = opex_band
 
-    render_data_source_sidebar()
+    # 데이터 출처 — 2026-07 별도 페이지로 분리 (pages/1_데이터_출처.py)
+    with st.sidebar:
+        st.markdown("---")
+        try:
+            st.page_link("pages/1_데이터_출처.py", label="📊 데이터 출처 (4기관 융합)")
+        except Exception:
+            st.caption("📊 데이터 출처: 좌측 페이지 목록 '데이터 출처' 참조")
 
     # ============================================================
     # 메인 영역 — Forenode 헤더 (SVG 로고 + 사업명 입력)
