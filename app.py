@@ -2799,6 +2799,23 @@ def main():
         }
         bm_df.loc["현재 시나리오"] = current
 
+        # ── 백테스트 실측 패널 (V-001~021) — 전 노선 표준화의 1급 소스 ──
+        import os as _os
+        _panel_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                    "data", "benchmark_panel.csv")
+        if _os.path.exists(_panel_path):
+            st.markdown("##### 📋 백테스트 실측 패널 (사후검증 완료 노선)")
+            _panel = pd.read_csv(_panel_path)
+            st.dataframe(_panel, use_container_width=True, hide_index=True)
+            _units = pd.to_numeric(_panel["실측_현금OPEX원단위_억km년"], errors="coerce").dropna()
+            if len(_units) > 0:
+                st.caption(
+                    f"실측 현금 OPEX 원단위 {len(_units)}개 노선: "
+                    f"{_units.min():.1f}~{_units.max():.1f}억/km/년 · 중앙값 {_units.median():.1f} "
+                    f"(해상 특수구조물 포함 시 13배 편차 — 시설유형별 비교 필수). "
+                    f"빈칸 = 미확보(추정치 미기재 원칙). 출처: 백테스트 원장 V-001~021."
+                )
+
         st.dataframe(bm_df.style.format({
             col: '{:,.0f}' for col in bm_df.columns if col not in ['DSCR', '연장']
         }).format({'DSCR': '{:.2f}', '연장': '{:.1f}'}),
