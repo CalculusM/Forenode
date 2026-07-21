@@ -1,22 +1,27 @@
 {
   "beta_hat": 1.044,
   "eta_hat": 9.89,
-  "median_life": 6.98,
-  "beta_ci_lower": 0.971,
-  "beta_ci_upper": 1.122,
-  "eta_ci_lower": 9.18,
-  "eta_ci_upper": 10.66,
-  "n_samples": 31602,
+  "median_life": 6.96,
+  "beta_ci_lower": 0.987,
+  "beta_ci_upper": 1.113,
+  "eta_ci_lower": 9.06,
+  "eta_ci_upper": 11.2,
+  "n_samples": 357,
   "n_observed": 357,
-  "n_censored": 31245,
+  "n_censored": 0,
   "data_source": "한국도로공사 포장일반현황 (공공데이터포털)",
-  "data_period_year_range": [1969, 2025],
-  "log_likelihood": -1068.24,
-  "aic": 2140.48,
-  "bic": 2148.36,
+  "data_period_year_range": [
+    1969,
+    2025
+  ],
+  "log_likelihood": -1168.02,
+  "aic": 2340.03,
+  "bic": 2347.79,
+  "converged": true,
   "interpretation": {
-    "beta_meaning": "β = 1.044 ≈ 1 → 거의 무작위 고장, 약한 마모성",
-    "eta_meaning": "η = 9.89년 → 평균 9.89년에 누적 고장 확률 63.2%",
-    "expected_repairs_30y": "30년 운영 시 약 3.14회 대규모 포장 보수 예상"
+    "beta_meaning": "β = 1.044 ≈ 1 → 위험률 일정",
+    "eta_meaning": "η = 9.89년 → 누적 발생 확률 63.2% 도달 시점",
+    "expected_repairs_30y": "30년 운영 시 약 3.09회 보수 예상",
+    "data_note": "관측치 = 보수 '집행' 기록(예산·일정 의존) — 물리 열화 시점의 대용치. 무보수 31,245구간은 보수기록 관측창(11년) 밖 이력 결손으로 절단 포함 적합이 비식별(η 발산 실검증 '26-07-22)되어 제외 — 적합 표본은 보수 관측 구간만"
   }
 }
