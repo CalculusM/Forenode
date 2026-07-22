@@ -72,6 +72,7 @@ def build_cashflow(
     revenue_series_억: np.ndarray = None,
     mcc_ratio: float = 0.0,
     restructuring_year: int = 0,
+    restructuring_toll_adj: float = 1.0,
     equity_recovery_method: str = "원금+수익률",  # 보완 6: '회수안함' / '원금만' / '원금+수익률'
     debt_repayment_method: str = "원리금균등",     # 보완 7: '원리금균등' / '원리금불균등' / '기간조정'
     **kwargs,
@@ -139,10 +140,10 @@ def build_cashflow(
         rev_growth = (1 + growth_rate) ** (op_year - 1)
         infl_factor = (1 + inflation) ** (op_year - 1)
         
-        # 재구조화 후 통행료 조정 (재구조화 시 통행료 -10% 가정)
+        # 재구조화 후 통행료 조정 — 조정률은 사용자 입력(실측: 서울춘천 -28%·천안논산 -48%·인천대교 -63%)
         toll_adj = 1.0
         if restructuring_year > 0 and op_year >= restructuring_year:
-            toll_adj = 0.90
+            toll_adj = restructuring_toll_adj
         
         # L2: 실현 수입 시계열이 주어지면 스칼라×성장률 대신 직접 사용 (램프업·단차 표현)
         if revenue_series_억 is not None and op_year - 1 < len(revenue_series_억):
@@ -550,7 +551,7 @@ def calc_wacc_detail(rf, mrp, beta, equity_ratio, debt_rate, tax_rate=0.22,
     senior_rate : float or None
         선순위 금리. None이면 debt_rate 사용 (단순 모드)
     sub_rate : float or None  
-        후순위 금리. None이면 debt_rate + 1.5% 사용
+        후순위 금리. None이면 debt_rate + 4.0% 사용(실측 격차 하단)
     """
     # 사용자가 자기자본비용(Ke)을 직접 지정하면 그 값을 사용, 없으면 CAPM(rf+β·MRP)으로 산출
     if ke is None:
@@ -561,7 +562,7 @@ def calc_wacc_detail(rf, mrp, beta, equity_ratio, debt_rate, tax_rate=0.22,
     if senior_rate is None:
         senior_rate = debt_rate
     if sub_rate is None:
-        sub_rate = debt_rate + 0.015  # 후순위는 선순위 대비 +1.5% (시장 통념)
+        sub_rate = debt_rate + 0.040  # 후순위 폴백 +4.0%p — 실측 선후순위 격차 최소 +200~400bp·대표 +700~1000bp('26-07 감사)
     
     sub_ratio = 1 - senior_ratio
     
@@ -1044,7 +1045,8 @@ def estimate_toll_revenue(
         
         daily_rev = (light * toll_per_km * road_length_km +
                      heavy * toll_per_km * road_length_km * heavy_vehicle_surcharge)
-        annual_rev = daily_rev * 365 / 1e8  # 억원
+        # 민자 통행료는 VAT 10% 포함가(재정도로 면세) → 사업자 매출은 공급가액(÷1.1)
+        annual_rev = daily_rev * 365 / 1e8 / 1.1  # 억원, VAT 차감
         
         data.append({
             'Year': y,
@@ -1254,7 +1256,11 @@ def main():
         ) / 100
         restructuring_year = st.slider(
             "재구조화 시점(운영년차)", 0, operation_years, 0, 1,
-            help="0=재구조화 없음. 1~운영기간 사이 값은 해당 시점에 통행료 -10% 조정"
+            help="0=재구조화 없음. 지정 시 아래 조정률이 해당 시점부터 통행료에 적용"
+        )
+        restructuring_toll_cut = st.slider(
+            "재구조화 시 통행료 조정률(%)", -70, 0, 0, 5,
+            help="실측: 서울춘천 -28% · 천안논산 -48% · 인천대교 -63% (변경실시협약)"
         )
 
     # ─── 금융 구조 (접힘) ───
@@ -1515,6 +1521,7 @@ def main():
         'mrg_ratio': mrg_ratio,
         'mcc_ratio': mcc_ratio,
         'restructuring_year': restructuring_year,
+        'restructuring_toll_adj': 1 + restructuring_toll_cut / 100,
         'equity_recovery_method': equity_recovery_method,
         'debt_repayment_method': debt_repayment_method,
     }
@@ -1547,8 +1554,10 @@ def main():
         st.markdown("---")
         try:
             st.page_link("pages/1_데이터_출처.py", label="📊 데이터 출처 (4기관 융합)")
+            st.page_link("pages/2_검증_성적표.py", label="📋 검증 성적표 (백테스트 원장)")
+            st.page_link("pages/3_학습데이터_출처.py", label="📚 학습 데이터 출처")
         except Exception:
-            st.caption("📊 데이터 출처: 좌측 페이지 목록 '데이터 출처' 참조")
+            st.caption("좌측 페이지 목록에서 데이터 출처·검증 성적표·학습 데이터 참조")
 
     # ============================================================
     # 메인 영역 — Forenode 헤더 (SVG 로고 + 사업명 입력)
@@ -1924,6 +1933,7 @@ def main():
             "다른 cash yield 성격의 지표.\n"
             "- **수입/비용 현가비율**: 매출 PV ÷ (CAPEX+운영비) PV — 경제성 분석의 B/C(사회편익 기준)·"
             "표준 수익성지수 PI(순유입 PV/투자 PV)와 정의가 다른 **재무 비율**.\n"
+            "- **통행료 수입**: 민자 통행료는 VAT 10% 포함가(재정도로 면세) — 매출은 공급가액(÷1.1) 기준 인식.\n"
             "- **MRG**: 추정수입(통행료 조정 전)의 보장률을 floor로, 실제 수입이 미달할 때만 차액 보전.\n"
             "- **자기자본 만료 회수**: 회수액은 **만기 잔존가치(terminal value)에서 잔존부채를 상환한 잔여분 한도 내**에서만 "
             "인식(출처 없는 현금 생성 방지). 잔존가치 미입력 시 회수액 0."
@@ -2538,9 +2548,9 @@ def main():
         lcc_df, lcc_total = estimate_lcc_sawtooth_from_config(
             _q_disp, operation_years, wacc_info['wacc'])
         if bim_quantities:
-            st.caption("물량 출처: 업로드된 BIM(IFC) 형상 추출 · 주기/수선율: 별표5(config)")
+            st.caption("물량 출처: 업로드된 BIM(IFC) 형상 추출 · 주기/수선율: config(도로 유지관리 기준 재매핑 중)")
         else:
-            st.caption("물량: 연장 기반 추정 · 주기/수선율: 별표5(config)")
+            st.caption("물량: 연장 기반 추정 · 주기/수선율: config(도로 유지관리 기준 재매핑 중)")
 
         if opex_source.startswith("물량기반 LCC"):
             st.success(f"✅ [C1] 이 LCC 자본적 유지보수가 현금흐름 OPEX로 직결되어 DSCR에 반영됩니다 "
