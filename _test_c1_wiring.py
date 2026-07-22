@@ -54,11 +54,11 @@ import app  # main()은 __main__ 아래라 실행 안 됨
 base = dict(
     capex_억=8000, annual_revenue_억=1500, construction_years=5, operation_years=30,
     opex_ratio=0.35, discount_rate=0.06, inflation=0.02, growth_rate=0.025,
-    equity_ratio=0.25, debt_rate=0.05, business_type="BTO-ann",
+    equity_ratio=0.25, debt_rate=0.05, business_type="BTO-a",
 )
 
 # (1) 기본 top-down
-td = estimate_opex_series(business_type="BTO-ann", annual_revenue_억=1500,
+td = estimate_opex_series(business_type="BTO-a", annual_revenue_억=1500,
                           operation_years=30, terrain="평지",
                           tunnel_ratio=0.2, bridge_ratio=0.15, growth_rate=0.025)
 cf_td, m_td = app.build_cashflow(opex_series_억=np.array(td["opex_series_억"]), **base)

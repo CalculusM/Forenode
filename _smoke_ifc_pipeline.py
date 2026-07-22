@@ -35,7 +35,7 @@ def run_pipeline(summary: dict) -> None:
     # 프로토타입 고정 매핑 입력 (수동 확정 전제의 기본값)
     lanes, terrain = 4, "평지"
     bridge_ratio, tunnel_ratio = 0.15, 0.20
-    business_type = "BTO-ann"
+    business_type = "BTO-a"
     daily_traffic, toll_per_km = 50000, 80
     construction_years, operation_years = 5, 30
 

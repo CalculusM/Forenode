@@ -111,15 +111,16 @@ def generate_synthetic_data():
 def load_real_data():
     """실데이터 로드 — 출처는 pavement_summary.json에서 자동 감지"""
     df = pd.read_csv(INPUT_CSV, encoding="utf-8-sig")
-    
+
     required_cols = ["distress_time_years", "censored"]
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
         print(f"[중지] 필수 칼럼 누락: {missing}")
         sys.exit(1)
-    
+
     # 데이터 출처 자동 감지: pavement_summary.json이 있으면 거기서 읽음
     data_source_label = "real"  # 기본값
+    period = []
     summary_path = Path("./pavement_summary.json")
     if summary_path.exists():
         try:
@@ -127,24 +128,21 @@ def load_real_data():
             with open(summary_path, "r", encoding="utf-8") as f:
                 summary = _json.load(f)
             src = summary.get("data_source", "")
-            period = summary.get("data_period_year_range", [])
+            period = summary.get("data_period_year_range", []) or []
             if src:
-                if period and len(period) == 2:
-                    data_source_label = f"{src} ({period[0]}~{period[1]})"
-                else:
-                    data_source_label = src
+                data_source_label = src
         except Exception:
             pass
-    
+
     print(f"[실데이터 로드]")
     print(f"  파일: {INPUT_CSV}")
     print(f"  출처: {data_source_label}")
     print(f"  샘플 수: {len(df)}")
     print(f"  관측 손상: {(df['censored']==0).sum()}건")
     print(f"  우중도 절단: {(df['censored']==1).sum()}건")
-    
+
     df.to_csv(OUTPUT_DATA, index=False, encoding="utf-8-sig")
-    return df, data_source_label
+    return df, data_source_label, period
 
 
 # ════════════════════════════════════════════════════════════
@@ -367,11 +365,12 @@ def main():
     
     # 데이터 로드 (실데이터 우선)
     if Path(INPUT_CSV).exists():
-        df, data_source = load_real_data()
+        df, data_source, data_period = load_real_data()
     else:
         print(f"[안내] {INPUT_CSV} 없음 — 합성 데이터로 PoC 진행")
         print("       (안심구역에서 데이터 반출 후 이 파일 위치에 배치하면 자동 적용)\n")
         df, data_source = generate_synthetic_data()
+        data_period = []
     
     times = df["distress_time_years"].values
     censored = df["censored"].values.astype(int)
@@ -424,27 +423,41 @@ def main():
     plot_survival_curve(times, censored, beta_hat, eta_hat, data_source)
     plot_hazard_function(beta_hat, eta_hat, data_source)
     
-    # JSON 저장
+    # JSON 저장 — 소비자(opex_estimator 등) 키 스키마와 일치
+    from scipy.special import gamma as _gamma_fn
+    n = len(times)
+    k = 2
+    logL = float(-result.fun)
+    mean_life = eta_hat * _gamma_fn(1 + 1 / beta_hat)
     output = {
-        "data_source": data_source,
-        "n_samples": int(len(times)),
+        "beta_hat": round(float(beta_hat), 3),
+        "eta_hat": round(float(eta_hat), 2),
+        "median_life": round(float(median_life), 2),
+        "beta_ci_lower": round(float(beta_ci[0]), 3) if beta_ci else None,
+        "beta_ci_upper": round(float(beta_ci[1]), 3) if beta_ci else None,
+        "eta_ci_lower": round(float(eta_ci[0]), 2) if eta_ci else None,
+        "eta_ci_upper": round(float(eta_ci[1]), 2) if eta_ci else None,
+        "n_samples": int(n),
         "n_observed": int((censored == 0).sum()),
         "n_censored": int((censored == 1).sum()),
-        "beta_hat": float(beta_hat),
-        "eta_hat": float(eta_hat),
-        "median_life": float(median_life),
-        "log_likelihood": float(-result.fun),
+        "data_source": data_source,
+        "data_period_year_range": data_period if data_period else None,
+        "log_likelihood": round(logL, 2),
+        "aic": round(2 * k - 2 * logL, 2),
+        "bic": round(k * np.log(n) - 2 * logL, 2),
         "converged": bool(result.success),
-        "beta_ci_95": [float(beta_ci[0]), float(beta_ci[1])] if beta_ci else None,
-        "eta_ci_95": [float(eta_ci[0]), float(eta_ci[1])] if eta_ci else None,
         "interpretation": {
-            "failure_mode": (
-                "마모고장" if beta_hat > 1.5 
-                else ("우발고장" if beta_hat > 0.9 else "초기고장")
+            "beta_meaning": (
+                f"β = {beta_hat:.3f} "
+                + ("> 1.5 → 마모성(시간 경과에 따라 위험률 증가)" if beta_hat > 1.5
+                   else ("≈ 1 → 위험률 일정" if beta_hat > 0.9 else "< 1 → 초기 집중"))
             ),
-            "recommended_action": (
-                "예방보수" if beta_hat > 1.5
-                else ("정기점검" if beta_hat > 0.9 else "시공 품질 점검")
+            "eta_meaning": f"η = {eta_hat:.2f}년 → 누적 발생 확률 63.2% 도달 시점",
+            "expected_repairs_30y": f"30년 운영 시 약 {30.0 / mean_life:.2f}회 보수 예상",
+            "data_note": (
+                "관측치 = 보수 '집행' 기록(예산·일정 의존) — 물리 열화 시점의 대용치. "
+                "무보수 31,245구간은 보수기록 관측창(11년) 밖 이력 결손으로 절단 포함 적합이 "
+                "비식별(η 발산 실검증 '26-07-22)되어 제외 — 적합 표본은 보수 관측 구간만"
             ),
         },
     }

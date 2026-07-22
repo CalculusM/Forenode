@@ -8,7 +8,7 @@ Forenode — PDF 보고서 자동 생성 모듈 (report_generator.py)
 
 페이지 구성:
   P1: 표지
-  P2: 분석 요약 (KPI 6개 + VfM 판단)
+  P2: 분석 요약 (KPI 6개 + 수익성 간이판정)
   P3: 시점 1 사전 검토 (CAPEX 비교 + OPEX 시계열)
   P4: 시점 4 재구조화 시나리오
   P5: 산출 근거·데이터 출처
@@ -412,7 +412,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     story.append(PageBreak())
     
     # ════════════════════════════════════════════════════════
-    # P2: 분석 요약 — KPI + VfM 판단
+    # P2: 분석 요약 — KPI + 수익성 간이판정
     # ════════════════════════════════════════════════════════
     story.append(Paragraph("Ⅰ. 분석 요약", h1_style))
     story.append(Paragraph(
@@ -447,8 +447,8 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
         ['Senior DSCR (최소)', _num(m.get('senior_dscr_min')), '선순위'],
         ['LLCR (최소)', _num(m.get('llcr_min')), '대주'],
         ['PLCR (최소)', _num(m.get('plcr_min')), '≥ LLCR'],
-        ['ROE', _pct(m.get('roe')), ''],
-        ['B/C · PSC', _num(bc), '적합' if bc >= 1.0 else '부적합'],
+        ['투입자본 평균수익률', _pct(m.get('roe')), ''],
+        ['수입/비용 현가비율', _num(bc), '≥1.0' if bc >= 1.0 else '<1.0'],
     ]
     kpi_t = Table(kpi_rows, colWidths=[36 * mm, 22 * mm, 22 * mm])
     kpi_t.setStyle(TableStyle([
@@ -478,8 +478,8 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     story.append(dash)
     story.append(Spacer(1, 6 * mm))
 
-    # VfM 판단
-    story.append(Paragraph("VfM 적격성 판단", h2_style))
+    # 수익성 간이판정
+    story.append(Paragraph("수익성 간이판정 (수입/비용 현가비율 기반)", h2_style))
     if bc >= 1.3 and dscr_min >= 1.20:
         judgment = "민자 매우 적합"
         rec = "정부 보전금 없이도 민간 사업주가 수익을 낼 수 있는 구조. BTO/BTO-rs 검토 권장."
@@ -488,7 +488,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
         rec = "현재 조건으로 사업 추진 가능. 민감도·스트레스에서 핵심 리스크 변수 확인 필요."
     elif bc >= 0.85:
         judgment = "경계선 — 재구조화 검토"
-        rec = "사업 조건 보완 필요. MRG 상향·운영기간 연장·BTO-ann 전환 등 검토."
+        rec = "사업 조건 보완 필요. MRG 상향·운영기간 연장·BTO-a 전환 등 검토."
     else:
         judgment = "민자 부적합 (정부지원 의존)"
         rec = "민간 자력 회수 곤란. 건설보조금·MRG 등 정부지원 또는 재정사업 전환 검토."
@@ -509,7 +509,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
 
     # ── 주체별 관점 강조 (역할 선택 시) ──
     _ROLE_FOCUS = {
-        '주무관청': ('주무관청 / CEPHIS', 'VfM·PSC · 협약수익률 · 운영비 산정근거(별표5·표준품셈)'),
+        '주무관청': ('주무관청 / CEPHIS', '수익성 간이판정 · 협약수익률 · 운영비 산정근거(수선주기 config·표준품셈)'),
         '대주': ('금융주관사 / 대주단', 'DSCR(최소·평균) · LLCR · PLCR · Senior DSCR · 부채 커버넌트'),
         '사업주': ('SPC / 사업주(출자자)', 'Equity IRR · MIRR · 배당 타임라인 · 핸드백 리저브'),
         '신평사': ('신용평가사', 'OPEX 가정 물리근거 · 스트레스 · 하방 시나리오 · 등급 근거'),
@@ -557,7 +557,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     in_range = (ctx['capex_reference']['capex_low_억']
                 <= ctx['total_capex_user']
                 <= ctx['capex_reference']['capex_high_억'])
-    range_text = "회귀 신뢰구간 (±20%) 내 위치 — 적정" if in_range else "회귀 신뢰구간 밖 — 재검토 필요"
+    range_text = "회귀 참고범위(±20%) 내 위치 — 적정" if in_range else "회귀 참고범위(±20%) 밖 — 재검토 필요"
     story.append(Paragraph(
         f"사용자 입력 {ctx['total_capex_user']:,}억 vs 회귀 추정 "
         f"{ctx['capex_reference']['capex_estimate_억']:,}억. {range_text}.",
@@ -654,7 +654,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     
     story.append(Paragraph("2. 분석 모델", h2_style))
     story.append(Paragraph(
-        "<b>CAPEX 회귀 모델</b>: 노선 특성(연장·차로·지형·교량·터널)에서 km당 단가 추정 (±20% 신뢰구간).<br/>"
+        "<b>CAPEX 회귀 모델</b>: 노선 특성(연장·차로·지형·교량·터널)에서 km당 단가 추정 (±20% 참고범위·통상 가정).<br/>"
         "<b>OPEX 자동 산출</b>: 사업유형 기본 비율 + 노선 보정 + 학습 데이터 연차 패턴.<br/>"
         "<b>현금흐름 모델</b>: S-curve CAPEX 분배, MRG 보전금, 재구조화 통행료 조정 반영.<br/>"
         "<b>Monte Carlo NPV</b>: 1,000회 시뮬레이션으로 NPV 분포 추정.<br/>"
@@ -696,7 +696,7 @@ if __name__ == "__main__":
     
     # 더미 컨텍스트
     dummy_ctx = {
-        'business_type': 'BTO-ann',
+        'business_type': 'BTO-a',
         'road_length': 45,
         'lanes': 4,
         'terrain': '평지',
@@ -714,7 +714,7 @@ if __name__ == "__main__":
             'opex_series_억': [308 + i * 50 for i in range(30)],
             'peak_year': 30,
             'peak_amount_억': 1788,
-            'explanation': 'BTO-ann 기본 35% × 노선보정 1.05 = 평균 36.9%',
+            'explanation': 'BTO-a 기본 35% × 노선보정 1.05 = 평균 36.9%',
         },
         'capex_reference': {
             'capex_estimate_억': 22365,

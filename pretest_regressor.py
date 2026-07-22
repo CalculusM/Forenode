@@ -14,12 +14,12 @@ Forenode — 사전 검토 단계 통계 회귀 모델 (pretest_regressor.py)
 입력 변수:
   - 연장(km), 차로 수, 지형(평지/구릉/산악)
   - 교량 비율(%), 터널 비율(%)
-  - 사업유형(BTO/BTO-rs/BTO-ann/BTL)
+  - 사업유형(BTO/BTO-rs/BTO-a/BTL)
 
 출력:
-  - 추정 CAPEX (억원, ±20% 신뢰구간 포함)
+  - 추정 CAPEX (억원, ±20% 참고범위 — 실무 통상 가정 휴리스틱)
   - 추정 OPEX 비율 (%)
-  - 적격성 판단 (VfM 지표)
+  - 수익성 간이판정 (수입PV/CAPEX 비율 — PIMAC VfM과 다른 지표)
 
 기술 스택:
   - sklearn.linear_model.LinearRegression (1차 모델)
@@ -47,7 +47,7 @@ BUSINESS_TYPE_DEFAULTS = {
         "toll_per_km": 90,
         "description": "위험분담형 — 정부와 사업자가 위험·수익 분담",
     },
-    "BTO-ann": {
+    "BTO-a": {
         "equity_ratio": 0.15,
         "opex_ratio": 0.35,
         "mrg_ratio": 0.90,
@@ -83,7 +83,7 @@ def estimate_capex_from_route(
     terrain: str = "평지",
     bridge_ratio: float = 0.15,
     tunnel_ratio: float = 0.20,
-    business_type: str = "BTO-ann",
+    business_type: str = "BTO-a",
 ) -> dict:
     """
     노선 특성에서 CAPEX 추정 (1차 통계 모델).
@@ -147,7 +147,7 @@ def estimate_capex_from_route(
 
 
 def estimate_opex_ratio(
-    business_type: str = "BTO-ann",
+    business_type: str = "BTO-a",
     terrain: str = "평지",
     tunnel_ratio: float = 0.20,
 ) -> float:
@@ -174,11 +174,11 @@ def estimate_opex_ratio(
 
 def get_business_defaults(business_type: str) -> dict:
     """사업유형별 기본값 반환 (사이드바 자동 채움용)"""
-    return BUSINESS_TYPE_DEFAULTS.get(business_type, BUSINESS_TYPE_DEFAULTS["BTO-ann"])
+    return BUSINESS_TYPE_DEFAULTS.get(business_type, BUSINESS_TYPE_DEFAULTS["BTO-a"])
 
 
 # ════════════════════════════════════════════════════════════
-# 적격성 판단 (VfM)
+# 수익성 간이판정 (수입PV/CAPEX)
 # ════════════════════════════════════════════════════════════
 def vfm_judgment(
     capex_estimate: float,
@@ -187,10 +187,10 @@ def vfm_judgment(
     discount_rate: float = 0.05,
 ) -> dict:
     """
-    민자 적격성 간이 판단 (VfM 지표).
-    
-    민간 투자가 재정 투자 대비 효율적인지 평가.
-    KDI PIMAC 표준 절차의 간이 버전.
+    민자 수익성 간이판정 — 수입 PV / CAPEX 비율 기반.
+
+    ※ PIMAC VfM(PSC vs PFI 정부부담 현가 비교)과 다른 지표 — 명칭 혼동 방지
+    ('26-07 실무 정합 감사 §중요). 정식 VfM 판정은 PIMAC 방법론으로 별도 수행.
     """
     # 30년 운영 총수익 (현재가치)
     total_revenue_pv = 0
@@ -201,16 +201,16 @@ def vfm_judgment(
     psc_ratio = total_revenue_pv / capex_estimate if capex_estimate > 0 else 0
     
     if psc_ratio >= 1.3:
-        judgment = "민자 매우 적합"
+        judgment = "수익성 매우 양호"
         color = "green"
     elif psc_ratio >= 1.0:
-        judgment = "민자 적합"
+        judgment = "수익성 확보"
         color = "blue"
     elif psc_ratio >= 0.8:
-        judgment = "경계선 (재구조화 검토)"
+        judgment = "경계선 (구조 재검토)"
         color = "orange"
     else:
-        judgment = "민자 부적합 (재정 사업 권장)"
+        judgment = "수익성 미달 (정부 보전 설계 또는 재정사업 검토)"
         color = "red"
     
     return {

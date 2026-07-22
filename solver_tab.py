@@ -174,8 +174,7 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
     st.markdown("#### 🎯 요구수익률 솔버 — 목표값 달성 방안 자동 제시")
     st.caption(
         "**활용 주체**: 5대 고객 그룹 모두 | "
-        "**분석 업무**: 목표 지표 입력 → 변수 조정 시나리오 자동 도출 | "
-        "**대체**: 컨설팅사 분석 업무 소요 시간 단축"
+        "**분석 업무**: 목표 지표 입력 → 변수 조정 시나리오 자동 도출"
     )
     
     st.markdown("---")

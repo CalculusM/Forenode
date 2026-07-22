@@ -60,10 +60,10 @@ def render_phase_pretest(ctx: dict):
         ),
     )
 
-    st.markdown("#### ⏱ 사전 검토 단계 — 민자 적격성 조사")
+    st.markdown("#### ⏱ 사전 검토 단계 — 수익성 간이판정·회귀 참고치")
     st.caption(
         "**활용 주체**: KDI PIMAC · 주무관청 · 자문사 | "
-        "**분석 업무**: PFS(예비타당성), VfM(민자 vs 재정 비교), 사업제안 평가"
+        "**분석 업무**: 예비 검토(PFS 보조) · 수익성 간이판정 · 사업제안 평가"
     )
 
     st.markdown("---")
@@ -94,7 +94,7 @@ def render_phase_pretest(ctx: dict):
     with col_r:
         in_range = capex_ref['capex_low_억'] <= user_capex <= capex_ref['capex_high_억']
         status = "✅ 적정 범위" if in_range else "⚠️ 범위 밖"
-        st.metric("회귀 신뢰구간 (±20%)",
+        st.metric("회귀 참고범위 (±20%·통상 가정)",
                   f"{capex_ref['capex_low_억']:,} ~ {capex_ref['capex_high_억']:,}",
                   delta=status,
                   delta_color="normal" if in_range else "inverse")
@@ -155,8 +155,8 @@ def render_phase_pretest(ctx: dict):
 
     st.markdown("")
 
-    # D. VfM 판단
-    st.markdown("##### ⚖️ VfM 적격성 판단")
+    # D. 수익성 간이판정 (구 'VfM' 표기 제거 — '26-07 실무 정합 감사)
+    st.markdown("##### ⚖️ 수익성 간이판정 — 수입/비용 현가비율 기반")
 
     metrics = ctx['metrics']
     npv = metrics['npv']
@@ -166,14 +166,14 @@ def render_phase_pretest(ctx: dict):
     psc_ratio = bc
 
     if psc_ratio >= 1.3 and dscr_min >= 1.20:
-        judgment = "민자 매우 적합"
+        judgment = "수익성 매우 양호"
         color = "#1D9E75"
         recommendation = (
             "정부 보전금 없이도 민간 사업주가 수익을 낼 수 있는 구조입니다. "
             "BTO 또는 BTO-rs 사업유형 검토 권장."
         )
     elif psc_ratio >= 1.0 and dscr_min >= 1.05:
-        judgment = "민자 적합"
+        judgment = "수익성 확보"
         color = "#1F3864"
         recommendation = (
             "현재 MRG·자기자본비율 등 조건으로 사업 추진 가능. "
@@ -184,14 +184,14 @@ def render_phase_pretest(ctx: dict):
         color = "#EF9F27"
         recommendation = (
             "사업 조건 보완 필요. MRG 보장률 상향, 운영기간 연장, "
-            "또는 BTO-ann 전환 등 시나리오 비교를 권합니다 (재구조화 탭 참조)."
+            "또는 BTO-a 전환 등 시나리오 비교를 권합니다 (재구조화 탭 참조)."
         )
     else:
-        judgment = "민자 부적합"
+        judgment = "수익성 미달"
         color = "#D45F5F"
         recommendation = (
-            "민자 추진 시 수익성 확보가 어렵습니다. "
-            "재정사업 전환 또는 사업계획 전면 재검토를 권합니다."
+            "현행 조건으로는 수익성 확보가 어렵습니다. "
+            "정부 보전 설계, 재정사업 전환 또는 사업계획 재검토를 권합니다."
         )
 
     st.markdown(
@@ -204,8 +204,8 @@ def render_phase_pretest(ctx: dict):
     )
 
     col_v1, col_v2, col_v3, col_v4 = st.columns(4)
-    col_v1.metric("PSC ratio (B/C)", f"{psc_ratio:.2f}",
-                  delta="≥1.0 적합" if psc_ratio >= 1.0 else "<1.0 부족",
+    col_v1.metric("수입/비용 현가비율", f"{psc_ratio:.2f}",
+                  delta="≥1.0 확보" if psc_ratio >= 1.0 else "<1.0 부족",
                   delta_color="normal" if psc_ratio >= 1.0 else "inverse")
     col_v2.metric("NPV", f"{npv:,.0f} 억",
                   delta="흑자" if npv >= 0 else "적자",
@@ -219,8 +219,7 @@ def render_phase_pretest(ctx: dict):
 
     st.markdown("")
     st.caption(
-        "💡 **사전 검토 다음 단계** — 사업이 고시되어 설계정보(BIM)가 확보되면 "
-        "물량 산출을 자동화해 정밀도를 높일 수 있습니다(선택 입력 — 없어도 전체 분석이 동작합니다)."
+        "사업 고시 후 설계정보(BIM) 확보 시 물량 산출을 자동화해 정밀도를 높일 수 있습니다(선택 입력)."
     )
 
 
@@ -271,7 +270,7 @@ def render_phase_construction(ctx: dict):
     sub_rate = ctx.get('sub_rate', 0.065)
     # equity_ratio는 base_params에 없을 수 있으므로 metrics에서 역산하거나 기본값
     # 호환성: ctx에 직접 추가 안 했으면 BIZ 기본값으로 추정
-    equity_ratio = {"BTO": 0.25, "BTO-rs": 0.20, "BTO-ann": 0.15, "BTL": 0.10, "BTO+BTL": 0.18}.get(business_type, 0.20)
+    equity_ratio = {"BTO": 0.25, "BTO-rs": 0.20, "BTO-a": 0.15, "BTL": 0.10, "BTO+BTL": 0.18}.get(business_type, 0.20)
     
     # 자금 규모 (절대값)
     equity_amount = total_capex * equity_ratio
@@ -564,15 +563,14 @@ def render_phase_construction(ctx: dict):
         # CI/FI/SI 자기자본 구성 (보완 9 흡수)
         st.markdown("**💼 자기자본 구성 (CI · FI · SI)**")
         st.caption(
-            "민자사업 자기자본은 **CI(건설투자자), FI(금융투자자), SI(운영투자자)** 3그룹으로 구성. "
-            "MRG 시대(2000년대 초반)는 CI:FI = 10:90~30:70 비율이 일반적, 현재는 사업유형별 상이."
+            "민자 자기자본은 **CI(건설)·FI(금융)·SI(운영)** 3그룹으로 구성 — 비율은 사업유형별 상이."
         )
         
         # 사업유형별 CI/FI/SI 기본값 (실무 관행 기반)
         ci_fi_si_defaults = {
             "BTO":     {"ci": 40, "fi": 50, "si": 10},
             "BTO-rs":  {"ci": 30, "fi": 60, "si": 10},
-            "BTO-ann": {"ci": 25, "fi": 65, "si": 10},
+            "BTO-a": {"ci": 25, "fi": 65, "si": 10},
             "BTL":     {"ci": 20, "fi": 70, "si": 10},
             "BTO+BTL": {"ci": 28, "fi": 62, "si": 10},
         }
@@ -802,10 +800,7 @@ def render_phase_construction(ctx: dict):
             key="phase2_ifc_upload",
         )
         st.info(
-            "🚧 **BIM 통합 모드 — Stage 2 개발 예정**\n\n"
-            "안심구역 데이터(구조물 영상분석 + 교량 점검내역, PET 동형암호결합)와 "
-            "IFC 자재 BoM을 통합하여 CAPEX 정확도를 ±20%(통계) → ±5%(BIM)로 개선합니다. "
-            "현재 통계 모드 분석은 위 LTA·STA·통합 화면을 활용하세요."
+            "🚧 **BIM 통합 모드 — 개발 예정.** 현재는 통계 모드 분석(위 LTA·STA·통합 화면)을 활용하세요."
         )
 
 
@@ -899,9 +894,7 @@ def render_phase_operation(ctx: dict):
 
     st.markdown("")
     st.caption(
-        "💡 **운영기간 활용 예** — 매년 CEPHIS 운영평가 자료 생성, "
-        "통행량 미달 시 MRG 청구 근거 자료, 5~10년 주기 자금재조달 검토. "
-        "**Stage 2(8월)** 실제 통행 실적 CSV 업로드 기능 추가 예정."
+        "매년 운영평가 자료·MRG 청구 근거·자금재조달 검토에 활용합니다."
     )
 
 
@@ -1023,9 +1016,7 @@ def render_phase_restructuring(ctx: dict):
 
     st.markdown("")
     st.caption(
-        "💡 **재구조화 활용 예** — 운영기간 만료 직전 SPC 또는 자산운용사가 정부와 협상. "
-        "또는 자산 거래(M&A) 시 잔여 가치 평가. "
-        "**Stage 2** 안전·환경 투자 패키지 자동 산출 추가 예정."
+        "운영기간 만료 전 정부 협상, 자산 거래(M&A) 잔여가치 평가에 활용합니다."
     )
     
     # ════════════════════════════════════════════════════════════
@@ -1034,9 +1025,8 @@ def render_phase_restructuring(ctx: dict):
     st.markdown("---")
     st.markdown("##### ⚠️ 해지시지급금 분석 — SPC 파산 시 정부 부담")
     st.caption(
-        "**해지시지급금**(Termination Payment) = SPC가 도산하거나 실시협약이 해지될 때 "
-        "정부가 SPC에 지급해야 하는 금액. 통상 **건설비용과 같도록** 책정됨 (KDB·민간투자법 표준). "
-        "운영주체 부재 시 정부가 시설을 인수해야 하므로 재정 부담이 큼 (예: 서울 9호선 인수 검토 사례)."
+        "**해지시지급금** = 실시협약 해지 시 정부가 SPC에 지급하는 금액 — "
+        "통상 건설비용 수준(민간투자법 표준)으로 정부 재정 부담이 큽니다."
     )
     
     termination_payment = ctx.get('termination_payment', ctx['total_capex_user'])
@@ -1127,6 +1117,5 @@ def render_phase_restructuring(ctx: dict):
         )
     
     st.caption(
-        "💡 본 분석은 시뮬레이션 모델로, 실제 협상은 실시협약 조항·정치적 고려·이용자 편익에 따라 달라짐. "
-        "**활용 예**: KDI PIMAC 재구조화 분쟁조정, CEPHIS 사업구조 개선 정책 수립, 자산운용사 M&A 입찰가 산정."
+        "본 분석은 시뮬레이션이며, 실제 협상 결과는 실시협약 조항·정치적 고려·이용자 편익에 따라 달라집니다."
     )

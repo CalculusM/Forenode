@@ -52,7 +52,7 @@ _FREQ = _load_json("opex_pavement_freq.json")
 BIZ_BASE_OPEX = {
     "BTO": 0.30,
     "BTO-rs": 0.32,
-    "BTO-ann": 0.35,
+    "BTO-a": 0.35,
     "BTL": 0.40,
 }
 
@@ -138,11 +138,12 @@ def estimate_opex_series(
     bridge_ratio: float = 0.15,
     growth_rate: float = 0.025,
     inflation: float = 0.02,
+    road_length_km: float = None,
 ) -> dict:
     """
     사업유형 + 노선 특성 + 학습 데이터 패턴으로
     운영기간 OPEX 시계열을 산출.
-    
+
     Returns
     -------
     dict with keys:
@@ -152,6 +153,13 @@ def estimate_opex_series(
         - peak_year      : OPEX 정점 연차
         - peak_amount_억 : 정점 OPEX 금액
         - explanation    : 산출 근거 한 줄
+        - per_km_억      : (road_length_km 지정 시) 연평균 OPEX 원단위 (억/km/년)
+        - warning        : (원단위가 실측 벤치마크 범위 밖일 때) 경고문 — L3 크로스체크
+
+    L3 주의(인천공항 백테스트 2026-07): 매출비례 방식은 고요금 노선(km당 수입이 큰
+    민자도로)에서 OPEX를 구조적으로 과대 추정한다 — 인천공항 실측 현금 OPEX는
+    매출의 ~13%인데 기본비율은 30%대. road_length_km를 주면 원단위(억/km/년)로
+    크로스체크해 범위 밖이면 warning을 반환한다(자동 개입 없음 — 검증 도구 원칙).
     """
     # 1. 사업유형 기본 비율
     base_ratio = BIZ_BASE_OPEX.get(business_type, 0.35)
@@ -190,7 +198,25 @@ def estimate_opex_series(
         f"노선보정 {route_factor:.2f} = 평균 {adjusted_base*100:.1f}% | "
         f"학습데이터(도로공사 11년치 4,380건) 연차 패턴 적용"
     )
-    
+
+    # L3 크로스체크: 원단위(억/km/년) — 백테스트 실측 벤치마크 대비 범위 검사.
+    # 벤치마크(백테스트 V-001~021 실측 원단위 7점, 경상 현금 OPEX): 광주원주 2.5 ·
+    #   천안논산 4.9 · 대구부산 5.4 · 부산울산 6.0 · 인천대교 10.1 · 인천공항 10.6
+    #   (일반~고요금 6점: 2.5~10.6) · 거가대교(해상 특수구조물) 33.4 — 13배 편차.
+    #   시설유형별 밴드는 v2 과제(v2-overcoming-design §3, 원단위 14점+ 축적 후 VP 게이트).
+    #   여기서는 경고 범위만 실측 기반(2.5~10.6 + 여유폭 → 2.0~12.0)으로 검사.
+    per_km = None
+    warning = None
+    if road_length_km and road_length_km > 0:
+        per_km = float(opex_arr.mean()) / float(road_length_km)
+        if per_km > 12.0 or per_km < 2.0:
+            warning = (
+                f"매출비례 추정 원단위 {per_km:.1f}억/km/년이 실측 벤치마크 범위"
+                f"(2.5~10.6억/km/년, 백테스트 6개 노선 — 해상 특수구조물 제외)를 벗어났습니다. "
+                f"고요금 노선은 매출비례가 과대되기 쉬우니 물량 기반(bottom-up LCC) 산출 "
+                f"또는 실측 원단위로 재검토하세요"
+            )
+
     return {
         "opex_ratio_avg": adjusted_base,
         "opex_series_억": opex_series,
@@ -199,6 +225,8 @@ def estimate_opex_series(
         "explanation": explanation,
         "base_ratio": base_ratio,
         "route_factor": route_factor,
+        "per_km_억": per_km,
+        "warning": warning,
     }
 
 
@@ -367,9 +395,9 @@ if __name__ == "__main__":
     print("OPEX 자동 산출 검증")
     print("=" * 70)
     
-    # 화성-안성 (BTO-ann, 45km, 평지, 터널 20%, 교량 15%)
+    # 화성-안성 (BTO-a, 45km, 평지, 터널 20%, 교량 15%)
     result = estimate_opex_series(
-        business_type="BTO-ann",
+        business_type="BTO-a",
         annual_revenue_억=1500,
         operation_years=30,
         terrain="평지",
@@ -377,7 +405,7 @@ if __name__ == "__main__":
         bridge_ratio=0.15,
     )
     
-    print(f"\n[화성-안성 BTO-ann]")
+    print(f"\n[화성-안성 BTO-a]")
     print(f"  평균 OPEX 비율: {result['opex_ratio_avg']*100:.2f}%")
     print(f"  정점 연차: {result['peak_year']}년차 ({result['peak_amount_억']:.1f}억)")
     print(f"  근거: {result['explanation']}")
@@ -388,13 +416,13 @@ if __name__ == "__main__":
     
     # 4가지 사업유형 비교
     print(f"\n[4가지 사업유형 비교 — 평균 OPEX 비율]")
-    for biz in ["BTO", "BTO-rs", "BTO-ann", "BTL"]:
+    for biz in ["BTO", "BTO-rs", "BTO-a", "BTL"]:
         r = estimate_opex_series(biz, 1500, 30, "평지", 0.20, 0.15)
         print(f"  {biz:10s}: {r['opex_ratio_avg']*100:5.2f}% | 1년차 {r['opex_series_억'][0]:.1f}억 | 정점 {r['peak_year']:2d}년차 {r['peak_amount_억']:.1f}억")
     
     # 노선 특성 비교
-    print(f"\n[노선 특성 비교 — BTO-ann 기준]")
+    print(f"\n[노선 특성 비교 — BTO-a 기준]")
     for terrain, t, b in [("평지", 0.10, 0.10), ("평지", 0.30, 0.20),
                            ("구릉", 0.20, 0.15), ("산악", 0.40, 0.25)]:
-        r = estimate_opex_series("BTO-ann", 1500, 30, terrain, t, b)
+        r = estimate_opex_series("BTO-a", 1500, 30, terrain, t, b)
         print(f"  {terrain} 터널{t*100:.0f}% 교량{b*100:.0f}%: 평균 {r['opex_ratio_avg']*100:.2f}%")

@@ -14,7 +14,7 @@ assert ci["eta_lo"] < ci["eta_hat"] < ci["eta_hi"], "η CI 순서"
 print(f"[A] Weibull CI 로드 OK: η={ci['eta_hat']} ({ci['eta_lo']}~{ci['eta_hi']}), β={ci['beta_hat']}")
 
 # 2) 베이스 OPEX 시계열
-base = np.array(estimate_opex_series("BTO-ann", 1500, 30, "평지", 0.2, 0.15)["opex_series_억"])
+base = np.array(estimate_opex_series("BTO-a", 1500, 30, "평지", 0.2, 0.15)["opex_series_억"])
 band = montecarlo_opex_band(base, weibull_ci=ci, n_sims=800)
 p10 = np.array(band["p10"]); p50 = np.array(band["p50"]); p90 = np.array(band["p90"])
 

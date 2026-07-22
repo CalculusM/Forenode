@@ -57,9 +57,8 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
                            cov_default: float = _DSCR_DEFAULT):
     st.subheader("민감도 · 시나리오 · 리스크 등록부")
     st.caption(
-        "수요·통행량은 **외부 입력 가정**으로 둡니다(Forenode는 수요를 예측하지 않습니다). "
-        "이 탭은 그 가정을 흔들었을 때 DSCR·LLCR·IRR·NPV가 어떻게 움직이는지와, "
-        "대주단·운용사 실사에서 요구하는 리스크 등록부를 자동 산출합니다."
+        "수요·통행량은 **외부 입력 가정**입니다. 이 탭은 그 가정을 흔들었을 때 "
+        "DSCR·LLCR·IRR·NPV의 변화와, 대주단·운용사 실사에서 요구하는 리스크 등록부를 산출합니다."
     )
 
     base = _base_case_from_params(base_params, daily_traffic, road_length_km)
@@ -191,7 +190,6 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
                             mc['nominal_irr']['p90'], mc['llcr_min']['p90']],
                 })
                 st.dataframe(dist, use_container_width=True, hide_index=True)
-                st.caption("분포 파라미터는 가정값입니다. 안심구역 차량통행 변동성 통계로 교체 예정(검증필요).")
             except Exception as e:
                 st.warning(f"몬테카를로 실패: {e}")
 
@@ -201,12 +199,7 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
     st.markdown("##### 4. 수요 낙관편향 플래그")
     flag = optimism_flag(daily_traffic, benchmark_aadt)
     if not flag.get("evaluated", False):
-        st.info(
-            f"{flag.get('note', '평가 보류')}\n\n"
-            "참고(가정·검증필요): 국내 은행 의뢰 통행량은 실측 대비 약 +20% 과대, "
-            "S&P(2005)는 P3 toll road 1년차 실적이 예측 대비 평균 −23%로 보고했습니다. "
-            "비교노선 분포가 들어오면 입력 통행량의 낙관 정도를 자동 표시합니다."
-        )
+        st.info(flag.get('note', '평가 보류'))
     else:
         if flag["flag"]:
             st.warning(flag["message"])

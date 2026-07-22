@@ -27,7 +27,6 @@ from typing import List, Dict, Optional, Tuple
 from enum import Enum
 from rag_tab import render_rag_tab
 from data_sources import (
-    render_data_source_sidebar,
     render_data_flow_banner,
     render_data_flow_diagram,
 )
@@ -66,10 +65,14 @@ def build_cashflow(
     growth_rate: float = 0.02,
     equity_ratio: float = 0.20,
     debt_rate: float = 0.045,
-    business_type: str = "BTO-ann",
+    business_type: str = "BTO-a",
     mrg_ratio: float = 0.0,
+    mrg_years: int = 0,
+    forecast_revenue_억: float = None,
+    revenue_series_억: np.ndarray = None,
     mcc_ratio: float = 0.0,
     restructuring_year: int = 0,
+    restructuring_toll_adj: float = 1.0,
     equity_recovery_method: str = "원금+수익률",  # 보완 6: '회수안함' / '원금만' / '원금+수익률'
     debt_repayment_method: str = "원리금균등",     # 보완 7: '원리금균등' / '원리금불균등' / '기간조정'
     **kwargs,
@@ -78,9 +81,19 @@ def build_cashflow(
     현금흐름 구축
     
     신규 인자 (v2):
-        business_type   : 사업유형 (BTO/BTO-rs/BTO-ann/BTL/BTO+BTL)
+        business_type   : 사업유형 (BTO/BTO-rs/BTO-a/BTL/BTO+BTL)
         mrg_ratio       : MRG 보장률 (0.0~1.0). 정부 보전금 발동 기준
         mcc_ratio       : MCC 비용보전율 (0.0~1.0). BTO-a 사업의 운영비 정부 보전
+
+    신규 인자 (v3 — 인천공항 백테스트 L1·L2·L4 반영, 2026-07):
+        mrg_years       : MRG 보장기간(운영연차 기준). 0이면 운영기간 전체(하위호환).
+                          실협약은 보통 15~20년 한정(예: 인천공항 20년) — L4.
+        forecast_revenue_억 : 협약 추정수입 1년차(억). MRG floor의 기준 수입.
+                          미지정 시 annual_revenue_억 사용(입력수입=협약수입 가정, 종전 동작).
+                          실현 시나리오(annual_revenue_억)와 분리 입력하면 수요 미달형
+                          MRG 보전이 올바르게 계산된다 — L1.
+        revenue_series_억 : 실현 수입 시계열(운영연차별, 억). 지정 시 annual_revenue_억×
+                          growth 대신 사용 — 램프업·경쟁도로 단차 등 비단조 경로 표현 — L2.
         restructuring_year: 재구조화 시점 (0=재구조화 없음, 1~운영기간)
         equity_recovery_method: 자기자본 회수 방법 (BTL 표준 3가지, KDB 자료)
             '회수안함'   : 자기자본을 회수하지 않고 타인자본 금리에 더해서 상환
@@ -97,6 +110,7 @@ def build_cashflow(
                 'construction_years', 'operation_years', 'opex_ratio',
                 'equity_ratio', 'debt_rate',
                 'business_type', 'mrg_ratio', 'mcc_ratio', 'restructuring_year',
+                'mrg_years', 'forecast_revenue_억', 'revenue_series_억',
                 'equity_recovery_method', 'debt_repayment_method']:
         kwargs.pop(key, None)
 
@@ -126,13 +140,17 @@ def build_cashflow(
         rev_growth = (1 + growth_rate) ** (op_year - 1)
         infl_factor = (1 + inflation) ** (op_year - 1)
         
-        # 재구조화 후 통행료 조정 (재구조화 시 통행료 -10% 가정)
+        # 재구조화 후 통행료 조정 — 조정률은 사용자 입력(실측: 서울춘천 -28%·천안논산 -48%·인천대교 -63%)
         toll_adj = 1.0
         if restructuring_year > 0 and op_year >= restructuring_year:
-            toll_adj = 0.90
+            toll_adj = restructuring_toll_adj
         
-        revenue[y] = annual_revenue_억 * rev_growth * toll_adj
-        
+        # L2: 실현 수입 시계열이 주어지면 스칼라×성장률 대신 직접 사용 (램프업·단차 표현)
+        if revenue_series_억 is not None and op_year - 1 < len(revenue_series_억):
+            revenue[y] = float(revenue_series_억[op_year - 1]) * toll_adj
+        else:
+            revenue[y] = annual_revenue_억 * rev_growth * toll_adj
+
         # OPEX — revenue와 동일 basis(성장 반영, 인플레 미적용)로 일치시킴.
         #   ※ 버그수정: estimate_opex_series 시계열은 이미 성장(growth)을 반영하므로
         #     여기서 infl_factor를 또 곱하면 revenue(성장만) 대비 OPEX만 인플레만큼
@@ -142,13 +160,15 @@ def build_cashflow(
         else:
             opex[y] = annual_revenue_억 * opex_ratio * rev_growth
         
-        # MRG 보전금 (수요 위험 — BTO-rs, BTO-ann)
+        # MRG 보전금 (수요 위험 — BTO-rs, BTO-a)
         # 협약 추정수입(통행료 조정 전) 대비 mrg_ratio를 floor로 보장.
         # 실제(재구조화 통행료 인하 등 반영) 수입이 floor 미만이면 정부가 차액을 보전한다.
-        # ※ 보장률을 '실적 실현율'로 환산해 매출을 깎던 종전 로직(0.80 하드코딩)을 제거 —
-        #   입력 시나리오를 그대로 실적으로 보고 floor 미달분만 보전(진성 MRG).
-        if mrg_ratio > 0:
-            forecast_rev = annual_revenue_억 * rev_growth  # 추정수입(통행료 조정 전)
+        # L1: floor 기준은 forecast_revenue_억(협약 추정수입) — 실현 시나리오와 분리.
+        #   미지정 시 annual_revenue_억(종전 동작: 입력수입=협약수입 가정).
+        # L4: 보장기간(mrg_years)을 넘긴 연차는 보전 없음 (0 = 전체 기간, 하위호환).
+        if mrg_ratio > 0 and (mrg_years <= 0 or op_year <= mrg_years):
+            _base_forecast = forecast_revenue_억 if forecast_revenue_억 is not None else annual_revenue_억
+            forecast_rev = _base_forecast * rev_growth  # 협약 추정수입(통행료 조정 전)
             guarantee_floor = forecast_rev * mrg_ratio
             if revenue[y] < guarantee_floor:
                 mrg_subsidy[y] = guarantee_floor - revenue[y]
@@ -531,7 +551,7 @@ def calc_wacc_detail(rf, mrp, beta, equity_ratio, debt_rate, tax_rate=0.22,
     senior_rate : float or None
         선순위 금리. None이면 debt_rate 사용 (단순 모드)
     sub_rate : float or None  
-        후순위 금리. None이면 debt_rate + 1.5% 사용
+        후순위 금리. None이면 debt_rate + 4.0% 사용(실측 격차 하단)
     """
     # 사용자가 자기자본비용(Ke)을 직접 지정하면 그 값을 사용, 없으면 CAPM(rf+β·MRP)으로 산출
     if ke is None:
@@ -542,7 +562,7 @@ def calc_wacc_detail(rf, mrp, beta, equity_ratio, debt_rate, tax_rate=0.22,
     if senior_rate is None:
         senior_rate = debt_rate
     if sub_rate is None:
-        sub_rate = debt_rate + 0.015  # 후순위는 선순위 대비 +1.5% (시장 통념)
+        sub_rate = debt_rate + 0.040  # 후순위 폴백 +4.0%p — 실측 선후순위 격차 최소 +200~400bp·대표 +700~1000bp('26-07 감사)
     
     sub_ratio = 1 - senior_ratio
     
@@ -1025,7 +1045,8 @@ def estimate_toll_revenue(
         
         daily_rev = (light * toll_per_km * road_length_km +
                      heavy * toll_per_km * road_length_km * heavy_vehicle_surcharge)
-        annual_rev = daily_rev * 365 / 1e8  # 억원
+        # 민자 통행료는 VAT 10% 포함가(재정도로 면세) → 사업자 매출은 공급가액(÷1.1)
+        annual_rev = daily_rev * 365 / 1e8 / 1.1  # 억원, VAT 차감
         
         data.append({
             'Year': y,
@@ -1101,13 +1122,13 @@ PROJECT_PRESETS = {
     },
     # 화성-안성: BTO-a(손익공유, 적격성'25.10 통과). 총사업비 20,725 → 민투비 ~13,000 추정. 교통량/통행료 미확정.
     "화성-안성 (45km · BTO-a · 예비)": {
-        "business_type": "BTO-ann", "road_length": 45, "total_capex": 13000,
+        "business_type": "BTO-a", "road_length": 45, "total_capex": 13000,
         "construction_years": 5, "operation_years": 30, "daily_traffic": 55000,
         "bridge_ratio": 15, "tunnel_ratio": 20, "lanes": 4, "toll_per_km": 100,
         "growth": 2.0, "heavy_ratio": 30,
     },
 }
-_BIZ_OPTIONS = ["BTO", "BTO-rs", "BTO-ann", "BTL", "BTO+BTL"]
+_BIZ_OPTIONS = ["BTO", "BTO-rs", "BTO-a", "BTL", "BTO+BTL"]
 
 
 def main():
@@ -1170,10 +1191,10 @@ def main():
     business_type = st.sidebar.selectbox(
         "사업 유형 선택",
         options=_BIZ_OPTIONS,
-        index=_BIZ_OPTIONS.index(_preset.get("business_type", "BTO-ann")),
+        index=_BIZ_OPTIONS.index(_preset.get("business_type", "BTO-a")),
         help=(
             "BTO: 수익형 / BTO-rs: 위험분담형(Risk Sharing) / "
-            "BTO-ann: 정부지급형(Annuity, BTO-a) / BTL: 임대형 / "
+            "BTO-a: 정부지급형(Annuity) / BTL: 임대형 /"
             "BTO+BTL: 결합형 (2024.10 정부 활성화 방안 신규)"
         )
     )
@@ -1183,7 +1204,7 @@ def main():
     _BIZ_DEFAULTS = {
         "BTO":     {"equity": 25, "opex": 30, "mrg": 0,   "mcc": 0,   "toll": 100, "desc": "수익형 — 운영 수익으로 회수 (정부 위험 분담 없음)"},
         "BTO-rs":  {"equity": 20, "opex": 32, "mrg": 50,  "mcc": 0,   "toll": 90,  "desc": "위험분담형 — 정부·사업자 수요위험 분담 (Risk Sharing)"},
-        "BTO-ann": {"equity": 15, "opex": 35, "mrg": 90,  "mcc": 30,  "toll": 130, "desc": "정부지급형(BTO-a) — 운영비 일부 정부 보전 (Annuity)"},
+        "BTO-a": {"equity": 15, "opex": 35, "mrg": 90,  "mcc": 30,  "toll": 130, "desc": "정부지급형(BTO-a) — 운영비 일부 정부 보전 (Annuity)"},
         "BTL":     {"equity": 10, "opex": 40, "mrg": 100, "mcc": 80,  "toll": 0,   "desc": "임대형 — 정부 임대료 + 운영비 보전"},
         "BTO+BTL": {"equity": 18, "opex": 35, "mrg": 60,  "mcc": 50,  "toll": 60,  "desc": "결합형(2024.10 신규) — 상부 BTO 사용료로 하부 BTL 임대료 충당"},
     }
@@ -1217,13 +1238,17 @@ def main():
         )
         growth = st.slider("교통량 성장률(%)", -2.0, 8.0, float(_preset.get("growth", 2.5)), 0.1)
         heavy_ratio = st.slider("화물비율(%)", 5, 60, _preset.get("heavy_ratio", 30))
-        heavy_surcharge = st.slider("대형 차량 할증배율", 1.0, 5.0, 2.50, 0.1)
+        heavy_surcharge = st.slider(
+            "대형 차량 할증배율", 1.0, 5.0, 1.50, 0.1,
+            help="차종 구성 가중 할증 — 공식 요금체계상 차종 간 최대 할증 1.68배(5종/1종). "
+                 "대형 비중이 높거나 해상 특수교량 등 예외 노선만 상향."
+        )
 
     # ─── 협약·정부 조건 (접힘) ───
     with st.sidebar.expander("▼ 협약·정부 조건 (MRG·MCC·재구조화)"):
         mrg_ratio = st.slider(
             "MRG 보장률(%)", 0, 100, _bd["mrg"], 5,
-            help="MRG = 최소수입보장. 정부가 통행료 수입을 보장하는 비율 (예측 대비). BTO-rs/BTO-ann 활용"
+            help="MRG = 최소수입보장. 정부가 통행료 수입을 보장하는 비율 (예측 대비). BTO-rs/BTO-a 활용"
         ) / 100
         mcc_ratio = st.slider(
             "MCC 비용보전율(%)", 0, 100, _bd["mcc"], 5,
@@ -1231,7 +1256,11 @@ def main():
         ) / 100
         restructuring_year = st.slider(
             "재구조화 시점(운영년차)", 0, operation_years, 0, 1,
-            help="0=재구조화 없음. 1~운영기간 사이 값은 해당 시점에 통행료 -10% 조정"
+            help="0=재구조화 없음. 지정 시 아래 조정률이 해당 시점부터 통행료에 적용"
+        )
+        restructuring_toll_cut = st.slider(
+            "재구조화 시 통행료 조정률(%)", -70, 0, 0, 5,
+            help="실측: 서울춘천 -28% · 천안논산 -48% · 인천대교 -63% (변경실시협약)"
         )
 
     # ─── 금융 구조 (접힘) ───
@@ -1492,6 +1521,7 @@ def main():
         'mrg_ratio': mrg_ratio,
         'mcc_ratio': mcc_ratio,
         'restructuring_year': restructuring_year,
+        'restructuring_toll_adj': 1 + restructuring_toll_cut / 100,
         'equity_recovery_method': equity_recovery_method,
         'debt_repayment_method': debt_repayment_method,
     }
@@ -1519,7 +1549,15 @@ def main():
     if opex_band:
         opex_estimation['band'] = opex_band
 
-    render_data_source_sidebar()
+    # 데이터 출처 — 2026-07 별도 페이지로 분리 (pages/1_데이터_출처.py)
+    with st.sidebar:
+        st.markdown("---")
+        try:
+            st.page_link("pages/1_데이터_출처.py", label="📊 데이터 출처 (4기관 융합)")
+            st.page_link("pages/2_검증_성적표.py", label="📋 검증 성적표 (백테스트 원장)")
+            st.page_link("pages/3_학습데이터_출처.py", label="📚 학습 데이터 출처")
+        except Exception:
+            st.caption("좌측 페이지 목록에서 데이터 출처·검증 성적표·학습 데이터 참조")
 
     # ============================================================
     # 메인 영역 — Forenode 헤더 (SVG 로고 + 사업명 입력)
@@ -1592,7 +1630,7 @@ def main():
         f"(1년차 {opex_estimation['opex_series_억'][0]:.0f}억 → "
         f"정점 {opex_estimation['peak_year']}년차 {opex_estimation['peak_amount_억']:.0f}억) | "
         f"CAPEX 회귀참고: {capex_reference['capex_estimate_억']:,}억 "
-        f"(±20%: {capex_reference['capex_low_억']:,}~{capex_reference['capex_high_억']:,}) {_capex_check}"
+        f"(참고범위 ±20%·통상 가정: {capex_reference['capex_low_억']:,}~{capex_reference['capex_high_억']:,}) {_capex_check}"
     )
 
     # ── PDF 보고서·심화탭이 공유하는 분석 컨텍스트 (KPI 위에서 미리 조립) ──
@@ -1658,10 +1696,10 @@ def main():
     with col4:
         bc_color = "green" if metrics['bc_ratio'] >= 1.0 else "orange"
         st.markdown(f"""<div class="metric-card {bc_color}">
-            <h4>B/C ratio</h4><h2>{metrics['bc_ratio']:.2f}</h2></div>""",
+            <h4>수입/비용 현가비율</h4><h2>{metrics['bc_ratio']:.2f}</h2></div>""",
             unsafe_allow_html=True)
 
-    with st.expander("📊 전체 지표 보기 (프로젝트IRR·ROE·WACC)"):
+    with st.expander("📊 전체 지표 보기 (프로젝트IRR·투입자본수익률·WACC)"):
         _k1, _k2, _k3 = st.columns(3)
         irr_txt = f"{metrics['nominal_irr']*100:.1f}% / {metrics['real_irr']*100:.1f}%"
         with _k1:
@@ -1671,7 +1709,7 @@ def main():
         with _k2:
             roe_color = "green" if metrics['roe'] > 0 else "red"
             st.markdown(f"""<div class="metric-card {roe_color}">
-                <h4>자기자본순이익률(ROE)</h4><h2>{metrics['roe']*100:.1f}%</h2></div>""",
+                <h4>투입자본 평균수익률</h4><h2>{metrics['roe']*100:.1f}%</h2></div>""",
                 unsafe_allow_html=True)
         with _k3:
             st.markdown(f"""<div class="metric-card blue">
@@ -1841,8 +1879,8 @@ def main():
     rc4.metric("EBITDA 평균(억)", f"{_ebitda:,.0f}" if _ebitda == _ebitda else "—")
     rc5.metric("NPV 적자 여부", "적자" if _npv < 0 else "흑자")
     st.caption(
-        "전체 토네이도·몬테카를로·낙관편향·부채 스컬프팅·리스크 등록부는 아래 "
-        "**[⏱ 사전 검토 ▸ 🎯 민감도·리스크 등록부]** 탭에서 — 대주단·운용사 실사(DD) 산출물."
+        "토네이도·몬테카를로·낙관편향·부채 스컬프팅·리스크 등록부는 "
+        "**[⏱ 사전 검토 ▸ 🎯 민감도·리스크 등록부]** 탭에서."
     )
 
     # ── 배당 타임라인 (사업주 현금회수 관점) ──
@@ -1891,8 +1929,11 @@ def main():
             "과세 — 이자 세금방패는 할인율 WACC의 `Kd(1−t)`에 이미 반영되므로 **이중계상 방지**.\n"
             "- **당기순이익·DSCR**: 법인세는 **정액법 감가상각·이자 차감 후**(레버드) 과세소득으로 산출. "
             "DSCR 분자=세후 CFADS, 분모=원리금. 건설기간 이자(IDC)는 부채에 자본화.\n"
-            "- **ROE**: 연평균 순이익 ÷ **투입 자기자본 원금**(장부 평균자본이 아닌 투입원금 기준).\n"
-            "- **B/C ratio**: 사회적 편익이 아닌 **재무적 비율**(매출 PV ÷ (CAPEX+운영비) PV).\n"
+            "- **투입자본 평균수익률**: 연평균 순이익 ÷ **투입 자기자본 원금** — 회계 ROE(장부 평균자본 기준)와 "
+            "다른 cash yield 성격의 지표.\n"
+            "- **수입/비용 현가비율**: 매출 PV ÷ (CAPEX+운영비) PV — 경제성 분석의 B/C(사회편익 기준)·"
+            "표준 수익성지수 PI(순유입 PV/투자 PV)와 정의가 다른 **재무 비율**.\n"
+            "- **통행료 수입**: 민자 통행료는 VAT 10% 포함가(재정도로 면세) — 매출은 공급가액(÷1.1) 기준 인식.\n"
             "- **MRG**: 추정수입(통행료 조정 전)의 보장률을 floor로, 실제 수입이 미달할 때만 차액 보전.\n"
             "- **자기자본 만료 회수**: 회수액은 **만기 잔존가치(terminal value)에서 잔존부채를 상환한 잔여분 한도 내**에서만 "
             "인식(출처 없는 현금 생성 방지). 잔존가치 미입력 시 회수액 0."
@@ -1901,9 +1942,8 @@ def main():
     # ── KDI PIMAC 표준재무모델 정합 내보내기 ──
     with st.expander("📐 KDI PIMAC 표준재무모델 양식으로 내보내기", expanded=False):
         st.caption(
-            "정부 적격성조사·6개 주체 대조의 사실상 표준인 **KDI PIMAC 표준재무모델** 연도별 "
-            "양식(한국어 컬럼·지출=양수 투자비)으로 변환합니다. 표준 .xlsx에 그대로 붙여넣어 "
-            "교차검증할 수 있는 **정합 레이어**입니다."
+            "**KDI PIMAC 표준재무모델** 연도별 양식(한국어 컬럼·지출=양수 투자비)으로 변환합니다. "
+            "표준 .xlsx에 붙여넣어 셀 단위로 교차검증하세요."
         )
         _pimac_df = build_pimac_standard_table(cf_df)
         st.dataframe(_pimac_df, use_container_width=True, height=280)
@@ -2020,7 +2060,7 @@ def main():
             st.markdown("**🏢 사업주(SPC 출자자) — 자기자본 회수 (Equity IRR·배당)**")
             s1, s2, s3, s4 = st.columns(4)
             s1.metric("자기자본IRR", _rl_eirr_txt)
-            s2.metric("자기자본순이익률(ROE)", f"{metrics['roe']*100:.1f}%")
+            s2.metric("투입자본 평균수익률", f"{metrics['roe']*100:.1f}%")
             s3.metric("요구수익률 Ke", f"{ke*100:.1f}%")
             s4.metric("NPV(프로젝트·@WACC)", f"{metrics['npv']:,.0f}억")
             if _rl_eirr_ok and _rl_eirr >= ke:
@@ -2048,7 +2088,7 @@ def main():
             st.markdown("**💼 자산운용사·연기금(FI) — 안정 수익 + 잔여가치**")
             f1, f2, f3, f4 = st.columns(4)
             f1.metric("자기자본IRR", _rl_eirr_txt)
-            f2.metric("ROE", f"{metrics['roe']*100:.1f}%")
+            f2.metric("투입자본 평균수익률", f"{metrics['roe']*100:.1f}%")
             f3.metric("DSCR 최소", f"{_rl_dmin:.2f}")
             f4.metric("LLCR 최소", f"{_rl_llcr:.2f}" if _rl_llcr == _rl_llcr else "—")
             if _rl_eirr_ok and _rl_eirr >= 0.10 and _rl_dmin >= 1.15:
@@ -2060,16 +2100,16 @@ def main():
                 "what-if ▸ **🔄 재구조화 ▸ 요구수익률 솔버**(자산운용사·연기금 프리셋)."
             )
         elif _role == "정부(PIMAC·주무관청)":
-            st.markdown("**🏛️ 정부(KDI PIMAC·주무관청) — VfM·재정부담**")
+            st.markdown("**🏛️ 정부(KDI PIMAC·주무관청) — 재무 타당성·재정부담**")
             g1, g2, g3, g4 = st.columns(4)
-            g1.metric("B/C ratio", f"{metrics['bc_ratio']:.2f}")
+            g1.metric("수입/비용 현가비율", f"{metrics['bc_ratio']:.2f}")
             g2.metric("NPV(억)", f"{metrics['npv']:,.0f}")
             g3.metric("정부 재정부담(MRG+MCC 누적·억)", f"{_rl_govt:,.0f}")
             g4.metric("DSCR 최소", f"{_rl_dmin:.2f}")
             if metrics['bc_ratio'] >= 1.0 and metrics['npv'] >= 0:
-                st.success("B/C ≥ 1.0 · NPV ≥ 0 — 재무 타당성 확보(VfM 추가 검토 권장).")
+                st.success("수입/비용 현가비율 ≥ 1.0 · NPV ≥ 0 — 재무 타당성 확보(정식 VfM은 PIMAC 방법론 별도).")
             else:
-                st.warning("B/C < 1.0 또는 NPV < 0 — 민자 적격성·정부 보전(MRG/MCC) 설계 재검토 필요.")
+                st.warning("수입/비용 현가비율 < 1.0 또는 NPV < 0 — 정부 보전(MRG/MCC) 설계 재검토 필요.")
             st.caption(
                 "심화 ▸ **⏱ 사전 검토**(민자 적격성·통행료 적정성·SPC 벤치마크) · "
                 "what-if ▸ **🔄 재구조화 ▸ 요구수익률 솔버**(KDI PIMAC·주무관청 프리셋)."
@@ -2097,8 +2137,7 @@ def main():
             )
         else:  # 전체
             st.caption(
-                "전체 보기 — 위 KPI 4종과 검증 요약, 아래 리스크 스냅샷이 종합 요약입니다. "
-                "특정 주체를 고르면 그 입장의 핵심 지표·판정과 바로 갈 심화 도구/솔버 위치만 추려서 보여줍니다."
+                "전체 보기 — 위 KPI 4종과 검증 요약, 아래 리스크 스냅샷이 종합 요약입니다."
             )
 
     st.markdown("---")
@@ -2115,8 +2154,8 @@ def main():
             with _vc1:
                 st.markdown("**📉 수요 낙관편향 점검**")
                 st.caption(
-                    "입력 교통량을 과거 (실측/예측) 분포로 보정 — 적자를 흑자로 바꾸는 게 아니라, "
-                    "수요 가정이 과거 실적 대비 낙관적인지 '검증'합니다. (근거: Bain·S&P 2009 / KOTI 2014 사후평가)"
+                    "입력 교통량을 과거 실측/예측 분포로 보정해 수요 가정의 낙관 정도를 검증합니다. "
+                    "(근거: Bain·S&P 2009 / KOTI 2014 사후평가)"
                 )
                 _prior = st.selectbox("벤치마크 분포(prior)", list(BENCHMARK_PRIORS.keys()),
                                       key="demand_prior")
@@ -2131,7 +2170,7 @@ def main():
                 st.caption(
                     f"수입 환산(교통량 선형 가정): 연매출 {ann_rev:,.0f}억 → 보정 중앙값 ≈ **{_rev_p50:,.0f}억**. "
                     f"근거: {_db['source']}")
-                st.caption("⚠️ reference-class 추정 밴드 — 점추정 아님. 노선별 예측↔실측 매칭 시 정밀화.")
+                st.caption("reference-class 추정 밴드 — 노선별 예측↔실측 매칭 시 정밀화.")
                 st.caption(
                     "ⓘ prior는 '교통량' 기준. '수입' 기준은 체계적으로 더 낮음(협약 대비 통행료 수입 "
                     "10년 평균 62.3% vs 교통량 81.4% — KOTI RR-25-10 p.45·p.140) — 수입 검증 시 별도 보정.")
@@ -2194,8 +2233,7 @@ def main():
 
     st.markdown("### 🗓️ 사업 시점별 분석 — 단계를 고르면 그 시점의 심화 도구까지 한곳에")
     st.caption(
-        "민자도로 라이프사이클 4단계가 주 내비게이션입니다. 각 단계 안에 해당 시점의 심화 도구를 "
-        "배치했습니다 (2026-07 UI 개편 — 구 '심화 분석 도구' 11종을 시점별로 재배치)."
+        "민자도로 라이프사이클 4단계가 주 내비게이션입니다. 각 단계 안에 해당 시점의 심화 도구를 배치했습니다."
     )
 
     phase_tabs_ui = st.tabs([
@@ -2474,14 +2512,13 @@ def main():
                 col: '{:,.1f}' for col in display_cols if col != 'Year'
             }), use_container_width=True)
 
-            with st.expander("ⓘ EBITDA·LLCR 산정 규약 (민감도 탭과 소수점 차이가 나는 이유)"):
+            with st.expander("ⓘ EBITDA·LLCR 산정 규약"):
                 st.markdown(
                     "- **EBITDA** = 매출 − 운영비 (감가상각·이자·세금 전). 대주단 표준 현금흐름 대용.\n"
                     "- **LLCR**(Loan Life Coverage Ratio) = 해당 연도 이후 잔여 CFADS의 현재가치(부채금리 할인) "
                     "÷ 잔존 부채. CFADS = 매출 − 운영비 − 세금(= DSCR 분자와 동일 정의).\n"
                     "- 이 표의 LLCR은 **연말 잔존부채** 기준, 🎯 민감도·리스크 탭의 LLCR_min은 "
-                    "**연초(=직전 연도 말) 잔존부채** 기준으로 계산합니다. 둘 다 통용되는 관행이며, "
-                    "그 시점 규약 차이로 같은 사업이라도 소수점 단위 차이가 날 수 있습니다(오류 아님)."
+                    "**연초(=직전 연도 말) 잔존부채** 기준 — 시점 규약 차이로 소수점 차이가 발생할 수 있습니다."
                 )
 
     # ━━━━━━━━━━ TAB 4: 열화곡선 ━━━━━━━━━━
@@ -2511,9 +2548,9 @@ def main():
         lcc_df, lcc_total = estimate_lcc_sawtooth_from_config(
             _q_disp, operation_years, wacc_info['wacc'])
         if bim_quantities:
-            st.caption("물량 출처: 업로드된 BIM(IFC) 형상 추출 · 주기/수선율: 별표5(config)")
+            st.caption("물량 출처: 업로드된 BIM(IFC) 형상 추출 · 주기/수선율: config(도로 유지관리 기준 재매핑 중)")
         else:
-            st.caption("물량: 연장 기반 추정 · 주기/수선율: 별표5(config)")
+            st.caption("물량: 연장 기반 추정 · 주기/수선율: config(도로 유지관리 기준 재매핑 중)")
 
         if opex_source.startswith("물량기반 LCC"):
             st.success(f"✅ [C1] 이 LCC 자본적 유지보수가 현금흐름 OPEX로 직결되어 DSCR에 반영됩니다 "
@@ -2579,9 +2616,7 @@ def main():
         st.markdown("---")
         st.markdown("##### 🚦 사용료 적정성 기준 — 정부 정책 부합 검증")
         st.caption(
-            "**2024.10 정부 활성화 방안 명시**: 민자도로 통행료 적정 수준 = "
-            "**한국도로공사 대비 1.1배 이내** (이 기준 이내이면 정부 위험 분담 사업 이익공유 대상 제외, "
-            "정부 정책 부합)."
+            "**2024.10 정부 활성화 방안**: 민자도로 통행료 적정 수준 = **한국도로공사 대비 1.1배 이내**."
         )
         
         # 도로공사 km당 통행료 기준 (2024 표준)
@@ -2694,10 +2729,6 @@ def main():
             )
             st.plotly_chart(fig_zone, use_container_width=True)
         
-        st.caption(
-            "💡 **활용 예** — KDI PIMAC·CEPHIS는 사업 적격성 평가 시 이 기준을 적용하며, "
-            "SPC는 통행료 협상·재구조화 시 본 영역을 정부와의 협상 자료로 활용."
-        )
 
     # ━━━━━━━━━━ TAB 6: 금융구조 ━━━━━━━━━━
     with tabs[5]:
@@ -2784,6 +2815,23 @@ def main():
         }
         bm_df.loc["현재 시나리오"] = current
 
+        # ── 백테스트 실측 패널 (V-001~021) — 전 노선 표준화의 1급 소스 ──
+        import os as _os
+        _panel_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                                    "data", "benchmark_panel.csv")
+        if _os.path.exists(_panel_path):
+            st.markdown("##### 📋 백테스트 실측 패널 (사후검증 완료 노선)")
+            _panel = pd.read_csv(_panel_path)
+            st.dataframe(_panel, use_container_width=True, hide_index=True)
+            _units = pd.to_numeric(_panel["실측_현금OPEX원단위_억km년"], errors="coerce").dropna()
+            if len(_units) > 0:
+                st.caption(
+                    f"실측 현금 OPEX 원단위 {len(_units)}개 노선: "
+                    f"{_units.min():.1f}~{_units.max():.1f}억/km/년 · 중앙값 {_units.median():.1f} "
+                    f"(해상 특수구조물 포함 시 13배 편차 — 시설유형별 비교 필수). "
+                    f"빈칸 = 미확보(추정치 미기재 원칙). 출처: 백테스트 원장 V-001~021."
+                )
+
         st.dataframe(bm_df.style.format({
             col: '{:,.0f}' for col in bm_df.columns if col not in ['DSCR', '연장']
         }).format({'DSCR': '{:.2f}', '연장': '{:.1f}'}),
@@ -2819,10 +2867,8 @@ def main():
     # ── 하단 정보 ──
     st.markdown("---")
     st.caption(
-        "Forenode — 공공데이터 기반 민자도로 수익성·적정성 검증 | "
-        "2026 건설공사 표준품셈 반영 | "
-        "DART 감사보고서 벤치마크 | "
-        "ECOS 기준금리 연동 | BIM(IFC)은 선택 입력"
+        "Forenode — 공공데이터 기반 민자도로 수익성·적정성 검증 · "
+        "2026 표준품셈 · DART 벤치마크 · ECOS 연동 · BIM(IFC) 선택 입력"
     )
 
 
