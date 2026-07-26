@@ -165,34 +165,12 @@ def render_phase_pretest(ctx: dict):
     bc = metrics['bc_ratio']
     psc_ratio = bc
 
-    if psc_ratio >= 1.3 and dscr_min >= 1.20:
-        judgment = "수익성 매우 양호"
-        color = "#1D9E75"
-        recommendation = (
-            "정부 보전금 없이도 민간 사업주가 수익을 낼 수 있는 구조입니다. "
-            "BTO 또는 BTO-rs 사업유형 검토 권장."
-        )
-    elif psc_ratio >= 1.0 and dscr_min >= 1.05:
-        judgment = "수익성 확보"
-        color = "#1F3864"
-        recommendation = (
-            "현재 MRG·자기자본비율 등 조건으로 사업 추진 가능. "
-            "민감도 분석(Tornado 탭)에서 핵심 리스크 변수를 확인하세요."
-        )
-    elif psc_ratio >= 0.85:
-        judgment = "경계선 — 재구조화 검토"
-        color = "#EF9F27"
-        recommendation = (
-            "사업 조건 보완 필요. MRG 보장률 상향, 운영기간 연장, "
-            "또는 BTO-a 전환 등 시나리오 비교를 권합니다 (재구조화 탭 참조)."
-        )
-    else:
-        judgment = "수익성 미달"
-        color = "#D45F5F"
-        recommendation = (
-            "현행 조건으로는 수익성 확보가 어렵습니다. "
-            "정부 보전 설계, 재정사업 전환 또는 사업계획 재검토를 권합니다."
-        )
+    # 판정 임계·문구 = config/finance_params.json 단일 출처 (PDF와 공용)
+    from pretest_regressor import profitability_screen
+    _scr = profitability_screen(psc_ratio, dscr_min)
+    judgment = _scr["judgment"]
+    color = _scr["color"]
+    recommendation = _scr["recommendation"]
 
     st.markdown(
         f"""<div style="background:#F8F9FA;border-left:5px solid {color};

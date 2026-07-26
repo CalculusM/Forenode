@@ -1199,16 +1199,19 @@ def main():
         )
     )
     
-    # 사업유형별 기본값 매핑 (mcc 추가: BTO-a/BTL은 운영비 정부 보전 존재)
-    # BTO+BTL: 2024.10 정부 활성화 방안 — 상부 BTO + 하부 BTL 결합
-    _BIZ_DEFAULTS = {
+    # 사업유형별 기본값 (mcc: BTO-a/BTL은 운영비 정부 보전 존재. BTO+BTL: 2024.10 결합형)
+    # 단일 출처 = config/finance_params.json — pretest_regressor와 공용, 폴백은 동치
+    import config_loader as _cfg_fin
+    _BIZ_FALLBACK = {
         "BTO":     {"equity": 25, "opex": 30, "mrg": 0,   "mcc": 0,   "toll": 100, "desc": "수익형 — 운영 수익으로 회수 (정부 위험 분담 없음)"},
         "BTO-rs":  {"equity": 20, "opex": 32, "mrg": 50,  "mcc": 0,   "toll": 90,  "desc": "위험분담형 — 정부·사업자 수요위험 분담 (Risk Sharing)"},
         "BTO-a": {"equity": 15, "opex": 35, "mrg": 90,  "mcc": 30,  "toll": 130, "desc": "정부지급형(BTO-a) — 운영비 일부 정부 보전 (Annuity)"},
         "BTL":     {"equity": 10, "opex": 40, "mrg": 100, "mcc": 80,  "toll": 0,   "desc": "임대형 — 정부 임대료 + 운영비 보전"},
         "BTO+BTL": {"equity": 18, "opex": 35, "mrg": 60,  "mcc": 50,  "toll": 60,  "desc": "결합형(2024.10 신규) — 상부 BTO 사용료로 하부 BTL 임대료 충당"},
     }
-    _bd = _BIZ_DEFAULTS[business_type]
+    _BIZ_DEFAULTS = _cfg_fin.business_defaults(fallback=_BIZ_FALLBACK)
+    # config 부분 결손(유형 키 삭제 등) 방어 — 폴백 유형으로 대체
+    _bd = _BIZ_DEFAULTS.get(business_type) or _BIZ_FALLBACK[business_type]
     st.sidebar.caption(f"※ {_bd['desc']}")
 
     # ─── 핵심 입력 (항상 노출: 연장·사업비·교통량·요금) ───
@@ -2147,7 +2150,8 @@ def main():
     # ════════════════════════════════════════════════════════
     with st.expander("🔎 가정 검증 오버레이 — 수요 낙관편향·예비 신용등급·재협상 트리거 (검증 도구)", expanded=False):
         try:
-            from demand_bias import demand_optimism_band, prob_ratio_below, BENCHMARK_PRIORS
+            from demand_bias import (demand_optimism_band, prob_ratio_below,
+                                     revenue_haircut_band, BENCHMARK_PRIORS)
             from verification_overlays import (implied_rating, renegotiation_triggers,
                                                agreed_return_position, TRIGGER_RULES)
             _vc1, _vc2 = st.columns([3, 2])
@@ -2166,10 +2170,11 @@ def main():
                     f"**실제 가능 중앙값 {_db['p50']:,.0f}대/일** (예측의 {_db['median_ratio']*100:.0f}%) · "
                     f"P10~P90 **{_db['p10']:,.0f}~{_db['p90']:,.0f}**")
                 st.markdown(f"{_icon} **{_db['flag']}** — 예측 대비 평균 미달폭 약 **{_db['haircut_pct']:.0f}%**")
-                _rev_p50 = ann_rev * _db['median_ratio']
+                _rb = revenue_haircut_band(ann_rev, prior=_prior)
                 st.caption(
-                    f"수입 환산(교통량 선형 가정): 연매출 {ann_rev:,.0f}억 → 보정 중앙값 ≈ **{_rev_p50:,.0f}억**. "
-                    f"근거: {_db['source']}")
+                    f"수입 환산(교통량 선형 가정): 연매출 {ann_rev:,.0f}억 → 보정 P10~P90 ≈ "
+                    f"**{_rb['p10_revenue']:,.0f}~{_rb['p90_revenue']:,.0f}억** "
+                    f"(중앙 {_rb['p50_revenue']:,.0f}억). 근거: {_db['source']}")
                 st.caption("reference-class 추정 밴드 — 노선별 예측↔실측 매칭 시 정밀화.")
                 st.caption(
                     "ⓘ prior는 '교통량' 기준. '수입' 기준은 체계적으로 더 낮음(협약 대비 통행료 수입 "
@@ -2344,7 +2349,9 @@ def main():
             n_sim = st.slider("시뮬레이션 횟수", 200, 5000, 1000, 100)
             capex_vol = st.slider("사업비 변동성(%)", 1, 30, 10) / 100
             rev_vol = st.slider("수익 변동성(%)", 1, 40, 15) / 100
-            rate_vol = st.slider("금리 변동성(%)", 1, 30, 10) / 100
+            rate_vol = st.slider("금리 변동성(%)", 1, 30, 10,
+                                 help="이 화면의 금리 충격은 할인율에만 적용됩니다(조달 부채금리 불변). "
+                                      "민감도 탭의 시나리오 엔진은 부채금리·할인율 동시 가산 — 계통 차이 유의.") / 100
 
             if st.button("▶ 시뮬레이션 실행", type="primary", use_container_width=True):
                 with st.spinner("시뮬레이션 실행 중..."):

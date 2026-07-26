@@ -135,14 +135,22 @@ def render_data_source_badge(params):
 
 
 def render_interpretation(params):
-    """모델 해석"""
+    """모델 해석 — 신 스키마(beta_meaning 등)·구 스키마(failure_mode) 겸용"""
     interp = params.get("interpretation", {})
-    mode = interp.get("failure_mode", "?")
-    action = interp.get("recommended_action", "?")
-    
+    mode = interp.get("failure_mode")
+    if not mode:
+        # weibull_fit의 beta_meaning 분기와 동일 규칙으로 도출
+        _beta = float(params.get("beta_hat", 1.0))
+        mode = "마모고장" if _beta > 1.5 else ("우발고장" if _beta > 0.9 else "초기고장")
+    if interp.get("recommended_action"):
+        action_label, action_text = "권장 조치", interp["recommended_action"]
+    else:
+        action_label = "보수 전망"
+        action_text = interp.get("expected_repairs_30y", "?")
+
     color_map = {"마모고장": "#E24B4A", "우발고장": "#EF9F27", "초기고장": "#1D9E75"}
     color = color_map.get(mode, "#999")
-    
+
     st.markdown(
         f"""<div style="background: {color}15;
                         border-left: 4px solid {color};
@@ -155,11 +163,15 @@ def render_interpretation(params):
             </div>
             <div style="font-size: 14px; color: #1a1a2e;
                         margin-top: 6px;">
-                권장 조치: <strong>{action}</strong>
+                {action_label}: <strong>{action_text}</strong>
             </div>
         </div>""",
         unsafe_allow_html=True
     )
+    if interp.get("beta_meaning") or interp.get("eta_meaning"):
+        st.caption(" · ".join(x for x in [interp.get("beta_meaning"), interp.get("eta_meaning")] if x))
+    if interp.get("data_note"):
+        st.caption(f"ⓘ {interp['data_note']}")
 
 
 def render_simulator(params):
@@ -292,9 +304,13 @@ def render_curves(params, current_age, target_prob):
     survival = weibull_survival(t_grid, beta, eta)
     failure = 1 - survival
     
-    # 신뢰구간 (있는 경우)
+    # 신뢰구간 — 신 스키마(beta_ci_lower/upper)·구 스키마(beta_ci_95 리스트) 겸용
     beta_ci = params.get("beta_ci_95")
+    if not beta_ci and params.get("beta_ci_lower") is not None and params.get("beta_ci_upper") is not None:
+        beta_ci = [params["beta_ci_lower"], params["beta_ci_upper"]]
     eta_ci = params.get("eta_ci_95")
+    if not eta_ci and params.get("eta_ci_lower") is not None and params.get("eta_ci_upper") is not None:
+        eta_ci = [params["eta_ci_lower"], params["eta_ci_upper"]]
     
     chart_cols = st.columns(2)
     

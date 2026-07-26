@@ -341,6 +341,41 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
     
     # 시나리오 정의
     scenarios = []
+
+    # brentq 연속 역산 ('26-07-26 휴면 _goal_seek_single 배선) —
+    # 그리드 첫 충족값을 '필요 최소 조정값'으로 정밀화. 실패 시 그리드 값 유지.
+    _METRIC_BY_LABEL = {"DSCR": "dscr_min", "IRR": "nominal_irr", "ROE": "roe",
+                        "NPV": "npv", "Equity IRR": "equity_irr", "BC ratio": "bc_ratio"}
+    _METRIC_BY_TARGET = {"DSCR_min": "dscr_min", "IRR_min": "nominal_irr", "ROE_min": "roe",
+                         "NPV_min": "npv", "Equity_IRR_min": "equity_irr", "BC_ratio_min": "bc_ratio"}
+
+    def _meets_all(test, tol_scale=0.0):
+        """targets 전 지표 충족 검사 — 그리드 채택·역산 병기 공용.
+        tol_scale>0이면 brentq 근 경계의 부동소수 오차 허용."""
+        for k, t in targets.items():
+            m_name = _METRIC_BY_TARGET.get(k)
+            if m_name is None:
+                continue
+            tol = max(0.01, abs(t) * 1e-3) * tol_scale if tol_scale else 0.0
+            if (test.get(m_name, 0) or 0) < t - tol:
+                return False
+        return True
+
+    def _refine_min(var_name, var_low, var_high):
+        """critical 지표 기준 brentq 역산 후, 그 값에서 '전 지표' 충족을 재검증.
+        미충족이면 None(과소 표기 방지 — '26-07-26 적대 검증 반영)."""
+        m_name = _METRIC_BY_LABEL.get(critical_key or "")
+        t_val = targets.get((critical_key or "").replace(" ", "_") + "_min")
+        if m_name is None or t_val is None:
+            return None
+        sol = _goal_seek_single(base_params, build_fn, m_name, float(t_val),
+                                var_name, var_low, var_high)
+        if sol is None:
+            return None
+        chk = _eval_metrics(base_params, {var_name: sol}, build_fn)
+        if chk is None or not _meets_all(chk, tol_scale=1.0):
+            return None
+        return sol
     
     # 시나리오 A: 통행료 인상 (1변수 goal seek)
     # 통행료는 base_params에 직접 없으므로 annual_revenue_억으로 우회
@@ -355,22 +390,16 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
                 build_fn,
             )
             if test:
-                # critical_key가 충족되는지 확인
-                ok = True
-                for k, t in targets.items():
-                    if k == 'DSCR_min' and test.get('dscr_min', 0) < t:
-                        ok = False
-                        break
-                    if k == 'IRR_min' and (test.get('nominal_irr', 0) or 0) < t:
-                        ok = False
-                        break
-                    if k == 'ROE_min' and (test.get('roe', 0) or 0) < t:
-                        ok = False
-                        break
+                # 전 지표 충족 검사 ('26-07-26: 구 검사의 NPV·Equity IRR·B/C 목표 누락 보완)
+                ok = _meets_all(test)
                 if ok:
+                    _chg = f"+{toll_pct*100:.0f}%"
+                    _sol = _refine_min('annual_revenue_억', curr_rev, curr_rev * (1 + toll_pct))
+                    if _sol and _sol > curr_rev:
+                        _chg += f" (필요 최소 +{(_sol / curr_rev - 1) * 100:.1f}%)"
                     scenarios.append({
                         "시나리오": "A. 통행료 인상",
-                        "변경": f"+{toll_pct*100:.0f}%",
+                        "변경": _chg,
                         "영향": "사용료 수입 증가",
                         "위험": "사회수용성 검토 필요 (도공 1.1배 기준)",
                     })
@@ -384,21 +413,16 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
                 continue
             test = _eval_metrics(base_params, {'mrg_ratio': new_mrg}, build_fn)
             if test:
-                ok = True
-                for k, t in targets.items():
-                    if k == 'DSCR_min' and test.get('dscr_min', 0) < t:
-                        ok = False
-                        break
-                    if k == 'IRR_min' and (test.get('nominal_irr', 0) or 0) < t:
-                        ok = False
-                        break
-                    if k == 'ROE_min' and (test.get('roe', 0) or 0) < t:
-                        ok = False
-                        break
+                # 전 지표 충족 검사 ('26-07-26: 구 검사의 NPV·Equity IRR·B/C 목표 누락 보완)
+                ok = _meets_all(test)
                 if ok:
+                    _chg = f"MRG {new_mrg*100:.0f}%"
+                    _sol = _refine_min('mrg_ratio', curr_mrg, new_mrg)
+                    if _sol and _sol > curr_mrg:
+                        _chg += f" (필요 최소 {_sol*100:.0f}%)"
                     scenarios.append({
                         "시나리오": "B. MRG 협상",
-                        "변경": f"MRG {new_mrg*100:.0f}%",
+                        "변경": _chg,
                         "영향": "수요 위험 분담 → 매출 안정성 ↑",
                         "위험": "정부 협상 필요, 사업유형 변경 (BTO → BTO-rs/ann)",
                     })
@@ -412,17 +436,8 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
                 break
             test = _eval_metrics(base_params, {'operation_years': new_op}, build_fn)
             if test:
-                ok = True
-                for k, t in targets.items():
-                    if k == 'DSCR_min' and test.get('dscr_min', 0) < t:
-                        ok = False
-                        break
-                    if k == 'IRR_min' and (test.get('nominal_irr', 0) or 0) < t:
-                        ok = False
-                        break
-                    if k == 'ROE_min' and (test.get('roe', 0) or 0) < t:
-                        ok = False
-                        break
+                # 전 지표 충족 검사 ('26-07-26: 구 검사의 NPV·Equity IRR·B/C 목표 누락 보완)
+                ok = _meets_all(test)
                 if ok:
                     scenarios.append({
                         "시나리오": "C. 운영기간 연장",

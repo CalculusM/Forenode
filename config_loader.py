@@ -11,6 +11,7 @@ from functools import lru_cache
 
 _BASE = os.path.dirname(os.path.abspath(__file__))
 _PATH = os.path.join(_BASE, "config", "opex_params.json")
+_FIN_PATH = os.path.join(_BASE, "config", "finance_params.json")
 
 
 @lru_cache(maxsize=1)
@@ -39,6 +40,27 @@ def inspection_cycles(fallback: dict | None = None) -> dict:
 
 def env_factor(level: str = "normal", default: float = 1.0) -> float:
     return float(load_params().get("env_factor_iso15686", {}).get(level, default))
+
+
+@lru_cache(maxsize=1)
+def load_finance_params() -> dict:
+    """config/finance_params.json 로드 (1회 캐시). 실패 시 {} 반환."""
+    try:
+        with open(_FIN_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"[config_loader] finance 로드 실패({e}) — 호출부 폴백 사용", flush=True)
+        return {}
+
+
+def profitability_bands(fallback: list | None = None) -> list:
+    """수익성 간이판정 밴드 [{min_bc, min_dscr, judgment, color, recommendation}, ...]."""
+    return load_finance_params().get("profitability_screen", {}).get("bands") or (fallback or [])
+
+
+def business_defaults(fallback: dict | None = None) -> dict:
+    """사업유형별 기본값 {BTO: {equity, opex, mrg, mcc, toll, desc}, ...} (단위: %·원/km)."""
+    return load_finance_params().get("business_type_defaults") or (fallback or {})
 
 
 if __name__ == "__main__":

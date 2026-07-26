@@ -478,20 +478,12 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     story.append(dash)
     story.append(Spacer(1, 6 * mm))
 
-    # 수익성 간이판정
+    # 수익성 간이판정 — 임계·문구 = config/finance_params.json 단일 출처(화면과 공용)
     story.append(Paragraph("수익성 간이판정 (수입/비용 현가비율 기반)", h2_style))
-    if bc >= 1.3 and dscr_min >= 1.20:
-        judgment = "민자 매우 적합"
-        rec = "정부 보전금 없이도 민간 사업주가 수익을 낼 수 있는 구조. BTO/BTO-rs 검토 권장."
-    elif bc >= 1.0 and dscr_min >= 1.05:
-        judgment = "민자 적합"
-        rec = "현재 조건으로 사업 추진 가능. 민감도·스트레스에서 핵심 리스크 변수 확인 필요."
-    elif bc >= 0.85:
-        judgment = "경계선 — 재구조화 검토"
-        rec = "사업 조건 보완 필요. MRG 상향·운영기간 연장·BTO-a 전환 등 검토."
-    else:
-        judgment = "민자 부적합 (정부지원 의존)"
-        rec = "민간 자력 회수 곤란. 건설보조금·MRG 등 정부지원 또는 재정사업 전환 검토."
+    from pretest_regressor import profitability_screen
+    _scr = profitability_screen(bc, dscr_min)
+    judgment = _scr["judgment"]
+    rec = _scr["recommendation"]
     judgment_data = [['판단 결과', judgment], ['권고 사항', rec]]
     t = Table(judgment_data, colWidths=[35 * mm, 135 * mm])
     t.setStyle(TableStyle([
