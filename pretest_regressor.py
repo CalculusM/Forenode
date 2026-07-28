@@ -30,38 +30,34 @@ import numpy as np
 
 
 # ════════════════════════════════════════════════════════════
-# 사업유형별 기본값 매핑
+# 사업유형별 기본값 매핑 — config/finance_params.json 단일 출처
+# ('26-07-26 2계통 통일: 구 자체 값(BTO-a toll 80 등)은 휴면 경로 전용·근거 미확보라
+#  실사용(app.py 사이드바) 값으로 통일. 폴백 = config 동치)
 # ════════════════════════════════════════════════════════════
-BUSINESS_TYPE_DEFAULTS = {
-    "BTO": {
-        "equity_ratio": 0.25,
-        "opex_ratio": 0.30,
-        "mrg_ratio": 0.0,
-        "toll_per_km": 100,
-        "description": "수익형 — 운영 수익으로 투자비 회수",
-    },
-    "BTO-rs": {
-        "equity_ratio": 0.20,
-        "opex_ratio": 0.32,
-        "mrg_ratio": 0.50,
-        "toll_per_km": 90,
-        "description": "위험분담형 — 정부와 사업자가 위험·수익 분담",
-    },
-    "BTO-a": {
-        "equity_ratio": 0.15,
-        "opex_ratio": 0.35,
-        "mrg_ratio": 0.90,
-        "toll_per_km": 80,
-        "description": "정부지급형 — 정부가 운영 수익 보장",
-    },
-    "BTL": {
-        "equity_ratio": 0.10,
-        "opex_ratio": 0.40,
-        "mrg_ratio": 1.00,
-        "toll_per_km": 0,  # 통행료 대신 임대료
-        "description": "임대형 — 정부에 시설 임대, 임대료 수령",
-    },
+import config_loader as _cfg
+
+_DEFAULTS_FALLBACK = {
+    "BTO":     {"equity": 25, "opex": 30, "mrg": 0,   "mcc": 0,  "toll": 100, "desc": "수익형 — 운영 수익으로 회수 (정부 위험 분담 없음)"},
+    "BTO-rs":  {"equity": 20, "opex": 32, "mrg": 50,  "mcc": 0,  "toll": 90,  "desc": "위험분담형 — 정부·사업자 수요위험 분담 (Risk Sharing)"},
+    "BTO-a":   {"equity": 15, "opex": 35, "mrg": 90,  "mcc": 30, "toll": 130, "desc": "정부지급형(BTO-a) — 운영비 일부 정부 보전 (Annuity)"},
+    "BTL":     {"equity": 10, "opex": 40, "mrg": 100, "mcc": 80, "toll": 0,   "desc": "임대형 — 정부 임대료 + 운영비 보전"},
+    "BTO+BTL": {"equity": 18, "opex": 35, "mrg": 60,  "mcc": 50, "toll": 60,  "desc": "결합형(2024.10 신규) — 상부 BTO 사용료로 하부 BTL 임대료 충당"},
 }
+
+
+def _to_ratio_schema(d: dict) -> dict:
+    """config 표기(%·원/km) → 이 모듈 표기(비율·원/km)."""
+    return {bt: {
+        "equity_ratio": v.get("equity", 0) / 100.0,
+        "opex_ratio": v.get("opex", 0) / 100.0,
+        "mrg_ratio": v.get("mrg", 0) / 100.0,
+        "mcc_ratio": v.get("mcc", 0) / 100.0,
+        "toll_per_km": v.get("toll", 0),
+        "description": v.get("desc", ""),
+    } for bt, v in d.items()}
+
+
+BUSINESS_TYPE_DEFAULTS = _to_ratio_schema(_cfg.business_defaults(fallback=_DEFAULTS_FALLBACK))
 
 
 # ════════════════════════════════════════════════════════════
@@ -178,44 +174,34 @@ def get_business_defaults(business_type: str) -> dict:
 
 
 # ════════════════════════════════════════════════════════════
-# 수익성 간이판정 (수입PV/CAPEX)
+# 수익성 간이판정 — 화면(phase_tabs)·PDF(report_generator) 공용 판정 함수
+# ('26-07-26 3중 하드코딩 단일화: 구 휴면 vfm_judgment 제거 — 경계값 0.8은
+#  활성 로직 0.85로 통일. 임계·문구 단일 출처 = config/finance_params.json)
 # ════════════════════════════════════════════════════════════
-def vfm_judgment(
-    capex_estimate: float,
-    annual_revenue: float,
-    operation_years: int,
-    discount_rate: float = 0.05,
-) -> dict:
-    """
-    민자 수익성 간이판정 — 수입 PV / CAPEX 비율 기반.
+_SCREEN_BANDS_FALLBACK = [
+    {"min_bc": 1.3, "min_dscr": 1.20, "judgment": "수익성 매우 양호", "color": "#1D9E75",
+     "recommendation": "정부 보전금 없이도 민간 사업주가 수익을 낼 수 있는 구조입니다. BTO 또는 BTO-rs 사업유형 검토 권장."},
+    {"min_bc": 1.0, "min_dscr": 1.05, "judgment": "수익성 확보", "color": "#1F3864",
+     "recommendation": "현재 MRG·자기자본비율 등 조건으로 사업 추진 가능. 민감도 분석에서 핵심 리스크 변수를 확인하세요."},
+    {"min_bc": 0.85, "min_dscr": None, "judgment": "경계선 — 재구조화 검토", "color": "#EF9F27",
+     "recommendation": "사업 조건 보완 필요. MRG 보장률 상향, 운영기간 연장, 또는 BTO-a 전환 등 시나리오 비교를 권합니다."},
+    {"min_bc": None, "min_dscr": None, "judgment": "수익성 미달", "color": "#D45F5F",
+     "recommendation": "현행 조건으로는 수익성 확보가 어렵습니다. 정부 보전 설계, 재정사업 전환 또는 사업계획 재검토를 권합니다."},
+]
 
-    ※ PIMAC VfM(PSC vs PFI 정부부담 현가 비교)과 다른 지표 — 명칭 혼동 방지
-    ('26-07 실무 정합 감사 §중요). 정식 VfM 판정은 PIMAC 방법론으로 별도 수행.
+
+def profitability_screen(bc_ratio: float, dscr_min: float) -> dict:
     """
-    # 30년 운영 총수익 (현재가치)
-    total_revenue_pv = 0
-    for y in range(1, operation_years + 1):
-        total_revenue_pv += annual_revenue / ((1 + discount_rate) ** y)
-    
-    # 민자 vs 재정 비교 (간이)
-    psc_ratio = total_revenue_pv / capex_estimate if capex_estimate > 0 else 0
-    
-    if psc_ratio >= 1.3:
-        judgment = "수익성 매우 양호"
-        color = "green"
-    elif psc_ratio >= 1.0:
-        judgment = "수익성 확보"
-        color = "blue"
-    elif psc_ratio >= 0.8:
-        judgment = "경계선 (구조 재검토)"
-        color = "orange"
-    else:
-        judgment = "수익성 미달 (정부 보전 설계 또는 재정사업 검토)"
-        color = "red"
-    
-    return {
-        "psc_ratio": psc_ratio,
-        "total_revenue_pv": total_revenue_pv,
-        "judgment": judgment,
-        "color": color,
-    }
+    수익성 간이판정 — 수입/비용 현가비율(B/C) + 최소 DSCR 밴드 판정.
+
+    ※ 자체 간이규약 — PIMAC 적격성(AHP·VfM) 판정과 다른 지표(명칭 혼동 방지,
+    '26-07 실무 정합 감사). 반환: {judgment, color, recommendation, min_bc, min_dscr}.
+    """
+    bands = _cfg.profitability_bands(fallback=_SCREEN_BANDS_FALLBACK)
+    _defaults = {"judgment": "판정 불가", "color": "#999999", "recommendation": ""}
+    for b in bands:
+        ok_bc = b.get("min_bc") is None or bc_ratio >= b["min_bc"]
+        ok_dscr = b.get("min_dscr") is None or dscr_min >= b["min_dscr"]
+        if ok_bc and ok_dscr:
+            return {**_defaults, **dict(b)}  # config 부분 결손 방어
+    return {**_defaults, **dict(bands[-1])} if bands else dict(_defaults)

@@ -1,14 +1,12 @@
 """
-solver_tab.py — 요구수익률 솔버 (분석 도구 12번째 탭)
+solver_tab.py — 요구수익률 솔버 (예타 사전 시뮬 심화 도구)
 
 기능:
-  1. 5대 고객 그룹별 요구수익률 프리셋
-  2. 자동 진단 (현재 vs 요구수익률 갭)
+  1. 이해관계자(CI·FI)별 목표 기준 프리셋
+  2. 자동 진단 (현재 vs 목표 기준 갭)
   3. 1변수 goal seek (scipy.optimize.brentq)
   4. 다변수 시나리오 (3가지 조정 방안)
   5. 권장 시나리오 카드
-
-옵션 B 본격 구현 + 옵션 C (AI 권고) placeholder
 """
 
 import streamlit as st
@@ -18,34 +16,12 @@ from scipy.optimize import brentq
 from typing import Callable, Optional
 
 # ════════════════════════════════════════════════════════════
-# 5대 고객 그룹별 요구수익률 프리셋
+# 이해관계자별 목표 기준 프리셋 — CI·FI 재편('26-07-28): FI 첫자리·SPC 격하·정부=통과 게이트
 # ════════════════════════════════════════════════════════════
 CUSTOMER_PRESETS = {
-    "대주단 (LTA)": {
-        "icon": "📐",
-        "description": "Lender's Technical Advisor — 부채 회수 안정성 중심",
-        "criteria": {
-            "DSCR_min": 1.20,
-            "IRR_min": 0.08,
-        },
-        "priority": "DSCR 안정성 > IRR > NPV",
-        "label_dscr": "DSCR ≥ 1.20",
-        "label_irr": "IRR ≥ 8%",
-    },
-    "사업주 (STA)": {
-        "icon": "🏢",
-        "description": "Sponsor's Technical Advisor — 자기자본 회수율 중심",
-        "criteria": {
-            "ROE_min": 0.10,      # CAPM 기반 일반 Ke
-            "Equity_IRR_min": 0.12,
-        },
-        "priority": "ROE > Equity IRR > NPV",
-        "label_dscr": "ROE ≥ 10%",
-        "label_irr": "Equity IRR ≥ 12%",
-    },
-    "자산운용사·연기금": {
+    "FI (인프라펀드·연기금)": {
         "icon": "💼",
-        "description": "Asset Manager — 잔여가치 + 안정 수익",
+        "description": "지분·후순위 FI — 회수·잔존가치 + 안정 수익 (기준선은 기관별 상이 — ✚인터뷰로 확정)",
         "criteria": {
             "IRR_min": 0.10,
             "ROE_min": 0.12,
@@ -55,20 +31,42 @@ CUSTOMER_PRESETS = {
         "label_dscr": "IRR ≥ 10%",
         "label_irr": "ROE ≥ 12%",
     },
-    "KDI PIMAC·주무관청": {
+    "FI 선순위 대주단": {
+        "icon": "🏦",
+        "description": "은행·보험 대주단 — 부채 회수 안정성 중심",
+        "criteria": {
+            "DSCR_min": 1.20,
+            "IRR_min": 0.08,
+        },
+        "priority": "DSCR 안정성 > IRR > NPV",
+        "label_dscr": "DSCR ≥ 1.20",
+        "label_irr": "IRR ≥ 8%",
+    },
+    "CI·사업주 (출자자)": {
+        "icon": "🏗",
+        "description": "건설사(CI)·사업주 — 자기자본 회수율 중심 (CI 고유 목표 지표는 ✚인터뷰로 확정)",
+        "criteria": {
+            "ROE_min": 0.10,      # CAPM 기반 일반 Ke
+            "Equity_IRR_min": 0.12,
+        },
+        "priority": "ROE > Equity IRR > NPV",
+        "label_dscr": "ROE ≥ 10%",
+        "label_irr": "Equity IRR ≥ 12%",
+    },
+    "정부 적격성 기준 (통과 게이트)": {
         "icon": "🏛️",
-        "description": "Public Sector — VfM·B/C 중심",
+        "description": "제안이 넘어야 할 정부 기준선 — B/C·NPV",
         "criteria": {
             "BC_ratio_min": 1.00,
             "NPV_min": 0,
         },
-        "priority": "B/C > NPV > VfM",
+        "priority": "B/C > NPV",
         "label_dscr": "B/C ≥ 1.0",
         "label_irr": "NPV ≥ 0",
     },
-    "민자 SPC (운영중)": {
+    "참고: 운영 중 SPC 기준": {
         "icon": "🛣️",
-        "description": "SPC — ROE ≥ Ke 달성·DSCR 안정",
+        "description": "운영 중 SPC 관리 기준(참고용 — 고객 아님)",
         "criteria": {
             "ROE_min": 0.08,   # 사이드바 Ke 기본값
             "DSCR_min": 1.10,
@@ -171,24 +169,24 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
         unsafe_allow_html=True,
     )
 
-    st.markdown("#### 🎯 요구수익률 솔버 — 목표값 달성 방안 자동 제시")
+    st.markdown("#### 🎯 요구수익률 솔버 — 이대로 제안하면 부족한 만큼, 무엇을 바꾸면 되는가")
     st.caption(
-        "**활용 주체**: 5대 고객 그룹 모두 | "
-        "**분석 업무**: 목표 지표 입력 → 변수 조정 시나리오 자동 도출"
+        "**활용 주체**: FI·CI 제안 설계 · 대주단 협의 | "
+        "**분석 업무**: 목표 지표 입력 → 변수 조정 시나리오 자동 도출(연속 역산 병기)"
     )
-    
+
     st.markdown("---")
-    
-    # ─── 1. 고객 그룹 선택 ─────────────────────────
-    st.markdown("##### 1단계. 고객 그룹 선택")
-    
+
+    # ─── 1. 이해관계자 프리셋 선택 ─────────────────────────
+    st.markdown("##### 1단계. 이해관계자 프리셋 선택")
+
     col_g, col_d = st.columns([1, 2])
     with col_g:
         group_name = st.selectbox(
             "분석 관점",
             options=list(CUSTOMER_PRESETS.keys()) + ["사용자 정의"],
             key="solver_group",
-            help="5대 고객 그룹의 표준 요구수익률 프리셋. 사용자 정의 선택 시 직접 입력.",
+            help="이해관계자별 목표 기준 프리셋(자체 규약 — 실무값은 인터뷰로 갱신). 사용자 정의 선택 시 직접 입력.",
         )
     
     if group_name == "사용자 정의":
@@ -341,6 +339,41 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
     
     # 시나리오 정의
     scenarios = []
+
+    # brentq 연속 역산 ('26-07-26 휴면 _goal_seek_single 배선) —
+    # 그리드 첫 충족값을 '필요 최소 조정값'으로 정밀화. 실패 시 그리드 값 유지.
+    _METRIC_BY_LABEL = {"DSCR": "dscr_min", "IRR": "nominal_irr", "ROE": "roe",
+                        "NPV": "npv", "Equity IRR": "equity_irr", "BC ratio": "bc_ratio"}
+    _METRIC_BY_TARGET = {"DSCR_min": "dscr_min", "IRR_min": "nominal_irr", "ROE_min": "roe",
+                         "NPV_min": "npv", "Equity_IRR_min": "equity_irr", "BC_ratio_min": "bc_ratio"}
+
+    def _meets_all(test, tol_scale=0.0):
+        """targets 전 지표 충족 검사 — 그리드 채택·역산 병기 공용.
+        tol_scale>0이면 brentq 근 경계의 부동소수 오차 허용."""
+        for k, t in targets.items():
+            m_name = _METRIC_BY_TARGET.get(k)
+            if m_name is None:
+                continue
+            tol = max(0.01, abs(t) * 1e-3) * tol_scale if tol_scale else 0.0
+            if (test.get(m_name, 0) or 0) < t - tol:
+                return False
+        return True
+
+    def _refine_min(var_name, var_low, var_high):
+        """critical 지표 기준 brentq 역산 후, 그 값에서 '전 지표' 충족을 재검증.
+        미충족이면 None(과소 표기 방지 — '26-07-26 적대 검증 반영)."""
+        m_name = _METRIC_BY_LABEL.get(critical_key or "")
+        t_val = targets.get((critical_key or "").replace(" ", "_") + "_min")
+        if m_name is None or t_val is None:
+            return None
+        sol = _goal_seek_single(base_params, build_fn, m_name, float(t_val),
+                                var_name, var_low, var_high)
+        if sol is None:
+            return None
+        chk = _eval_metrics(base_params, {var_name: sol}, build_fn)
+        if chk is None or not _meets_all(chk, tol_scale=1.0):
+            return None
+        return sol
     
     # 시나리오 A: 통행료 인상 (1변수 goal seek)
     # 통행료는 base_params에 직접 없으므로 annual_revenue_억으로 우회
@@ -355,22 +388,16 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
                 build_fn,
             )
             if test:
-                # critical_key가 충족되는지 확인
-                ok = True
-                for k, t in targets.items():
-                    if k == 'DSCR_min' and test.get('dscr_min', 0) < t:
-                        ok = False
-                        break
-                    if k == 'IRR_min' and (test.get('nominal_irr', 0) or 0) < t:
-                        ok = False
-                        break
-                    if k == 'ROE_min' and (test.get('roe', 0) or 0) < t:
-                        ok = False
-                        break
+                # 전 지표 충족 검사 ('26-07-26: 구 검사의 NPV·Equity IRR·B/C 목표 누락 보완)
+                ok = _meets_all(test)
                 if ok:
+                    _chg = f"+{toll_pct*100:.0f}%"
+                    _sol = _refine_min('annual_revenue_억', curr_rev, curr_rev * (1 + toll_pct))
+                    if _sol and _sol > curr_rev:
+                        _chg += f" (필요 최소 +{(_sol / curr_rev - 1) * 100:.1f}%)"
                     scenarios.append({
                         "시나리오": "A. 통행료 인상",
-                        "변경": f"+{toll_pct*100:.0f}%",
+                        "변경": _chg,
                         "영향": "사용료 수입 증가",
                         "위험": "사회수용성 검토 필요 (도공 1.1배 기준)",
                     })
@@ -384,23 +411,18 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
                 continue
             test = _eval_metrics(base_params, {'mrg_ratio': new_mrg}, build_fn)
             if test:
-                ok = True
-                for k, t in targets.items():
-                    if k == 'DSCR_min' and test.get('dscr_min', 0) < t:
-                        ok = False
-                        break
-                    if k == 'IRR_min' and (test.get('nominal_irr', 0) or 0) < t:
-                        ok = False
-                        break
-                    if k == 'ROE_min' and (test.get('roe', 0) or 0) < t:
-                        ok = False
-                        break
+                # 전 지표 충족 검사 ('26-07-26: 구 검사의 NPV·Equity IRR·B/C 목표 누락 보완)
+                ok = _meets_all(test)
                 if ok:
+                    _chg = f"MRG {new_mrg*100:.0f}%"
+                    _sol = _refine_min('mrg_ratio', curr_mrg, new_mrg)
+                    if _sol and _sol > curr_mrg:
+                        _chg += f" (필요 최소 {_sol*100:.0f}%)"
                     scenarios.append({
                         "시나리오": "B. MRG 협상",
-                        "변경": f"MRG {new_mrg*100:.0f}%",
+                        "변경": _chg,
                         "영향": "수요 위험 분담 → 매출 안정성 ↑",
-                        "위험": "정부 협상 필요, 사업유형 변경 (BTO → BTO-rs/ann)",
+                        "위험": "정부 협상 필요, 사업유형 변경 (BTO → BTO-rs/BTO-a)",
                     })
                     break
     
@@ -412,17 +434,8 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
                 break
             test = _eval_metrics(base_params, {'operation_years': new_op}, build_fn)
             if test:
-                ok = True
-                for k, t in targets.items():
-                    if k == 'DSCR_min' and test.get('dscr_min', 0) < t:
-                        ok = False
-                        break
-                    if k == 'IRR_min' and (test.get('nominal_irr', 0) or 0) < t:
-                        ok = False
-                        break
-                    if k == 'ROE_min' and (test.get('roe', 0) or 0) < t:
-                        ok = False
-                        break
+                # 전 지표 충족 검사 ('26-07-26: 구 검사의 NPV·Equity IRR·B/C 목표 누락 보완)
+                ok = _meets_all(test)
                 if ok:
                     scenarios.append({
                         "시나리오": "C. 운영기간 연장",

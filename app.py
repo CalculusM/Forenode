@@ -1,6 +1,6 @@
 """
 ============================================================
-Forenode — 공공데이터 기반 민자도로 수익성·적정성 검증 (BIM은 선택 입력)
+Forenode — 민자 사업 발굴·제안 솔루션 엔진 (BIM은 선택 입력)
 ============================================================
 실행: streamlit run app.py
 필수: pip install streamlit numpy pandas plotly requests
@@ -1133,7 +1133,7 @@ _BIZ_OPTIONS = ["BTO", "BTO-rs", "BTO-a", "BTL", "BTO+BTL"]
 
 def main():
     st.set_page_config(
-        page_title="Forenode — 민자도로 수익성·적정성 검증",
+        page_title="Forenode — 민자 사업 발굴·제안 솔루션 엔진",
         page_icon="🛣️",
         layout="wide",
         initial_sidebar_state="expanded",
@@ -1199,16 +1199,19 @@ def main():
         )
     )
     
-    # 사업유형별 기본값 매핑 (mcc 추가: BTO-a/BTL은 운영비 정부 보전 존재)
-    # BTO+BTL: 2024.10 정부 활성화 방안 — 상부 BTO + 하부 BTL 결합
-    _BIZ_DEFAULTS = {
+    # 사업유형별 기본값 (mcc: BTO-a/BTL은 운영비 정부 보전 존재. BTO+BTL: 2024.10 결합형)
+    # 단일 출처 = config/finance_params.json — pretest_regressor와 공용, 폴백은 동치
+    import config_loader as _cfg_fin
+    _BIZ_FALLBACK = {
         "BTO":     {"equity": 25, "opex": 30, "mrg": 0,   "mcc": 0,   "toll": 100, "desc": "수익형 — 운영 수익으로 회수 (정부 위험 분담 없음)"},
         "BTO-rs":  {"equity": 20, "opex": 32, "mrg": 50,  "mcc": 0,   "toll": 90,  "desc": "위험분담형 — 정부·사업자 수요위험 분담 (Risk Sharing)"},
         "BTO-a": {"equity": 15, "opex": 35, "mrg": 90,  "mcc": 30,  "toll": 130, "desc": "정부지급형(BTO-a) — 운영비 일부 정부 보전 (Annuity)"},
         "BTL":     {"equity": 10, "opex": 40, "mrg": 100, "mcc": 80,  "toll": 0,   "desc": "임대형 — 정부 임대료 + 운영비 보전"},
         "BTO+BTL": {"equity": 18, "opex": 35, "mrg": 60,  "mcc": 50,  "toll": 60,  "desc": "결합형(2024.10 신규) — 상부 BTO 사용료로 하부 BTL 임대료 충당"},
     }
-    _bd = _BIZ_DEFAULTS[business_type]
+    _BIZ_DEFAULTS = _cfg_fin.business_defaults(fallback=_BIZ_FALLBACK)
+    # config 부분 결손(유형 키 삭제 등) 방어 — 폴백 유형으로 대체
+    _bd = _BIZ_DEFAULTS.get(business_type) or _BIZ_FALLBACK[business_type]
     st.sidebar.caption(f"※ {_bd['desc']}")
 
     # ─── 핵심 입력 (항상 노출: 연장·사업비·교통량·요금) ───
@@ -1554,10 +1557,11 @@ def main():
         st.markdown("---")
         try:
             st.page_link("pages/1_데이터_출처.py", label="📊 데이터 출처 (4기관 융합)")
-            st.page_link("pages/2_검증_성적표.py", label="📋 검증 성적표 (백테스트 원장)")
+            st.page_link("pages/2_검증_성적표.py", label="📋 예측 성적표 (prior 신뢰 근거·백테스트 원장)")
             st.page_link("pages/3_학습데이터_출처.py", label="📚 학습 데이터 출처")
+            st.page_link("pages/4_시나리오_비교.py", label="🧮 시나리오 나란히 비교")
         except Exception:
-            st.caption("좌측 페이지 목록에서 데이터 출처·검증 성적표·학습 데이터 참조")
+            st.caption("좌측 페이지 목록에서 데이터 출처·예측 성적표·학습 데이터·시나리오 비교 참조")
 
     # ============================================================
     # 메인 영역 — Forenode 헤더 (SVG 로고 + 사업명 입력)
@@ -1597,7 +1601,7 @@ def main():
             </svg>
             <div>
                 <div class="forenode-logo-text">Forenode</div>
-                <div class="forenode-subtitle">공공데이터 기반 민자도로 수익성·적정성 검증 — 여러 참여자가 같은 기준으로</div>
+                <div class="forenode-subtitle">민자 사업 발굴·제안 솔루션 엔진 — 제안 전에 시나리오로 정량화</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1657,11 +1661,11 @@ def main():
         # 관점(역할) — 아래 관점 라우터(key='role_lens')의 선택을 PDF 역할 섹션에 반영.
         # 앱 라벨 → report _ROLE_FOCUS 키로 매핑('전체'·미선택은 None → 일반 보고서).
         'role': {
-            "대주단": "대주",
-            "사업주": "사업주",
-            "자산운용사·연기금": "운용사",
-            "정부(PIMAC·주무관청)": "주무관청",
-            "회계법인": "회계법인",
+            "CI 발굴·제안": "CI",
+            "FI 지분·후순위": "FI",
+            "FI 선순위 대주단": "대주",
+            "정부 기준(통과 게이트)": "주무관청",
+            "회계·자문": "회계법인",
         }.get(st.session_state.get('role_lens')),
         # 선순위·후순위 자금구조 (v2.1 추가)
         'senior_ratio': senior_ratio,
@@ -1762,7 +1766,7 @@ def main():
         _b_rirr_txt = f"{_b_rirr*100:.1f}%" if _b_rirr == _b_rirr else "—"
         _b_dmin = metrics.get('dscr_min', float('nan'))
         _b_dmin_txt = f"{_b_dmin:.2f}" if _b_dmin == _b_dmin else "—"
-        st.markdown("**🔎 가정 검증 요약**")
+        st.markdown("**🔎 제안 전 가정 점검 — 4줄 시사점**")
         st.markdown(
             f"{_b_dicon} **수요** — 입력 교통량은 과거 실적 분포 기준, 예측의 "
             f"{_b_db['median_ratio']*100:.0f}%가 실현 중앙값입니다. {_b_db['flag']}.\n\n"
@@ -1772,7 +1776,7 @@ def main():
             f"{_ap_icon} **협약수익률 위치** — 이 시나리오의 실질 사업수익률(세후) "
             f"{_b_rirr_txt}는 {_ap_msg}.\n\n"
             f"{_ir_icon} **예비 신용등급** — 최소 DSCR {_b_dmin_txt} 기준 {_ir_msg}.")
-        st.caption("근거·벤치마크·운영 중 사업 점검은 아래 '🔎 가정 검증 오버레이'에서 확인하세요.")
+        st.caption("근거·벤치마크·상세 점검은 아래 '🔎 가정 점검 오버레이'에서 확인하세요.")
     except Exception:
         pass
 
@@ -1783,11 +1787,45 @@ def main():
     )
     _role = st.radio(
         "관점(역할)",
-        ["전체", "대주단", "사업주", "자산운용사·연기금", "정부(PIMAC·주무관청)", "회계법인"],
+        ["전체", "CI 발굴·제안", "FI 지분·후순위", "FI 선순위 대주단",
+         "정부 기준(통과 게이트)", "회계·자문"],
         horizontal=True, label_visibility="collapsed", key="role_lens",
     )
     _role_slot = st.container(border=True)
     st.markdown("")
+
+    # ── 🧮 시나리오 저장 — pages/4 나란히 비교용 (최대 4개, 세션 보관) ──
+    _sc_saved = st.session_state.setdefault('saved_scenarios', [])
+    _sc1, _sc2, _sc3 = st.columns([2, 1, 2])
+    with _sc1:
+        _sc_name = st.text_input(
+            "시나리오 이름", value=f"시나리오 {len(_sc_saved) + 1}",
+            key="sc_save_name", label_visibility="collapsed", placeholder="시나리오 이름")
+    with _sc2:
+        if st.button("💾 시나리오 저장", key="sc_save_btn", use_container_width=True):
+            if len(_sc_saved) >= 4:
+                st.warning("최대 4개까지 저장됩니다 — '시나리오 나란히 비교' 페이지에서 삭제 후 다시 저장하세요.")
+            else:
+                _sc_saved.append({
+                    "이름": _sc_name or f"시나리오 {len(_sc_saved) + 1}",
+                    "사업유형": business_type,
+                    "연장(km)": float(road_length),
+                    "총사업비(억)": float(total_capex),
+                    "일교통량(대)": int(daily_traffic),
+                    "통행료(원/km)": float(toll_per_km),
+                    "MRG(%)": float(mrg_ratio) * 100,
+                    "NPV(억)": float(metrics['npv']),
+                    "IRR(%)": float(metrics['nominal_irr']) * 100 if metrics['nominal_irr'] == metrics['nominal_irr'] else float('nan'),
+                    "EquityIRR(%)": float(metrics.get('equity_irr', float('nan'))) * 100,
+                    "EquityMIRR(%)": float(metrics.get('equity_mirr', float('nan'))) * 100,
+                    "DSCR최소": float(metrics['dscr_min']),
+                    "수입/비용현가비율": float(metrics['bc_ratio']),
+                    "정부부담(억)": float(metrics.get('total_govt_burden', 0.0)),
+                    "회수기간(년)": metrics.get('payback_year'),
+                })
+                st.success(f"저장됨 — 좌측 '🧮 시나리오 나란히 비교' 페이지에서 확인 ({len(_sc_saved)}/4)")
+    with _sc3:
+        st.caption(f"저장된 시나리오 {len(_sc_saved)}/4 — 변수를 바꿔 2~4개 저장 후 나란히 비교하세요.")
 
     # ════════════════════════════════════════════════════════
     # 📄 PDF 보고서 — 분석 직후 최상단에서 즉시 생성·다운로드
@@ -1893,14 +1931,15 @@ def main():
         _n_allowed = int(_div_df['배당가능'].sum())
         _n_total = len(_div_df)
         with st.expander(
-            f"💵 배당 타임라인 (사업주 관점) — "
+            f"💵 회수 타임라인 (사업주·FI 관점) — "
             + (f"운영 {_first_div}년차부터 배당 가능" if _first_div else "전 기간 배당제한")
             + f" · 배당가능 {_n_allowed}/{_n_total}년",
             expanded=False,
         ):
             st.caption(
                 f"lock-up DSCR {cov_lockup:.2f} 이상인 해에만 출자자 배당(분배) 가능 — "
-                "그 미만 구간은 현금이 DSRA·상환에 묶여 회수가 지연됩니다."
+                "그 미만 구간은 현금이 DSRA·상환에 묶여 회수가 지연됩니다. "
+                "FI는 편입·인수 검토 시 록업(회수 지연) 구간과 만기 잔존가치를 함께 봅니다."
             )
             import plotly.graph_objects as _go
             _fig = _go.Figure()
@@ -1943,7 +1982,7 @@ def main():
     with st.expander("📐 KDI PIMAC 표준재무모델 양식으로 내보내기", expanded=False):
         st.caption(
             "**KDI PIMAC 표준재무모델** 연도별 양식(한국어 컬럼·지출=양수 투자비)으로 변환합니다. "
-            "표준 .xlsx에 붙여넣어 셀 단위로 교차검증하세요."
+            "표준 .xlsx에 붙여넣으면 예타 제출 양식과 같은 기준으로 셀 단위 재현·비교가 됩니다 — 제안서 첨부용."
         )
         _pimac_df = build_pimac_standard_table(cf_df)
         st.dataframe(_pimac_df, use_container_width=True, height=280)
@@ -2038,12 +2077,21 @@ def main():
     _rl_dmin = metrics['dscr_min']
 
     with _role_slot:
-        if _role == "대주단":
-            st.markdown("**📐 대주단 — 부채 회수 안정성 (DSCR·LLCR·스컬프팅)**")
+        if _role == "FI 선순위 대주단":
+            st.markdown("**🏦 FI 선순위 대주단(은행·보험) — 부채 회수 안정성**")
             d1, d2, d3, d4 = st.columns(4)
             d1.metric("DSCR 최소/평균", f"{_rl_dmin:.2f} / {metrics['dscr_avg']:.2f}")
             d2.metric("선순위 DSCR 최소", f"{_rl_sdscr:.2f}" if _rl_sdscr == _rl_sdscr and _rl_sdscr > 0 else "—")
-            d3.metric("LLCR 최소", f"{_rl_llcr:.2f}" if _rl_llcr == _rl_llcr else "—")
+            # 누적 DSCR — 실무 커버넌트(운영기 누적 CFADS ÷ 누적 원리금)
+            try:
+                _op_rows = cf_df[(cf_df['Interest'] + cf_df['Principal']) < 0]
+                _cum_cfads = (_op_rows['EBITDA'] + _op_rows['Tax']).cumsum()
+                _cum_ds = (-(_op_rows['Interest'] + _op_rows['Principal'])).cumsum()
+                _cum_dscr_min = float((_cum_cfads / _cum_ds).min())
+                d3.metric("누적 DSCR 최소", f"{_cum_dscr_min:.2f}",
+                          help="운영기 누적 CFADS ÷ 누적 원리금 — 실무 커버넌트(통상 1.2~1.5, PIMAC·건산연)")
+            except Exception:
+                d3.metric("누적 DSCR 최소", "—")
             d4.metric("커버넌트(텀시트)", f"base {cov_base:.2f} / lock {cov_lockup:.2f}")
             if _rl_dmin < cov_default:
                 st.error(f"DSCR_min {_rl_dmin:.2f} < default {cov_default:.2f} — 커버넌트 미달, 부채 상환 불안정.")
@@ -2052,78 +2100,123 @@ def main():
             else:
                 st.success(f"DSCR_min {_rl_dmin:.2f} ≥ lock-up {cov_lockup:.2f} — 부채 회수 안정권.")
             st.caption(
-                "심화 ▸ **⏱ 사전 검토 ▸ 민감도·리스크 등록부**(토네이도·몬테카를로·부채 스컬프팅·낙관편향) · "
-                "**🏗 시공·자금조달 ▸ 현금흐름**(연도별 DSCR·선순위 DSCR) · "
-                "what-if ▸ **🔄 재구조화 ▸ 요구수익률 솔버**(대주단 프리셋)."
+                f"실무 커버넌트 실증: 단순 DSCR 1.0∼1.2 · 누적 1.2∼1.5 · 부채비율 300%(배당·후순위이자 트리거 — PIMAC·건산연) · "
+                f"LLCR 최소 {_rl_llcr:.2f} — 해외 PF 참고 지표(국내 민자 약정 관행은 DSCR 중심)." if _rl_llcr == _rl_llcr else
+                "실무 커버넌트 실증: 단순 DSCR 1.0∼1.2 · 누적 1.2∼1.5 · 부채비율 300%(PIMAC·건산연)."
             )
-        elif _role == "사업주":
-            st.markdown("**🏢 사업주(SPC 출자자) — 자기자본 회수 (Equity IRR·배당)**")
-            s1, s2, s3, s4 = st.columns(4)
-            s1.metric("자기자본IRR", _rl_eirr_txt)
-            s2.metric("투입자본 평균수익률", f"{metrics['roe']*100:.1f}%")
-            s3.metric("요구수익률 Ke", f"{ke*100:.1f}%")
-            s4.metric("NPV(프로젝트·@WACC)", f"{metrics['npv']:,.0f}억")
-            if _rl_eirr_ok and _rl_eirr >= ke:
-                st.success(f"자기자본IRR {_rl_eirr_txt} ≥ 요구수익률 Ke {ke*100:.1f}% — 출자자 수익 기준 충족.")
-            elif _rl_eirr_ok and _rl_eirr >= 0:
-                st.warning(f"자기자본IRR {_rl_eirr_txt} < Ke {ke*100:.1f}% — 통행료·자본구조·정부 보전 조정 필요.")
-            else:
-                st.error("자기자본IRR 산출 불가/음수 — 현 가정에서 출자 회수 곤란.")
-            with st.expander("📐 추가 재무지표 (협약수익률·MIRR·PLCR)"):
-                e1, e2, e3, e4 = st.columns(4)
-                _ag = metrics.get('agreed_return_real_pretax')
-                e1.metric("협약 사업수익률(실질·세전)", f"{_ag*100:.1f}%" if _ag == _ag else "—")
-                _rr = metrics.get('real_irr')
-                e2.metric("실질 사업수익률(세후)", f"{_rr*100:.1f}%" if _rr == _rr else "—")
-                _pm = metrics.get('project_mirr')
-                e3.metric("사업 MIRR", f"{_pm*100:.1f}%" if _pm == _pm else "—")
-                e4.metric("PLCR(min)", f"{metrics.get('plcr_min', 0):.2f}")
-                st.caption("협약수익률=실시협약 기준(실질·세전, 세후 병기) · MIRR=IRR 재투자·복수해 결함 교정 · "
-                           "PLCR=사업 전기간 부채커버(≥LLCR). IRR 단독 판단 금지, NPV·DSCR 병행.")
             st.caption(
-                "심화 ▸ **💵 배당 타임라인**(아래 expander) · **🔄 재구조화 단계**(MRG 재협상·관리운영권) · "
-                "what-if ▸ **🔄 재구조화 ▸ 요구수익률 솔버**(사업주 프리셋: 목표 IRR 역산)."
+                "심화 ▸ **⏱ 예타 사전 시뮬 ▸ 민감도·리스크 등록부**(토네이도·몬테카를로·부채 스컬프팅) · "
+                "**🏗 시공·자금조달 ▸ 현금흐름**(연도별 DSCR·선순위 DSCR) · "
+                "what-if ▸ **⏱ 예타 사전 시뮬 ▸ 요구수익률 솔버**(선순위 대주단 프리셋)."
             )
-        elif _role == "자산운용사·연기금":
-            st.markdown("**💼 자산운용사·연기금(FI) — 안정 수익 + 잔여가치**")
+        elif _role == "CI 발굴·제안":
+            st.markdown("**🏗 건설사(CI) 사업 발굴·제안 — 이대로 제안하면?**")
+            c1, c2, c3, c4 = st.columns(4)
+            try:
+                from pretest_regressor import profitability_screen as _ci_scr_fn
+                _ci_scr = _ci_scr_fn(metrics['bc_ratio'], _rl_dmin)
+                c1.metric("수익성 간이판정", _ci_scr['judgment'],
+                          help="자체 간이규약(B/C+DSCR) — 정식 예타(KDI 적격성·AHP) 판정 아님")
+            except Exception:
+                c1.metric("수익성 간이판정", "—")
+            c2.metric("공사비 위치", _capex_check.replace("✅ ", "").replace("⚠️ ", ""),
+                      help=f"회귀 참고범위(±20%): {capex_reference['capex_low_억']:,}~{capex_reference['capex_high_억']:,}억 — 범위 밖이면 제안 시 근거 보강 필요")
+            try:
+                from demand_bias import prob_ratio_below as _ci_prb
+                _ci_p70 = _ci_prb(0.70)
+                c3.metric("재협상 트리거 사전 확률", f"{_ci_p70*100:.0f}%",
+                          help="prior 기준 실측이 협약 대비 70% 미달에 머물 확률(유료도로법 §23의5)")
+            except Exception:
+                c3.metric("재협상 트리거 사전 확률", "—")
+            try:
+                import config_loader as _ci_cfg
+                _tb = _ci_cfg.load_finance_params().get("toll_benchmark", {})
+                _koex = float(_tb.get("koex_won_per_km", 60)); _cap = float(_tb.get("policy_cap_mult", 1.1))
+                _toll_mult = toll_per_km / _koex if _koex > 0 else float('nan')
+                c4.metric("통행료 배수(도공 대비)", f"{_toll_mult:.2f}배",
+                          delta="기준(1.1배) 이내" if _toll_mult <= _cap else "기준 초과",
+                          delta_color="normal" if _toll_mult <= _cap else "inverse")
+            except Exception:
+                c4.metric("통행료 배수(도공 대비)", "—")
+            st.caption(
+                "💸 **제안비 매몰 리스크** — 제안→실시협약 실측 6~10년(사상해운대·오산용인), 우선협상 탈락 시 제안서·설계비는 "
+                "사실상 전액 매몰(차상위만 일부 보상). 제안 전 시나리오 반복 검토가 이 리스크를 줄입니다."
+            )
+            st.caption(
+                "📝 **심사 배점 구조**(2022 표준 RFP): 총 1,000점 = 기술 450 + 수요 150 + **가격 400(통행료율 200·재정지원율 200)** — "
+                "통행료 배수와 건설보조금 수준이 수주 확률과 직결. · Exit 관행: 준공 후 2~3년 매각(실측), 5%↑ 양도는 주무관청 사전승인."
+            )
+            st.caption(
+                "심화 ▸ **⏱ 예타 사전 시뮬**(제안 전 체크·솔버) · **💵 회수 타임라인**(아래 expander) · "
+                "EPC 마진은 입력 근거 미확보(✚ CI 인터뷰로) — 지분 현금흐름만 표시."
+            )
+        elif _role == "FI 지분·후순위":
+            st.markdown("**💼 FI 지분·후순위(인프라펀드·연기금) — 발굴 심의: 회수·잔존**")
+            _fi_entry = st.radio(
+                "진입 유형", ["건설기 동반 출자", "준공 후 인수(세컨더리)", "재구조화 진입"],
+                horizontal=True, key="fi_entry_type")
             f1, f2, f3, f4 = st.columns(4)
             f1.metric("자기자본IRR", _rl_eirr_txt)
-            f2.metric("투입자본 평균수익률", f"{metrics['roe']*100:.1f}%")
-            f3.metric("DSCR 최소", f"{_rl_dmin:.2f}")
-            f4.metric("LLCR 최소", f"{_rl_llcr:.2f}" if _rl_llcr == _rl_llcr else "—")
-            if _rl_eirr_ok and _rl_eirr >= 0.10 and _rl_dmin >= 1.15:
-                st.success("IRR·DSCR 모두 운용 기준선(IRR≥10%·DSCR≥1.15) 충족 — 편입 검토 가능.")
+            _emirr = metrics.get('equity_mirr', float('nan'))
+            f2.metric("자기자본 MIRR", f"{_emirr*100:.1f}%" if _emirr == _emirr else "—",
+                      help="재투자율=할인율로 보정한 수정 IRR — IRR의 재투자 가정 결함 교정")
+            try:
+                f3.metric("최초 배당가능", f"운영 {_first_div}년차" if _first_div else "전 기간 제한",
+                          help="lock-up DSCR 충족 첫 해 — FI 회수(배당) 개시 시점")
+            except NameError:
+                f3.metric("최초 배당가능", "—")
+            f4.metric("DSCR 최소", f"{_rl_dmin:.2f}")
+            _fi_k1, _fi_k2 = st.columns(2)
+            _fi_tirr = _fi_k1.number_input("운용 기준선 — 목표 Equity IRR(%)", 0.0, 30.0, 10.0, 0.5,
+                                           key="fi_target_irr",
+                                           help="기관별 상이 — 실무 근거 미확보(✚ FI 인터뷰로 확정)") / 100
+            _fi_tdscr = _fi_k2.number_input("운용 기준선 — 최소 DSCR", 1.0, 2.0, 1.15, 0.05,
+                                            key="fi_target_dscr",
+                                            help="기관별 상이 — 실무 근거 미확보(✚ FI 인터뷰로 확정)")
+            if _rl_eirr_ok and _rl_eirr >= _fi_tirr and _rl_dmin >= _fi_tdscr:
+                st.success(f"IRR·DSCR 모두 입력 기준선(IRR≥{_fi_tirr*100:.1f}%·DSCR≥{_fi_tdscr:.2f}) 충족 — 편입 검토 가능.")
             else:
-                st.warning("IRR 또는 DSCR이 운용 기준선(IRR≥10%·DSCR≥1.15) 미달 — 하방 분포 확인 필요.")
+                st.warning(f"IRR 또는 DSCR이 입력 기준선(IRR≥{_fi_tirr*100:.1f}%·DSCR≥{_fi_tdscr:.2f}) 미달 — 하방 분포 확인 필요.")
+            _fi_entry_note = {
+                "건설기 동반 출자": "건설 리스크 부담·단계 인출 — 2010년대 이후 신규 사업의 일반형(예: MKIF 동부간선 약정).",
+                "준공 후 인수(세컨더리)": "CI 매각분 인수 — 실측 창구는 개통 1~3년차(일산대교 1년차·거가대교 3년차). 인수가 상한은 🔄 재구조화 ▸ 잔여 NPV로.",
+                "재구조화 진입": "수익률 인하 ↔ 기간 연장 교환 — 시장 앵커: 재구조화 국채5년+1.3∼2.3%p·자금재조달 +3.4∼5.3%p(국토연구 89권).",
+            }.get(_fi_entry, "")
+            st.caption(f"진입 유형 시사점 — {_fi_entry_note}")
             st.caption(
-                "심화 ▸ **⏱ 사전 검토 ▸ 민감도·리스크 등록부**(몬테카를로 P10·하방확률)·**MC NPV** · "
-                "what-if ▸ **🔄 재구조화 ▸ 요구수익률 솔버**(자산운용사·연기금 프리셋)."
+                "현금 순서(waterfall): 후순위이자 → 후순위원금 → 배당 — FI 수익은 **후순위 이자 선회수**가 실무 구조"
+                "(MKIF 포트폴리오: 후순위 69%·지분 30%). 배당은 후행(운영 중반 개시가 전형)."
             )
-        elif _role == "정부(PIMAC·주무관청)":
-            st.markdown("**🏛️ 정부(KDI PIMAC·주무관청) — 재무 타당성·재정부담**")
+            st.caption(
+                "심화 ▸ **⏱ 예타 사전 시뮬 ▸ 민감도**(P10·하방확률) · **🔄 재구조화·인수**(잔여 NPV=인수가 상한) · "
+                "what-if ▸ **⏱ 예타 사전 시뮬 ▸ 요구수익률 솔버**(FI 프리셋)."
+            )
+        elif _role == "정부 기준(통과 게이트)":
+            st.markdown("**🏛️ 정부 기준(통과 게이트) — 제안이 넘어야 할 기준선**")
             g1, g2, g3, g4 = st.columns(4)
             g1.metric("수입/비용 현가비율", f"{metrics['bc_ratio']:.2f}")
             g2.metric("NPV(억)", f"{metrics['npv']:,.0f}")
             g3.metric("정부 재정부담(MRG+MCC 누적·억)", f"{_rl_govt:,.0f}")
             g4.metric("DSCR 최소", f"{_rl_dmin:.2f}")
             if metrics['bc_ratio'] >= 1.0 and metrics['npv'] >= 0:
-                st.success("수입/비용 현가비율 ≥ 1.0 · NPV ≥ 0 — 재무 타당성 확보(정식 VfM은 PIMAC 방법론 별도).")
+                st.success("수입/비용 현가비율 ≥ 1.0 · NPV ≥ 0 — 정부 기준선 통과 방향(정식 적격성 판정은 KDI PIMAC 별도).")
             else:
-                st.warning("수입/비용 현가비율 < 1.0 또는 NPV < 0 — 정부 보전(MRG/MCC) 설계 재검토 필요.")
+                st.warning("수입/비용 현가비율 < 1.0 또는 NPV < 0 — 이대로 제안하면 기준선 미달, 조건 조정 필요.")
             st.caption(
-                "심화 ▸ **⏱ 사전 검토**(민자 적격성·통행료 적정성·SPC 벤치마크) · "
-                "what-if ▸ **🔄 재구조화 ▸ 요구수익률 솔버**(KDI PIMAC·주무관청 프리셋)."
+                "심사 배점 구조(2022 표준 RFP): 기술 450 · 수요 150 · 가격 400(통행료율 200·재정지원율 200) — "
+                "정부 관점은 고객이 아니라 제안이 넘어야 할 게이트로 제공. · "
+                "심화 ▸ **⏱ 예타 사전 시뮬**(통행료 체크·SPC 벤치마크) · PIMAC 표준양식 CSV(회계·자문 뷰)."
             )
-        elif _role == "회계법인":
-            st.markdown("**🧮 회계법인 — 현금흐름 재현성·검증**")
+        elif _role == "회계·자문":
+            st.markdown("**🧮 회계법인·자문사 — 현금흐름 재현성**")
             a1, a2, a3, a4 = st.columns(4)
             a1.metric("EBITDA 평균(억)", f"{_rl_ebitda:,.0f}" if _rl_ebitda == _rl_ebitda else "—")
             a2.metric("NPV(프로젝트·@WACC)", f"{metrics['npv']:,.0f}억")
             a3.metric("DSCR 최소/평균", f"{_rl_dmin:.2f} / {metrics['dscr_avg']:.2f}")
             a4.metric("선순위 DSCR 최소", f"{_rl_sdscr:.2f}" if _rl_sdscr == _rl_sdscr and _rl_sdscr > 0 else "—")
-            st.info("검증 포인트: EBITDA=매출−운영비, CFADS=매출−운영비−세금, 세금은 정액 감가상각 반영. 연도별 추적은 현금흐름표에서.")
+            st.info("재현 규약: EBITDA=매출−운영비, CFADS=매출−운영비−세금, 세금은 정액 감가상각 반영. 연도별 추적은 현금흐름표에서.")
             st.download_button(
-                "⬇️ KDI PIMAC 표준재무모델 양식 CSV — 감사 대조용 납품물",
+                "⬇️ KDI PIMAC 표준재무모델 양식 CSV — 표준양식 정합 산출물",
                 build_pimac_standard_table(cf_df).to_csv(index=False).encode('utf-8-sig'),
                 file_name="forenode_PIMAC표준재무모델.csv",
                 mime="text/csv",
@@ -2131,30 +2224,31 @@ def main():
                 key="pimac_export_acct",
             )
             st.caption(
-                "납품물 ▸ 위 CSV를 표준 .xlsx에 붙여넣어 주무관청·대주단 모델과 **연도별 셀 단위 대조**. · "
+                "위 CSV를 표준 .xlsx에 붙여넣으면 외부 모델과 **연도별 셀 단위 재현 비교**가 됩니다. · "
                 "심화 ▸ **🏗 시공·자금조달 ▸ 현금흐름**(상세 현금흐름표: EBITDA·DSCR·선순위 DSCR·LLCR + 산정 규약) · "
                 "**ℹ️ 분석 가정**(아래 expander)."
             )
         else:  # 전체
             st.caption(
-                "전체 보기 — 위 KPI 4종과 검증 요약, 아래 리스크 스냅샷이 종합 요약입니다."
+                "전체 보기 — 위 KPI 4종과 가정 점검 요약, 아래 리스크 스냅샷이 종합 요약입니다."
             )
 
     st.markdown("---")
 
     # ════════════════════════════════════════════════════════
-    # 🔎 가정 검증 오버레이 — 수요 낙관편향 · 예비 신용등급 · 재협상 트리거 (검증 도구)
+    # 🔎 가정 점검 오버레이 — 수요 낙관편향 · 예비 신용등급 · 재협상 트리거 (제안 전 시사점)
     # ════════════════════════════════════════════════════════
-    with st.expander("🔎 가정 검증 오버레이 — 수요 낙관편향·예비 신용등급·재협상 트리거 (검증 도구)", expanded=False):
+    with st.expander("🔎 가정 점검 오버레이 — 수요 낙관편향·예비 신용등급·재협상 트리거 (제안 전 시사점)", expanded=False):
         try:
-            from demand_bias import demand_optimism_band, prob_ratio_below, BENCHMARK_PRIORS
+            from demand_bias import (demand_optimism_band, prob_ratio_below,
+                                     revenue_haircut_band, BENCHMARK_PRIORS)
             from verification_overlays import (implied_rating, renegotiation_triggers,
                                                agreed_return_position, TRIGGER_RULES)
             _vc1, _vc2 = st.columns([3, 2])
             with _vc1:
                 st.markdown("**📉 수요 낙관편향 점검**")
                 st.caption(
-                    "입력 교통량을 과거 실측/예측 분포로 보정해 수요 가정의 낙관 정도를 검증합니다. "
+                    "입력 교통량을 과거 실측/예측 분포로 보정해 수요 가정의 낙관 정도를 점검해 시사점을 제시합니다. "
                     "(근거: Bain·S&P 2009 / KOTI 2014 사후평가)"
                 )
                 _prior = st.selectbox("벤치마크 분포(prior)", list(BENCHMARK_PRIORS.keys()),
@@ -2166,14 +2260,15 @@ def main():
                     f"**실제 가능 중앙값 {_db['p50']:,.0f}대/일** (예측의 {_db['median_ratio']*100:.0f}%) · "
                     f"P10~P90 **{_db['p10']:,.0f}~{_db['p90']:,.0f}**")
                 st.markdown(f"{_icon} **{_db['flag']}** — 예측 대비 평균 미달폭 약 **{_db['haircut_pct']:.0f}%**")
-                _rev_p50 = ann_rev * _db['median_ratio']
+                _rb = revenue_haircut_band(ann_rev, prior=_prior)
                 st.caption(
-                    f"수입 환산(교통량 선형 가정): 연매출 {ann_rev:,.0f}억 → 보정 중앙값 ≈ **{_rev_p50:,.0f}억**. "
-                    f"근거: {_db['source']}")
+                    f"수입 환산(교통량 선형 가정): 연매출 {ann_rev:,.0f}억 → 보정 P10~P90 ≈ "
+                    f"**{_rb['p10_revenue']:,.0f}~{_rb['p90_revenue']:,.0f}억** "
+                    f"(중앙 {_rb['p50_revenue']:,.0f}억). 근거: {_db['source']}")
                 st.caption("reference-class 추정 밴드 — 노선별 예측↔실측 매칭 시 정밀화.")
                 st.caption(
                     "ⓘ prior는 '교통량' 기준. '수입' 기준은 체계적으로 더 낮음(협약 대비 통행료 수입 "
-                    "10년 평균 62.3% vs 교통량 81.4% — KOTI RR-25-10 p.45·p.140) — 수입 검증 시 별도 보정.")
+                    "10년 평균 62.3% vs 교통량 81.4% — KOTI RR-25-10 p.45·p.140) — 수입 기준 점검 시 별도 보정.")
             with _vc2:
                 st.markdown("**🏅 예비 신용등급 (근사)**")
                 _dmin = metrics.get('dscr_min', float('nan'))
@@ -2204,11 +2299,11 @@ def main():
                     f"협약 대비 **{_thr*100:.0f}% 미달에 머물 확률 ≈ {_p70*100:.0f}%**")
                 st.caption(
                     "협약 체결 후 3년 연속 교통량·수입이 협약 대비 70% 미달이면 주무관청이 "
-                    "실시협약 변경을 요구할 수 있음 — 수요 가정 검증이 곧 재협상 리스크 관리. "
+                    "실시협약 변경을 요구할 수 있음 — 수요 가정 점검이 곧 제안 통과·재협상 리스크 관리. "
                     "램프업(개통 초기 저조 후 회복) 미반영 보수 추정.")
                 st.caption("근거: 유료도로법 §23의5 (KOTI RR-23-19, 2023, pp.151-152)")
             with _tg2:
-                st.markdown("**운영 중 사업 점검** — 최근 3개년 실측/협약 비율(%)")
+                st.markdown("**보유 자산 트리거 점검(운영 중 사업 한정)** — 최근 3개년 실측/협약 비율(%) · FI 포트폴리오 모니터링용")
                 _ta, _tb, _tc = st.columns(3)
                 _r1 = _ta.number_input("2년 전", 0, 200, 100, key="tg_r1")
                 _r2 = _tb.number_input("1년 전", 0, 200, 100, key="tg_r2")
@@ -2227,7 +2322,7 @@ def main():
                 "민자적격성 재검증 의뢰 대상 (KOTI RR-23-19 pp.185·187). "
                 "재구조화로 간 노선의 재구조화 前 실측/예측은 31~70% 수준 (KOTI MP-24-11 pp.65-86).")
         except Exception as _ov_err:
-            st.caption(f"검증 오버레이 일시 오류: {_ov_err}")
+            st.caption(f"가정 점검 오버레이 일시 오류: {_ov_err}")
 
     st.markdown("---")
 
@@ -2237,14 +2332,42 @@ def main():
     )
 
     phase_tabs_ui = st.tabs([
-        "⏱ 사전 검토", "🏗 시공·자금조달", "🛣 운영", "🔄 재구조화"
+        "⏱ 예타 사전 시뮬", "🏗 시공·자금조달", "🛣 운영 (보유자산)", "🔄 재구조화·인수"
     ])
 
-    # ── ⏱ 사전 검토: 단계 브리핑 + 타당성·수요·시장 심화 도구 6종 ──
+    # ── ⏱ 예타 사전 시뮬: 제안 전 체크 요약 + 심화 도구 7종(솔버 이동 '26-07-28) ──
     with phase_tabs_ui[0]:
+        # 제안 전 체크 요약 — 흩어진 판정 4종 집결(기존 함수 재호출, 신규 계산 없음)
+        try:
+            from pretest_regressor import profitability_screen as _pt_scr_fn
+            from demand_bias import prob_ratio_below as _pt_prb
+            import config_loader as _pt_cfg
+            _pt_scr = _pt_scr_fn(metrics['bc_ratio'], metrics['dscr_min'])
+            _pt_p70 = _pt_prb(0.70)
+            _pt_tb = _pt_cfg.load_finance_params().get("toll_benchmark", {})
+            _pt_koex = float(_pt_tb.get("koex_won_per_km", 60))
+            _pt_cap = float(_pt_tb.get("policy_cap_mult", 1.1))
+            _pt_mult = toll_per_km / _pt_koex if _pt_koex > 0 else float('nan')
+            _pt_toll_ok = "🟢" if _pt_mult <= _pt_cap else "🔴"
+            _pt_capex_ok = "🟢" if _capex_in_range else "🟡"
+            _pt_trg_ok = "🔴" if _pt_p70 >= 0.50 else ("🟡" if _pt_p70 >= 0.25 else "🟢")
+            st.markdown("**✅ 제안 전 체크 요약 — 이대로 제안하면 어떤 항목에 걸리는가**")
+            st.markdown(
+                f"1. 수익성 간이판정: **{_pt_scr['judgment']}** (자체 규약 — 정식 예타 판정 아님)\n\n"
+                f"2. {_pt_capex_ok} 공사비: 회귀 참고범위 "
+                f"{capex_reference['capex_low_억']:,}~{capex_reference['capex_high_억']:,}억 대비 "
+                f"{'범위 내' if _capex_in_range else '범위 밖 — 제안 시 근거 보강 필요'}\n\n"
+                f"3. {_pt_toll_ok} 통행료: 도공 대비 **{_pt_mult:.2f}배** (정부 기준 {_pt_cap:.1f}배) — 가격부문 200점 직결\n\n"
+                f"4. {_pt_trg_ok} 재협상 트리거 사전 확률: **{_pt_p70*100:.0f}%** (협약 대비 70% 미달 확률·§23의5)")
+            st.caption(
+                "💸 제안비 매몰 리스크: 제안→실시협약 실측 6~10년, 우선협상 탈락 시 제안서·설계비 사실상 전액 매몰 — "
+                "아래 심화 도구로 조건을 바꿔 반복 비교하세요. 심사 배점: 기술 450·수요 150·가격 400(통행료율 200·재정지원율 200).")
+            st.markdown("---")
+        except Exception:
+            pass
         render_phase_pretest(phase_context)
         st.markdown("---")
-        st.markdown("##### 🔬 사전 검토 심화 도구")
+        st.markdown("##### 🔬 예타 사전 시뮬 심화 도구")
         tabs_pre = st.tabs([
             "🎯 민감도·리스크 등록부",
             "📊 MC NPV (Monte Carlo)",
@@ -2252,6 +2375,7 @@ def main():
             "🔥 통행료 적정성",
             "📋 SPC 벤치마크",
             "🤖 XGBoost 수익성 등급",
+            "🎯 요구수익률 솔버",
         ])
         tab_sensitivity = tabs_pre[0]
         tab_mc = tabs_pre[1]
@@ -2259,6 +2383,24 @@ def main():
         tab_toll = tabs_pre[3]
         tab_benchmark = tabs_pre[4]
         tab_xgboost = tabs_pre[5]
+        tab_solver_pre = tabs_pre[6]
+
+        with tab_solver_pre:
+            st.markdown(
+                """<div style="background:linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%);
+                    border-left:6px solid #EF9F27;border-radius:8px;
+                    padding:12px 18px;margin:8px 0;">
+                    <div style="font-size:13px;color:#888;font-weight:600;">━ 제안 설계 ━</div>
+                    <div style="font-size:18px;font-weight:bold;color:#1F3864;margin-top:2px;">
+                        🎯 요구수익률 솔버
+                    </div>
+                    <div style="font-size:12px;color:#555;margin-top:4px;">
+                        이해관계자별 목표 기준 진단 + 달성 시나리오 역산 — 이대로 제안하면 통과 가능한가를 즉시 확인.
+                    </div>
+                </div>""",
+                unsafe_allow_html=True,
+            )
+            render_solver_tab(base_params, metrics, build_cashflow, phase_context)
 
         with tab_sensitivity:
             # 지연 import: scenario_engine 이 app.build_cashflow 를 역참조하므로
@@ -2276,6 +2418,12 @@ def main():
     # ── 🏗 시공·자금조달: 단계 브리핑 + 금융구조·현금흐름 ──
     with phase_tabs_ui[1]:
         render_phase_construction(phase_context)
+        st.caption(
+            "🏦 **대주단 실무 규약(실증)** — 자본 투입 순서: 자본금 → 후순위 → 선순위(자기자본 전액 선투입이 인출 선행조건) · "
+            "DSRA 3~6개월치 적립 · 산업기반신용보증 건당 3,000억 한도. "
+            "📋 **일정 규약** — 사업신청 시 조건부 대출확약서(FI 내부 투심위 승인 전제) → 실시계획 승인 전까지 대출약정서로 교체. "
+            "CI 우발부채: 책임준공·자금보충약정(CDS)."
+        )
         st.markdown("---")
         st.markdown("##### 🔬 시공·자금조달 심화 도구")
         tabs_con = st.tabs([
@@ -2285,9 +2433,13 @@ def main():
         tab_finance = tabs_con[0]
         tab_cashflow = tabs_con[1]
 
-    # ── 🛣 운영: 단계 브리핑 + 시설·열화·OPEX ──
+    # ── 🛣 운영(보유자산): 단계 브리핑 + 시설·열화·OPEX ──
     with phase_tabs_ui[2]:
         render_phase_operation(phase_context)
+        st.caption(
+            "💧 **운영기 현금 순서(waterfall)** — 후순위이자 → 후순위원금 → 배당. 배당·후순위이자 지급은 DSCR 트리거에 묶임"
+            "(실무 커버넌트: 단순 1.0∼1.2·누적 1.2∼1.5·부채비율 300%). 누적 DSCR은 관점별 보기 ▸ FI 선순위 대주단에서."
+        )
         st.markdown("---")
         st.markdown("##### 🔬 운영 심화 도구")
         tabs_op = st.tabs([
@@ -2299,34 +2451,42 @@ def main():
         tab_weibull = tabs_op[1]
         tab_opex = tabs_op[2]
 
-    # ── 🔄 재구조화: 단계 브리핑 + 요구수익률 솔버·법제 RAG ──
+    # ── 🔄 재구조화·인수: 단계 브리핑 + FI 인수·CI exit 판정 카드 + 법제 RAG ──
     with phase_tabs_ui[3]:
         render_phase_restructuring(phase_context)
         st.markdown("---")
+        # 제도 판정 카드 — 지분 양도 트리거·자금재조달 이익공유(기본계획 §26~28, config 단일 출처)
+        try:
+            import config_loader as _rs_cfg
+            _rs_ps = _rs_cfg.load_finance_params().get("refinancing_profit_share", {})
+            if mrg_ratio > 0:
+                _rs_ratio = _rs_ps.get("with_mrg", [50, 50]); _rs_why = "MRG 있는 수익형"
+            elif business_type in ("BTO-rs", "BTO+BTL"):
+                _rs_ratio = _rs_ps.get("with_risk_share", [40, 60]); _rs_why = "투자위험분담·혼합형"
+            else:
+                _rs_ratio = _rs_ps.get("default", [30, 70]); _rs_why = "원칙(기본계획 §27②)"
+            _rs1, _rs2 = st.columns(2)
+            with _rs1:
+                st.markdown("**⚖️ 자금재조달 이익공유 자동 판정**")
+                st.markdown(f"이 사업 조건({_rs_why}) → 주무관청 **{_rs_ratio[0]}** : 사업시행자 **{_rs_ratio[1]}**")
+                st.caption(
+                    f"대상 요건: 총사업비 {_rs_ps.get('threshold_capex_eok', 500):,}억↑ · "
+                    f"{_rs_ps.get('equity_change_pct', 5)}%↑ 지분 변경 등(§28). 공유분은 통행료 인하·기간 단축에 우선 사용.")
+            with _rs2:
+                st.markdown("**🔁 지분 양도(Exit·인수) 트리거**")
+                st.markdown("5%↑ 지분 양도 = 주무관청 **사전승인**(§26 — 준공 후 원칙 승인·3개월 회신) · 5%↓ = 즉시 통지")
+                st.caption(
+                    "CI exit 실측 창구: 준공 후 2~3년(일산대교·거가대교). "
+                    "FI 인수 검토는 아래 잔여 NPV(인수가 상한)와 함께. "
+                    "수익률 시장 앵커: 재구조화 국채5년+1.3∼2.3%p · 자금재조달 +3.4∼5.3%p(국토연구 89권).")
+        except Exception:
+            pass
+        st.markdown("---")
         st.markdown("##### 🔬 재구조화 심화 도구")
         tabs_rst = st.tabs([
-            "🎯 요구수익률 솔버",
             "📚 법제 RAG 자문",
         ])
-        tab_solver = tabs_rst[0]
-        tab_rag = tabs_rst[1]
-
-        with tab_solver:
-            st.markdown(
-                """<div style="background:linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%);
-                    border-left:6px solid #EF9F27;border-radius:8px;
-                    padding:12px 18px;margin:8px 0;">
-                    <div style="font-size:13px;color:#888;font-weight:600;">━ 전략 의사결정 ━</div>
-                    <div style="font-size:18px;font-weight:bold;color:#1F3864;margin-top:2px;">
-                        🎯 요구수익률 솔버
-                    </div>
-                    <div style="font-size:12px;color:#555;margin-top:4px;">
-                        5대 고객 그룹별 요구수익률 자동 진단 + 변수 조정 시나리오 자동 도출.
-                    </div>
-                </div>""",
-                unsafe_allow_html=True,
-            )
-            render_solver_tab(base_params, metrics, build_cashflow, phase_context)
+        tab_rag = tabs_rst[0]
     
     # ── 호환성 매핑: 기존 tabs[0~10] 별칭 (본문 코드 변경 최소화 — 시점 탭 내부로 재배치됨) ──
     tabs = [tab_mc, tab_tornado, tab_cashflow, tab_deterioration, tab_toll,
@@ -2344,7 +2504,9 @@ def main():
             n_sim = st.slider("시뮬레이션 횟수", 200, 5000, 1000, 100)
             capex_vol = st.slider("사업비 변동성(%)", 1, 30, 10) / 100
             rev_vol = st.slider("수익 변동성(%)", 1, 40, 15) / 100
-            rate_vol = st.slider("금리 변동성(%)", 1, 30, 10) / 100
+            rate_vol = st.slider("금리 변동성(%)", 1, 30, 10,
+                                 help="이 화면의 금리 충격은 할인율에만 적용됩니다(조달 부채금리 불변). "
+                                      "민감도 탭의 시나리오 엔진은 부채금리·할인율 동시 가산 — 계통 차이 유의.") / 100
 
             if st.button("▶ 시뮬레이션 실행", type="primary", use_container_width=True):
                 with st.spinner("시뮬레이션 실행 중..."):
@@ -2614,7 +2776,7 @@ def main():
         # 2024.10 정부 활성화 방안: 도로사업의 적정 사용료 = 도공 대비 1.1배 이내
         # ════════════════════════════════════════════════════════
         st.markdown("---")
-        st.markdown("##### 🚦 사용료 적정성 기준 — 정부 정책 부합 검증")
+        st.markdown("##### 🚦 통행료 통과 가능성 체크 — 이 요금으로 제안하면 정부 기준(도공 1.1배) 안인가")
         st.caption(
             "**2024.10 정부 활성화 방안**: 민자도로 통행료 적정 수준 = **한국도로공사 대비 1.1배 이내**."
         )
@@ -2820,7 +2982,7 @@ def main():
         _panel_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
                                     "data", "benchmark_panel.csv")
         if _os.path.exists(_panel_path):
-            st.markdown("##### 📋 백테스트 실측 패널 (사후검증 완료 노선)")
+            st.markdown("##### 📋 백테스트 실측 패널 — 사전 예측 prior의 학습 근거 노선 (V-001~021)")
             _panel = pd.read_csv(_panel_path)
             st.dataframe(_panel, use_container_width=True, hide_index=True)
             _units = pd.to_numeric(_panel["실측_현금OPEX원단위_억km년"], errors="coerce").dropna()
@@ -2867,7 +3029,7 @@ def main():
     # ── 하단 정보 ──
     st.markdown("---")
     st.caption(
-        "Forenode — 공공데이터 기반 민자도로 수익성·적정성 검증 · "
+        "Forenode — 민자 사업 발굴·제안 솔루션 엔진 · "
         "2026 표준품셈 · DART 벤치마크 · ECOS 연동 · BIM(IFC) 선택 입력"
     )
 

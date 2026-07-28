@@ -5,10 +5,10 @@ Forenode — 시점 탭 모듈 (phase_tabs.py)
 역할:
   민자도로 사업의 라이프사이클 4단계 시점별 입력·분석 모듈
 
-시점 1: 사전 검토 (PFS·VfM)  — 통계 모드, BIM 없음, ±20%
-시점 2: 시공·자금조달 (LTA·STA) — BIM 모드 placeholder, ±5%
-시점 3: 운영 (CEPHIS 평가)    — 실적 비교
-시점 4: 재구조화 (실시협약변경) — 잔여기간 시뮬
+시점 1: 예타 사전 시뮬 (제안 전 정량화) — 통계 모드, BIM 없음, ±20%
+시점 2: 시공·자금조달 — BIM 모드 placeholder, ±5%
+시점 3: 운영 — 보유자산 모니터링(실적 비교)
+시점 4: 재구조화·인수 (실시협약변경) — 잔여기간 시뮬
 
 호출 흐름:
   app.py → render_phase_xxx(phase_context) → 메인 영역에 렌더
@@ -60,10 +60,10 @@ def render_phase_pretest(ctx: dict):
         ),
     )
 
-    st.markdown("#### ⏱ 사전 검토 단계 — 수익성 간이판정·회귀 참고치")
+    st.markdown("#### ⏱ 예타 사전 시뮬 — 이대로 제안하면 어떤 항목에 걸리는가")
     st.caption(
-        "**활용 주체**: KDI PIMAC · 주무관청 · 자문사 | "
-        "**분석 업무**: 예비 검토(PFS 보조) · 수익성 간이판정 · 사업제안 평가"
+        "**활용 주체**: FI(인프라펀드)·건설사(CI) 사업 발굴 부서 · 자문사 | "
+        "**분석 업무**: 제안 전 통과 가능성 사전 정량화 · 수익성 간이판정 · 시나리오 반복 비교"
     )
 
     st.markdown("---")
@@ -157,6 +157,10 @@ def render_phase_pretest(ctx: dict):
 
     # D. 수익성 간이판정 (구 'VfM' 표기 제거 — '26-07 실무 정합 감사)
     st.markdown("##### ⚖️ 수익성 간이판정 — 수입/비용 현가비율 기반")
+    st.caption(
+        "※ 본 판정은 Forenode 자체 간이규약(재무 축)이며 **정식 예타 통과 판정(KDI PIMAC 적격성·AHP)이 아닙니다** — "
+        "임계·문구 단일 출처: config/finance_params.json."
+    )
 
     metrics = ctx['metrics']
     npv = metrics['npv']
@@ -165,34 +169,12 @@ def render_phase_pretest(ctx: dict):
     bc = metrics['bc_ratio']
     psc_ratio = bc
 
-    if psc_ratio >= 1.3 and dscr_min >= 1.20:
-        judgment = "수익성 매우 양호"
-        color = "#1D9E75"
-        recommendation = (
-            "정부 보전금 없이도 민간 사업주가 수익을 낼 수 있는 구조입니다. "
-            "BTO 또는 BTO-rs 사업유형 검토 권장."
-        )
-    elif psc_ratio >= 1.0 and dscr_min >= 1.05:
-        judgment = "수익성 확보"
-        color = "#1F3864"
-        recommendation = (
-            "현재 MRG·자기자본비율 등 조건으로 사업 추진 가능. "
-            "민감도 분석(Tornado 탭)에서 핵심 리스크 변수를 확인하세요."
-        )
-    elif psc_ratio >= 0.85:
-        judgment = "경계선 — 재구조화 검토"
-        color = "#EF9F27"
-        recommendation = (
-            "사업 조건 보완 필요. MRG 보장률 상향, 운영기간 연장, "
-            "또는 BTO-a 전환 등 시나리오 비교를 권합니다 (재구조화 탭 참조)."
-        )
-    else:
-        judgment = "수익성 미달"
-        color = "#D45F5F"
-        recommendation = (
-            "현행 조건으로는 수익성 확보가 어렵습니다. "
-            "정부 보전 설계, 재정사업 전환 또는 사업계획 재검토를 권합니다."
-        )
+    # 판정 임계·문구 = config/finance_params.json 단일 출처 (PDF와 공용)
+    from pretest_regressor import profitability_screen
+    _scr = profitability_screen(psc_ratio, dscr_min)
+    judgment = _scr["judgment"]
+    color = _scr["color"]
+    recommendation = _scr["recommendation"]
 
     st.markdown(
         f"""<div style="background:#F8F9FA;border-left:5px solid {color};
@@ -252,7 +234,7 @@ def render_phase_construction(ctx: dict):
 
     st.markdown("#### 🏗 시공·자금조달 단계 — Technical Due Diligence")
     st.caption(
-        "**활용 주체**: 대주단(LTA) · 사업주(STA) · EPC 시공사 · 자문사 | "
+        "**활용 주체**: FI 선순위 대주단 · CI(시공·출자) · 자문사 | "
         "**분석 업무**: 자금조달 구조 검증, 시공 리스크 평가, 공기·공사비 위험 시뮬레이션"
     )
 
@@ -780,8 +762,8 @@ def render_phase_construction(ctx: dict):
                     💡 Forenode 통합 가치 — 양쪽 모두에게 같은 분석 도구
                 </div>
                 <div style="margin-top:6px;font-size:13px;color:#444;">
-                    기존: LTA·STA가 각자 컨설팅사·자문사 별도 의뢰 (건당 수개월·수억원).<br>
-                    Forenode: 동일 입력으로 양쪽 보고서를 30초에 자동 생성, 협상 시 동일 데이터 기반.
+                    양측이 같은 입력·같은 기준으로 시나리오를 즉시 비교 —<br>
+                    확보된 정확성 위에서 검토 사이클을 수개월 단위에서 실시간 반복으로 단축.
                 </div>
             </div>""",
             unsafe_allow_html=True,
@@ -813,14 +795,14 @@ def render_phase_operation(ctx: dict):
         accuracy="±5%",
         description=(
             "운영기간 중 분석용. 실시협약 가정 통행량·수익 vs 실제 실적을 비교하여 "
-            "운영평가·자금재조달·사후관리 보고서를 생성합니다."
+            "보유자산 하방 신호와 자금재조달 기회를 포착합니다."
         ),
     )
 
-    st.markdown("#### 🛣 운영 단계 — 운영평가·자금재조달")
+    st.markdown("#### 🛣 운영 단계 — 보유자산 모니터링·자금재조달")
     st.caption(
-        "**활용 주체**: CEPHIS(민자도로관리지원센터) · KDI PIMAC · 주무관청 | "
-        "**분석 업무**: 운영평가, 자금재조달(Refinancing), 사후관리 보고"
+        "**활용 주체**: FI(보유 자산) · 대주단 | "
+        "**분석 업무**: 보유자산 모니터링 · 자금재조달(Refinancing) 시점 포착 — 첫 재조달은 개통 2~6년차 집중(실측)"
     )
 
     st.markdown("---")
@@ -872,7 +854,7 @@ def render_phase_operation(ctx: dict):
 
     gap_pct = (actual_traffic_ratio - 1.0) * 100
     if gap_pct < -15:
-        msg = f"⚠️ **실적이 가정 대비 {abs(gap_pct):.0f}% 미달** — MRG 발동 요건 검토, 재구조화 협상 권장"
+        msg = f"⚠️ **실적이 가정 대비 {abs(gap_pct):.0f}% 미달** — MRG 발동 요건 해당, 재구조화 시나리오 비교 권장(재구조화 탭)"
         color = "#D45F5F"
     elif gap_pct < 0:
         msg = f"📉 **실적이 가정 대비 {abs(gap_pct):.0f}% 미달** — 시장 변동 범위, 지속 모니터링"
@@ -894,7 +876,7 @@ def render_phase_operation(ctx: dict):
 
     st.markdown("")
     st.caption(
-        "매년 운영평가 자료·MRG 청구 근거·자금재조달 검토에 활용합니다."
+        "보유자산 연차 점검·자금재조달 시점 판단에 활용합니다."
     )
 
 
@@ -911,10 +893,10 @@ def render_phase_restructuring(ctx: dict):
         ),
     )
 
-    st.markdown("#### 🔄 재구조화 단계 — 운영기간 연장·자산 거래")
+    st.markdown("#### 🔄 재구조화·인수 단계 — FI 인수·CI exit 검토")
     st.caption(
-        "**활용 주체**: 주무관청 · SPC · CEPHIS · 자산운용사 | "
-        "**분석 업무**: 운영기간 연장 협상, 실시협약 변경, M&A Due Diligence"
+        "**활용 주체**: FI(세컨더리 인수·잔존가치) · 주무관청 | "
+        "**분석 업무**: 연장 시나리오 비교 · 잔여가치 평가(인수가 상한) · CI 지분 exit 적기 판단"
     )
 
     st.markdown("---")
@@ -1016,7 +998,7 @@ def render_phase_restructuring(ctx: dict):
 
     st.markdown("")
     st.caption(
-        "운영기간 만료 전 정부 협상, 자산 거래(M&A) 잔여가치 평가에 활용합니다."
+        "FI 인수가 판단(잔여 NPV = 인수가 상한) · CI 지분 exit 적기 판단 · 만료 전 정부 협상에 활용합니다."
     )
     
     # ════════════════════════════════════════════════════════════
