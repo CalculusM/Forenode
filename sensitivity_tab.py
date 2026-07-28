@@ -58,7 +58,7 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
     st.subheader("민감도 · 시나리오 · 리스크 등록부")
     st.caption(
         "수요·통행량은 **외부 입력 가정**입니다. 이 탭은 그 가정을 흔들었을 때 "
-        "DSCR·LLCR·IRR·NPV의 변화와, 대주단·운용사 실사에서 요구하는 리스크 등록부를 산출합니다."
+        "DSCR·LLCR·IRR·NPV의 변화와, FI·CI 제안 검토와 투자심의에서 요구하는 리스크 등록부를 산출합니다."
     )
 
     base = _base_case_from_params(base_params, daily_traffic, road_length_km)
@@ -231,7 +231,7 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
     st.divider()
 
     # ── 6. 리스크 등록부 ──
-    st.markdown("##### 6. 리스크 등록부 (대주단 DD 산출물)")
+    st.markdown("##### 6. 리스크 등록부 (제안 검토·투자심의 산출물)")
     try:
         rdf = risk_register(base)
         st.dataframe(rdf, use_container_width=True, hide_index=True)

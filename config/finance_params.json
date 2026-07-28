@@ -19,6 +19,26 @@
     "recommendation": "현행 조건으로는 수익성 확보가 어렵습니다. 정부 보전 설계, 재정사업 전환 또는 사업계획 재검토를 권합니다."}
   ]
  },
+ "toll_benchmark": {
+  "koex_won_per_km": 60,
+  "policy_cap_mult": 1.1,
+  "social_band": [0.8, 1.3],
+  "note": "1.1배 = 2024.10 정부 활성화 방안(출처 확보). 60원/km·0.8~1.3 밴드 = 자체 가정(공식 출처 미확보 — 확보 시 교체)"
+ },
+ "covenant_defaults": {
+  "simple_dscr": [1.0, 1.2],
+  "cumulative_dscr": [1.2, 1.5],
+  "debt_ratio_cap": 3.0,
+  "note": "실무 실증치 — PIMAC 재무심화교육(단순 1.0·누적 1.2)·건산연 2017(1.0~1.2/1.2~1.5·부채 300%). 배당·후순위이자 지급 트리거"
+ },
+ "refinancing_profit_share": {
+  "default": [30, 70],
+  "with_mrg": [50, 50],
+  "with_risk_share": [40, 60],
+  "threshold_capex_eok": 500,
+  "equity_change_pct": 5,
+  "note": "민간투자사업기본계획 제27조② — 주무관청:사업시행자. 대상 = 총사업비 500억↑·5%↑ 지분 변경 등(제28조)"
+ },
  "business_type_defaults": {
   "BTO":     {"equity": 25, "opex": 30, "mrg": 0,   "mcc": 0,  "toll": 100, "desc": "수익형 — 운영 수익으로 회수 (정부 위험 분담 없음)"},
   "BTO-rs":  {"equity": 20, "opex": 32, "mrg": 50,  "mcc": 0,  "toll": 90,  "desc": "위험분담형 — 정부·사업자 수요위험 분담 (Risk Sharing)"},

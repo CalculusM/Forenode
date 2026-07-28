@@ -1,14 +1,12 @@
 """
-solver_tab.py — 요구수익률 솔버 (분석 도구 12번째 탭)
+solver_tab.py — 요구수익률 솔버 (예타 사전 시뮬 심화 도구)
 
 기능:
-  1. 5대 고객 그룹별 요구수익률 프리셋
-  2. 자동 진단 (현재 vs 요구수익률 갭)
+  1. 이해관계자(CI·FI)별 목표 기준 프리셋
+  2. 자동 진단 (현재 vs 목표 기준 갭)
   3. 1변수 goal seek (scipy.optimize.brentq)
   4. 다변수 시나리오 (3가지 조정 방안)
   5. 권장 시나리오 카드
-
-옵션 B 본격 구현 + 옵션 C (AI 권고) placeholder
 """
 
 import streamlit as st
@@ -18,34 +16,12 @@ from scipy.optimize import brentq
 from typing import Callable, Optional
 
 # ════════════════════════════════════════════════════════════
-# 5대 고객 그룹별 요구수익률 프리셋
+# 이해관계자별 목표 기준 프리셋 — CI·FI 재편('26-07-28): FI 첫자리·SPC 격하·정부=통과 게이트
 # ════════════════════════════════════════════════════════════
 CUSTOMER_PRESETS = {
-    "대주단 (LTA)": {
-        "icon": "📐",
-        "description": "Lender's Technical Advisor — 부채 회수 안정성 중심",
-        "criteria": {
-            "DSCR_min": 1.20,
-            "IRR_min": 0.08,
-        },
-        "priority": "DSCR 안정성 > IRR > NPV",
-        "label_dscr": "DSCR ≥ 1.20",
-        "label_irr": "IRR ≥ 8%",
-    },
-    "사업주 (STA)": {
-        "icon": "🏢",
-        "description": "Sponsor's Technical Advisor — 자기자본 회수율 중심",
-        "criteria": {
-            "ROE_min": 0.10,      # CAPM 기반 일반 Ke
-            "Equity_IRR_min": 0.12,
-        },
-        "priority": "ROE > Equity IRR > NPV",
-        "label_dscr": "ROE ≥ 10%",
-        "label_irr": "Equity IRR ≥ 12%",
-    },
-    "자산운용사·연기금": {
+    "FI (인프라펀드·연기금)": {
         "icon": "💼",
-        "description": "Asset Manager — 잔여가치 + 안정 수익",
+        "description": "지분·후순위 FI — 회수·잔존가치 + 안정 수익 (기준선은 기관별 상이 — ✚인터뷰로 확정)",
         "criteria": {
             "IRR_min": 0.10,
             "ROE_min": 0.12,
@@ -55,20 +31,42 @@ CUSTOMER_PRESETS = {
         "label_dscr": "IRR ≥ 10%",
         "label_irr": "ROE ≥ 12%",
     },
-    "KDI PIMAC·주무관청": {
+    "FI 선순위 대주단": {
+        "icon": "🏦",
+        "description": "은행·보험 대주단 — 부채 회수 안정성 중심",
+        "criteria": {
+            "DSCR_min": 1.20,
+            "IRR_min": 0.08,
+        },
+        "priority": "DSCR 안정성 > IRR > NPV",
+        "label_dscr": "DSCR ≥ 1.20",
+        "label_irr": "IRR ≥ 8%",
+    },
+    "CI·사업주 (출자자)": {
+        "icon": "🏗",
+        "description": "건설사(CI)·사업주 — 자기자본 회수율 중심 (CI 고유 목표 지표는 ✚인터뷰로 확정)",
+        "criteria": {
+            "ROE_min": 0.10,      # CAPM 기반 일반 Ke
+            "Equity_IRR_min": 0.12,
+        },
+        "priority": "ROE > Equity IRR > NPV",
+        "label_dscr": "ROE ≥ 10%",
+        "label_irr": "Equity IRR ≥ 12%",
+    },
+    "정부 적격성 기준 (통과 게이트)": {
         "icon": "🏛️",
-        "description": "Public Sector — VfM·B/C 중심",
+        "description": "제안이 넘어야 할 정부 기준선 — B/C·NPV",
         "criteria": {
             "BC_ratio_min": 1.00,
             "NPV_min": 0,
         },
-        "priority": "B/C > NPV > VfM",
+        "priority": "B/C > NPV",
         "label_dscr": "B/C ≥ 1.0",
         "label_irr": "NPV ≥ 0",
     },
-    "민자 SPC (운영중)": {
+    "참고: 운영 중 SPC 기준": {
         "icon": "🛣️",
-        "description": "SPC — ROE ≥ Ke 달성·DSCR 안정",
+        "description": "운영 중 SPC 관리 기준(참고용 — 고객 아님)",
         "criteria": {
             "ROE_min": 0.08,   # 사이드바 Ke 기본값
             "DSCR_min": 1.10,
@@ -171,24 +169,24 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
         unsafe_allow_html=True,
     )
 
-    st.markdown("#### 🎯 요구수익률 솔버 — 목표값 달성 방안 자동 제시")
+    st.markdown("#### 🎯 요구수익률 솔버 — 이대로 제안하면 부족한 만큼, 무엇을 바꾸면 되는가")
     st.caption(
-        "**활용 주체**: 5대 고객 그룹 모두 | "
-        "**분석 업무**: 목표 지표 입력 → 변수 조정 시나리오 자동 도출"
+        "**활용 주체**: FI·CI 제안 설계 · 대주단 협의 | "
+        "**분석 업무**: 목표 지표 입력 → 변수 조정 시나리오 자동 도출(연속 역산 병기)"
     )
-    
+
     st.markdown("---")
-    
-    # ─── 1. 고객 그룹 선택 ─────────────────────────
-    st.markdown("##### 1단계. 고객 그룹 선택")
-    
+
+    # ─── 1. 이해관계자 프리셋 선택 ─────────────────────────
+    st.markdown("##### 1단계. 이해관계자 프리셋 선택")
+
     col_g, col_d = st.columns([1, 2])
     with col_g:
         group_name = st.selectbox(
             "분석 관점",
             options=list(CUSTOMER_PRESETS.keys()) + ["사용자 정의"],
             key="solver_group",
-            help="5대 고객 그룹의 표준 요구수익률 프리셋. 사용자 정의 선택 시 직접 입력.",
+            help="이해관계자별 목표 기준 프리셋(자체 규약 — 실무값은 인터뷰로 갱신). 사용자 정의 선택 시 직접 입력.",
         )
     
     if group_name == "사용자 정의":
@@ -424,7 +422,7 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
                         "시나리오": "B. MRG 협상",
                         "변경": _chg,
                         "영향": "수요 위험 분담 → 매출 안정성 ↑",
-                        "위험": "정부 협상 필요, 사업유형 변경 (BTO → BTO-rs/ann)",
+                        "위험": "정부 협상 필요, 사업유형 변경 (BTO → BTO-rs/BTO-a)",
                     })
                     break
     

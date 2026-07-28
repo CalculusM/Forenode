@@ -379,7 +379,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     story.append(Spacer(1, 50 * mm))
     story.append(_forenode_logo(width_pt=400))
     story.append(Spacer(1, 15 * mm))
-    story.append(Paragraph("민자사업 수익성 분석 보고서", subtitle_style))
+    story.append(Paragraph("민자사업 제안 검토 보고서", subtitle_style))
     story.append(Spacer(1, 15 * mm))
     
     cover_data = [
@@ -502,11 +502,13 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     # ── 주체별 관점 강조 (역할 선택 시) ──
     _ROLE_FOCUS = {
         '주무관청': ('주무관청 / CEPHIS', '수익성 간이판정 · 협약수익률 · 운영비 산정근거(수선주기 config·표준품셈)'),
-        '대주': ('금융주관사 / 대주단', 'DSCR(최소·평균) · LLCR · PLCR · Senior DSCR · 부채 커버넌트'),
+        '대주': ('FI 선순위 대주단(은행·보험)', 'DSCR(최소·평균·누적) · Senior DSCR · 부채 커버넌트 · (참고) LLCR·PLCR'),
         '사업주': ('SPC / 사업주(출자자)', 'Equity IRR · MIRR · 배당 타임라인 · 핸드백 리저브'),
         '신평사': ('신용평가사', 'OPEX 가정 물리근거 · 스트레스 · 하방 시나리오 · 등급 근거'),
-        '운용사': ('자산운용사', '잔존가치 · 재구조화 · 자금재조달(LLCR/PLCR)'),
-        '회계법인': ('회계법인 / 감사인', 'EBITDA · CFADS 재현성 · 세금(정액 감가상각) · 연도별 현금흐름 검증'),
+        '운용사': ('FI 지분·후순위(인프라펀드·연기금)', '만기 잔존 NPV · 회수 타임라인(최초 배당가능 연차) · 후순위 원리금 · 하방 P10 · 자금재조달'),
+        'CI': ('건설사(CI) 사업 발굴·제안', '수익성 간이판정 · 공사비 회귀 범위 · 재협상 트리거 사전 확률 · 통행료 배수 · 제안 적기'),
+        'FI': ('FI(인프라펀드·연기금) 발굴 심의', 'Equity IRR·MIRR · 최초 배당가능 연차 · 후순위 흐름 · 만기 잔존 NPV'),
+        '회계법인': ('회계법인 / 자문사', 'EBITDA · CFADS 재현성 · 세금(정액 감가상각) · 연도별 현금흐름 재현'),
     }
     _rk = ctx.get('role')
     if _rk in _ROLE_FOCUS:
@@ -533,7 +535,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     # ════════════════════════════════════════════════════════
     story.append(Paragraph("Ⅱ. 사전 검토 분석 (통계 모드)", h1_style))
     story.append(Paragraph(
-        "본 단계는 KDI PIMAC·주무관청·자문사가 민자 적격성을 평가하는 시점입니다. "
+        "본 장은 제안 전에 통과 가능성을 사전 정량화하는 단계입니다 — CI·FI 발굴 부서의 제안 설계용. "
         "BIM 없이 한국 PPP 30년 데이터를 학습한 통계 모델로 분석합니다.",
         body_style,
     ))
@@ -668,7 +670,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     # 푸터
     story.append(Paragraph(
         "─" * 70 + "<br/>"
-        "Forenode — BIM·AI 기반 민자도로 수익성 분석 플랫폼<br/>"
+        "Forenode — 민자 사업 발굴·제안 솔루션 엔진<br/>"
         "© Nexus Infra Solutions · 2026 국토·교통 데이터 활용 경진대회 출품작",
         caption_style,
     ))
