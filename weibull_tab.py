@@ -27,6 +27,15 @@ from pathlib import Path
 import numpy as np
 import streamlit as st
 
+import ui_theme
+
+
+def _rgba(hex_color: str, alpha: float) -> str:
+    """테마 hex 색 → plotly rgba 문자열 (반투명 채움용)."""
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
 
 # ════════════════════════════════════════════════════════════
 # 데이터 로드
@@ -148,11 +157,16 @@ def render_interpretation(params):
         action_label = "보수 전망"
         action_text = interp.get("expected_repairs_30y", "?")
 
-    color_map = {"마모고장": "#E24B4A", "우발고장": "#EF9F27", "초기고장": "#1D9E75"}
-    color = color_map.get(mode, "#999")
+    _T = ui_theme.theme()
+    tone_map = {"마모고장": "bad", "우발고장": "warn", "초기고장": "ok"}
+    tone = tone_map.get(mode)
+    if tone:
+        color, bg = _T[tone], _T[f"{tone}_bg"]
+    else:
+        color, bg = _T['muted'], _T['surface']
 
     st.markdown(
-        f"""<div style="background: {color}15;
+        f"""<div style="background: {bg};
                         border-left: 4px solid {color};
                         padding: 14px 18px;
                         border-radius: 6px;
@@ -161,7 +175,7 @@ def render_interpretation(params):
                         color: {color};">
                 고장 모드: {mode}
             </div>
-            <div style="font-size: 14px; color: #1a1a2e;
+            <div style="font-size: 14px; color: {_T['text']};
                         margin-top: 6px;">
                 {action_label}: <strong>{action_text}</strong>
             </div>
@@ -176,6 +190,7 @@ def render_interpretation(params):
 
 def render_simulator(params):
     """잔여수명 시뮬레이터"""
+    _T = ui_theme.theme()
     st.markdown("### 🎯 시설물 잔여수명 예측")
     st.caption(
         "운영 경과년수와 목표 손상확률을 입력하면, "
@@ -209,69 +224,71 @@ def render_simulator(params):
     res_cols = st.columns(3)
     
     with res_cols[0]:
-        color = "#E24B4A" if current_failure > 0.5 else (
-            "#EF9F27" if current_failure > 0.2 else "#1D9E75"
+        tone = "bad" if current_failure > 0.5 else (
+            "warn" if current_failure > 0.2 else "ok"
         )
+        color, bg = _T[tone], _T[f"{tone}_bg"]
         st.markdown(
-            f"""<div style="background: {color}15;
+            f"""<div style="background: {bg};
                             border-top: 4px solid {color};
                             padding: 14px 18px;
                             border-radius: 6px;
                             text-align: center;">
-                <div style="font-size: 12px; color: #666;">
+                <div style="font-size: 12px; color: {_T['muted']};">
                     현재 시점 누적 손상확률
                 </div>
                 <div style="font-size: 32px; font-weight: 600;
                             color: {color}; margin: 8px 0;">
                     {current_failure:.1%}
                 </div>
-                <div style="font-size: 11px; color: #999;">
+                <div style="font-size: 11px; color: {_T['muted']};">
                     {current_age}년 운영 시점
                 </div>
             </div>""",
             unsafe_allow_html=True
         )
-    
+
     with res_cols[1]:
         # 잔여수명 색상
-        color = "#E24B4A" if remaining < 2 else (
-            "#EF9F27" if remaining < 5 else "#1D9E75"
+        tone = "bad" if remaining < 2 else (
+            "warn" if remaining < 5 else "ok"
         )
+        color, bg = _T[tone], _T[f"{tone}_bg"]
         st.markdown(
-            f"""<div style="background: {color}15;
+            f"""<div style="background: {bg};
                             border-top: 4px solid {color};
                             padding: 14px 18px;
                             border-radius: 6px;
                             text-align: center;">
-                <div style="font-size: 12px; color: #666;">
+                <div style="font-size: 12px; color: {_T['muted']};">
                     {target_prob:.0%} 손상확률까지 남은 시간
                 </div>
                 <div style="font-size: 32px; font-weight: 600;
                             color: {color}; margin: 8px 0;">
                     {remaining:.1f}년
                 </div>
-                <div style="font-size: 11px; color: #999;">
+                <div style="font-size: 11px; color: {_T['muted']};">
                     이 시점까지 보수 권장
                 </div>
             </div>""",
             unsafe_allow_html=True
         )
-    
+
     with res_cols[2]:
         st.markdown(
-            f"""<div style="background: #534AB715;
-                            border-top: 4px solid #534AB7;
+            f"""<div style="background: {_T['accent_bg']};
+                            border-top: 4px solid {_T['accent']};
                             padding: 14px 18px;
                             border-radius: 6px;
                             text-align: center;">
-                <div style="font-size: 12px; color: #666;">
+                <div style="font-size: 12px; color: {_T['muted']};">
                     현재 위험률 h(t)
                 </div>
                 <div style="font-size: 32px; font-weight: 600;
-                            color: #534AB7; margin: 8px 0;">
+                            color: {_T['accent']}; margin: 8px 0;">
                     {current_hazard:.4f}
                 </div>
-                <div style="font-size: 11px; color: #999;">
+                <div style="font-size: 11px; color: {_T['muted']};">
                     /년 (단위시간당 손상률)
                 </div>
             </div>""",
@@ -283,6 +300,7 @@ def render_simulator(params):
 
 def render_curves(params, current_age, target_prob):
     """생존곡선 + 위험률 인터랙티브 차트"""
+    _T = ui_theme.theme()
     beta = params['beta_hat']
     eta = params['eta_hat']
     
@@ -330,30 +348,30 @@ def render_curves(params, current_age, target_prob):
             fig1.add_trace(go.Scatter(
                 x=t_grid, y=np.minimum(f_low, f_high) * 100,
                 mode="lines", line=dict(width=0),
-                fill="tonexty", fillcolor="rgba(83,74,183,0.15)",
+                fill="tonexty", fillcolor=_T['chart_band'],
                 name="95% 신뢰구간", hoverinfo="skip"
             ))
-        
+
         # 메인 곡선
         fig1.add_trace(go.Scatter(
             x=t_grid, y=failure * 100,
             mode="lines",
-            line=dict(color="#1F3864", width=3),
+            line=dict(color=_T['primary'], width=3),
             name=f"손상확률 (β={beta:.2f}, η={eta:.2f})",
             hovertemplate="t=%{x:.1f}년 → F(t)=%{y:.1f}%<extra></extra>"
         ))
-        
+
         # 현재 시점 마커
         fig1.add_vline(
             x=current_age,
-            line_color="#E24B4A", line_width=2, line_dash="dash",
+            line_color=_T['bad'], line_width=2, line_dash="dash",
             annotation_text=f"현재 {current_age}년",
             annotation_position="top right"
         )
         # 목표 손상확률 라인
         fig1.add_hline(
             y=target_prob * 100,
-            line_color="#EF9F27", line_width=2, line_dash="dash",
+            line_color=_T['warn'], line_width=2, line_dash="dash",
             annotation_text=f"목표 {target_prob:.0%}",
             annotation_position="bottom right"
         )
@@ -371,13 +389,13 @@ def render_curves(params, current_age, target_prob):
         st.markdown("**위험률 함수 — 단위시간당 손상률**")
         hazard = weibull_hazard(t_grid, beta, eta)
         
-        # 색상 직접 지정 (hex와 rgba 분리)
+        # 색상 직접 지정 (테마 판정색 기반)
         if beta > 1:
-            line_color = "#E24B4A"
-            fill_color = "rgba(226, 75, 74, 0.15)"
+            line_color = _T['bad']
+            fill_color = _rgba(_T['bad'], 0.15)
         else:
-            line_color = "#1D9E75"
-            fill_color = "rgba(29, 158, 117, 0.15)"
+            line_color = _T['ok']
+            fill_color = _rgba(_T['ok'], 0.15)
         
         fig2 = go.Figure()
         fig2.add_trace(go.Scatter(
@@ -391,7 +409,7 @@ def render_curves(params, current_age, target_prob):
         
         fig2.add_vline(
             x=current_age,
-            line_color="#E24B4A", line_width=2, line_dash="dash",
+            line_color=_T['bad'], line_width=2, line_dash="dash",
             annotation_text=f"현재",
             annotation_position="top right"
         )

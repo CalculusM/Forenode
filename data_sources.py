@@ -19,17 +19,20 @@ ROADx 4기관 데이터 출처 모듈 (가점 ② 융합데이터 증빙)
 """
 import streamlit as st
 
+import ui_theme
+
 
 # ════════════════════════════════════════════════════════════
 # 4기관 데이터 출처 정보
 # ════════════════════════════════════════════════════════════
+# color_i: ui_theme.theme()["chart"] 팔레트 인덱스 — 실제 색은 렌더 시점에 해석
 DATA_SOURCES = [
     {
         "code": "EX",
         "name": "한국도로공사",
         "name_en": "Korea Expressway Corporation",
         "icon": "🛣️",
-        "color": "#0F4C81",
+        "color_i": 0,
         "datasets": [
             "TCS 통행료 수납 데이터 (5년)",
             "VDS 차량검지 데이터 (1분 단위)",
@@ -43,7 +46,7 @@ DATA_SOURCES = [
         "name": "한국교통연구원",
         "name_en": "Korea Transport Institute",
         "icon": "🚆",
-        "color": "#1D9E75",
+        "color_i": 3,
         "datasets": [
             "KTDB 여객 OD (전국)",
             "KTDB 화물 OD",
@@ -57,7 +60,7 @@ DATA_SOURCES = [
         "name": "한국교통안전공단",
         "name_en": "Korea Transportation Safety Authority",
         "icon": "🚛",
-        "color": "#BA7517",
+        "color_i": 4,
         "datasets": [
             "DTG 운행기록 (사업용)",
             "운행기록장치 세부정보",
@@ -71,7 +74,7 @@ DATA_SOURCES = [
         "name": "DART · HUG · ECOS",
         "name_en": "Financial Data Sources",
         "icon": "💼",
-        "color": "#534AB7",
+        "color_i": 6,
         "datasets": [
             "민자 SPC 11개사 감사보고서",
             "천안논산·제이영동 5년치",
@@ -85,23 +88,26 @@ DATA_SOURCES = [
 
 def render_data_source_sidebar():
     """사이드바에 4기관 출처 카드 표시 (항상 노출)"""
+    _T = ui_theme.theme()
     with st.sidebar:
         st.markdown("### 📊 데이터 출처")
         st.caption("4기관 융합 데이터 활용")
-        
+
         for src in DATA_SOURCES:
+            color = _T['chart'][src['color_i'] % len(_T['chart'])]
             with st.container():
                 st.markdown(
-                    f"""<div style="background: {src['color']}15;
-                                    border-left: 3px solid {src['color']};
+                    f"""<div style="background: {_T['surface']};
+                                    border: 1px solid {_T['border']};
+                                    border-left: 3px solid {color};
                                     padding: 8px 12px;
                                     margin: 6px 0;
                                     border-radius: 4px;">
-                        <div style="font-size: 13px; font-weight: 500; 
-                                    color: {src['color']};">
+                        <div style="font-size: 13px; font-weight: 500;
+                                    color: {color};">
                             {src['icon']} {src['name']}
                         </div>
-                        <div style="font-size: 11px; color: #666; 
+                        <div style="font-size: 11px; color: {_T['muted']};
                                     margin-top: 2px;">
                             데이터 {len(src['datasets'])}종 · 활용 {len(src['modules'])}개 모듈
                         </div>
@@ -123,33 +129,27 @@ def render_data_source_sidebar():
 
 def render_data_flow_banner():
     """첫 화면 상단에 4기관 데이터 흐름 배너 표시"""
-    
+    _T = ui_theme.theme()
+
     st.markdown(
-        """<div style="background: linear-gradient(90deg, 
-                        #0F4C81 0%, 
-                        #1D9E75 33%, 
-                        #BA7517 66%, 
-                        #534AB7 100%);
-                    padding: 2px;
+        f"""<div style="background: {_T['surface']};
+                    border: 1px solid {_T['border']};
+                    padding: 14px 18px;
                     border-radius: 8px;
                     margin: 0 0 16px 0;">
-            <div style="background: white;
-                        padding: 14px 18px;
-                        border-radius: 6px;">
-                <div style="display: flex; 
-                            justify-content: space-between; 
+                <div style="display: flex;
+                            justify-content: space-between;
                             align-items: center;
                             flex-wrap: wrap;
                             gap: 12px;">
-                    <div style="font-size: 14px; font-weight: 500; 
-                                color: #1a1a2e;">
+                    <div style="font-size: 14px; font-weight: 500;
+                                color: {_T['text']};">
                         🔗 4기관 융합 데이터 분석 시스템
                     </div>
-                    <div style="font-size: 12px; color: #666;">
+                    <div style="font-size: 12px; color: {_T['muted']};">
                         도로공사 · 교통연구원 · 교통안전공단 · 금융기관
                     </div>
                 </div>
-            </div>
         </div>""",
         unsafe_allow_html=True
     )
@@ -157,46 +157,49 @@ def render_data_flow_banner():
 
 def render_data_flow_diagram():
     """데이터 흐름도 (탭 내부에서 호출 가능)"""
-    
+    _T = ui_theme.theme()
+
     st.markdown("#### 📊 데이터 → 분석 모듈 매핑")
-    
+
     # 표 형태로 4기관 → 모듈 매핑
     cols = st.columns(4)
     for i, src in enumerate(DATA_SOURCES):
+        color = _T['chart'][src['color_i'] % len(_T['chart'])]
         with cols[i]:
             st.markdown(
-                f"""<div style="background: {src['color']}10;
-                                border-top: 4px solid {src['color']};
+                f"""<div style="background: {_T['surface']};
+                                border: 1px solid {_T['border']};
+                                border-top: 4px solid {color};
                                 padding: 12px;
                                 border-radius: 6px;
                                 min-height: 200px;">
                     <div style="font-size: 24px; text-align: center;">
                         {src['icon']}
                     </div>
-                    <div style="font-size: 13px; 
+                    <div style="font-size: 13px;
                                 font-weight: 500;
                                 text-align: center;
-                                color: {src['color']};
+                                color: {color};
                                 margin: 6px 0;">
                         {src['name']}
                     </div>
-                    <div style="font-size: 10px; 
-                                color: #999;
+                    <div style="font-size: 10px;
+                                color: {_T['muted']};
                                 text-align: center;
                                 margin-bottom: 10px;">
                         {src['name_en']}
                     </div>
-                    <div style="font-size: 11px; color: #555;
+                    <div style="font-size: 11px; color: {_T['muted']};
                                 line-height: 1.6;">
                         <strong>데이터 {len(src['datasets'])}종</strong><br>
-                        {'<br>'.join(['• ' + d[:20] + ('...' if len(d) > 20 else '') 
+                        {'<br>'.join(['• ' + d[:20] + ('...' if len(d) > 20 else '')
                                       for d in src['datasets'][:3]])}
                     </div>
-                    <div style="font-size: 10px; 
-                                color: {src['color']};
+                    <div style="font-size: 10px;
+                                color: {color};
                                 margin-top: 8px;
                                 padding-top: 8px;
-                                border-top: 1px dashed {src['color']}40;">
+                                border-top: 1px dashed {_T['border']};">
                         활용 모듈: {' · '.join(src['modules'])}
                     </div>
                 </div>""",

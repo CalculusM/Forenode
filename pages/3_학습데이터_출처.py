@@ -8,6 +8,10 @@ import streamlit as st
 
 st.set_page_config(page_title="학습 데이터 출처 — Forenode", page_icon="📚", layout="wide")
 
+import ui_theme
+ui_theme.inject_css()
+ui_theme.apply_plotly_template()
+
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.join(_HERE, "..")
 

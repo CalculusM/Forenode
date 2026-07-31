@@ -9,12 +9,26 @@ import streamlit as st
 
 st.set_page_config(page_title="예측 성적표 — Forenode", page_icon="📋", layout="wide")
 
+import ui_theme
+ui_theme.inject_css()
+ui_theme.apply_plotly_template()
+_T = ui_theme.theme()
+
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _CSV = os.path.join(_HERE, "..", "data", "verification_ledger.csv")
 
 st.title("📋 예측 성적표 — 사전 예측 prior의 신뢰 근거")
 st.caption("정확성은 주장이 아니라 채점 기록이다 — 실제 사업으로 모델을 거꾸로 채점한 백테스트 원장. "
            "이 기록이 제안 전 시뮬레이션 prior의 근거다. 실패도 기록한다.")
+
+# ── 채점 규칙 3원칙 — 훈련/검증(train/test) 분리 명세 ──
+with st.container(border=True):
+    st.markdown(
+        "**채점 규칙 3원칙 — 훈련/검증(train/test) 데이터 분리**  \n"
+        "① **예측 시점 이후 정보 차단(as-of 컷)** — 예측 시점 이후에 알려진 정보는 쓰지 않도록 자료를 그 시점에서 자른다.  \n"
+        "② **학습 사업으로 그 사업을 채점하지 않음(Leave-One-Out)** — 학습에 쓴 사업은 채점 대상에서 제외하고 다시 적합한다.  \n"
+        "③ **운영기 정보로 설계 시점 채점 금지** — 운영기에만 알 수 있는 값으로 설계 시점을 맞히는 계산은 하지 않는다.  \n"
+        "→ 아래 점수는 전부 **미학습 데이터에 대한 성적**이다. 규칙과 원본이 공개되어 있어 직접 다시 채점해 볼 수 있다.")
 
 if not os.path.exists(_CSV):
     st.error("data/verification_ledger.csv 없음")
@@ -42,9 +56,9 @@ st.markdown("##### 📈 보정 전(협약) · 보정 후(Forenode) — 노선별
 plot_df = df[pd.to_numeric(df["협약_MAE_pct"], errors="coerce").notna()].copy()
 fig = go.Figure()
 fig.add_trace(go.Bar(y=plot_df["노선"], x=plot_df["협약_MAE_pct"], name="협약(A)",
-                     orientation="h", marker_color="#AEB9D4"))
+                     orientation="h", marker_color=_T["muted"]))
 fig.add_trace(go.Bar(y=plot_df["노선"], x=plot_df["Forenode_MAE_pct"], name="Forenode(B)",
-                     orientation="h", marker_color="#1F3864"))
+                     orientation="h", marker_color=_T["primary"]))
 fig.update_layout(barmode="group", height=620, margin=dict(l=10, r=10, t=10, b=10),
                   xaxis_title="MAE (%)", legend=dict(orientation="h", y=1.05))
 st.plotly_chart(fig, use_container_width=True)

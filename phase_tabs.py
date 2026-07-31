@@ -24,24 +24,23 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 
+import ui_theme
+
 
 # ════════════════════════════════════════════════════════════
 # 공통 — 모드 배지
 # ════════════════════════════════════════════════════════════
 def _render_mode_badge(mode: str, accuracy: str, description: str):
-    palette = {
-        "통계": ("#EF9F27", "#FFF8E1", "📊"),
-        "BIM": ("#1D9E75", "#E8F5E9", "🏗️"),
-        "실적": ("#1F3864", "#E3F2FD", "📈"),
-        "시뮬": ("#534AB7", "#F3E5F5", "🔄"),
-    }
-    color, bg, icon = palette.get(mode, ("#888", "#F5F5F5", "•"))
+    _T = ui_theme.theme()
+    palette = ui_theme.mode_badge_colors()
+    palette.setdefault("BIM", (_T['ok'], _T['ok_bg'], "🏗️"))
+    color, bg, icon = palette.get(mode, (_T['muted'], _T['surface'], "•"))
     st.markdown(
         f"""<div style="background:{bg};border-left:4px solid {color};
             padding:10px 14px;border-radius:4px;margin:8px 0 16px 0;">
             <strong style="color:{color};">{icon} {mode} 모드</strong>
             &nbsp;·&nbsp;<span style="font-size:13px;">정확도 {accuracy}</span><br>
-            <span style="font-size:12px;color:#555;">{description}</span>
+            <span style="font-size:12px;color:{_T['muted']};">{description}</span>
         </div>""",
         unsafe_allow_html=True,
     )
@@ -51,6 +50,7 @@ def _render_mode_badge(mode: str, accuracy: str, description: str):
 # 시점 1: 사전 검토 (PFS·VfM) — 통계 모드 본격 구현
 # ════════════════════════════════════════════════════════════
 def render_phase_pretest(ctx: dict):
+    _T = ui_theme.theme()
     _render_mode_badge(
         mode="통계",
         accuracy="±20%",
@@ -127,13 +127,13 @@ def render_phase_pretest(ctx: dict):
         x=years, y=opex_series,
         mode='lines+markers',
         name='OPEX',
-        line=dict(color='#1F3864', width=2),
+        line=dict(color=_T['primary'], width=2),
         fill='tozeroy',
-        fillcolor='rgba(31,56,100,0.1)',
+        fillcolor=_T['chart_band'],
     ))
     fig.add_vline(
         x=opex_est['peak_year'],
-        line_dash="dash", line_color="#EF9F27",
+        line_dash="dash", line_color=_T['warn'],
         annotation_text=f"정점 {opex_est['peak_year']}년차"
     )
     fig.update_layout(
@@ -177,10 +177,10 @@ def render_phase_pretest(ctx: dict):
     recommendation = _scr["recommendation"]
 
     st.markdown(
-        f"""<div style="background:#F8F9FA;border-left:5px solid {color};
+        f"""<div style="background:{_T['surface']};border-left:5px solid {color};
             padding:14px 18px;border-radius:6px;margin:8px 0;">
             <div style="font-size:18px;font-weight:bold;color:{color};">판단: {judgment}</div>
-            <div style="margin-top:8px;font-size:13px;color:#444;">{recommendation}</div>
+            <div style="margin-top:8px;font-size:13px;color:{_T['muted']};">{recommendation}</div>
         </div>""",
         unsafe_allow_html=True,
     )
@@ -222,6 +222,7 @@ def render_phase_construction(ctx: dict):
         - CAPEX 분배: 시점 1의 회귀 추정
         - 정부 보전: phase_context의 mcc_ratio (2024.10 정부 활성화 방안)
     """
+    _T = ui_theme.theme()
     _render_mode_badge(
         mode="통계",
         accuracy="±20%",
@@ -345,15 +346,15 @@ def render_phase_construction(ctx: dict):
         fig_scurve = go.Figure()
         fig_scurve.add_trace(go.Bar(
             x=years_construction[1:], y=equity_draw[1:],
-            name='자기자본', marker_color='#1F3864',
+            name='자기자본', marker_color=_T['chart'][0],
         ))
         fig_scurve.add_trace(go.Bar(
             x=years_construction[1:], y=senior_draw[1:],
-            name='선순위 대출', marker_color='#4A6FA5',
+            name='선순위 대출', marker_color=_T['chart'][1],
         ))
         fig_scurve.add_trace(go.Bar(
             x=years_construction[1:], y=sub_draw[1:],
-            name='후순위 대출', marker_color='#EF9F27',
+            name='후순위 대출', marker_color=_T['chart'][2],
         ))
         fig_scurve.update_layout(
             title="시공기간 연도별 자금 인출 (S-curve 분배)",
@@ -430,17 +431,17 @@ def render_phase_construction(ctx: dict):
             y=dscr_arr,
             mode='lines+markers',
             name='DSCR',
-            line=dict(color='#1F3864', width=2.5),
+            line=dict(color=_T['primary'], width=2.5),
             marker=dict(size=6),
         ))
         # 임계선 1.2
         fig_dscr.add_hline(
-            y=1.2, line_dash='dash', line_color='#D32F2F',
+            y=1.2, line_dash='dash', line_color=_T['bad'],
             annotation_text="대주단 기준 1.2", annotation_position='right',
         )
         # 임계선 1.0
         fig_dscr.add_hline(
-            y=1.0, line_dash='dot', line_color='#888',
+            y=1.0, line_dash='dot', line_color=_T['muted'],
             annotation_text="부도 임계 1.0", annotation_position='right',
         )
         fig_dscr.update_layout(
@@ -477,15 +478,15 @@ def render_phase_construction(ctx: dict):
 
         if dscr_min_lta >= 1.30:
             risk_level = "🟢 SAFE"
-            risk_color = "#1B5E20"
-            risk_bg = "#E8F5E9"
+            risk_color = _T['ok']
+            risk_bg = _T['ok_bg']
             risk_msg = "전 운영기간 최소 DSCR이 base-case 권고치(1.30x)를 상회. 대주단 금리 협상 시 유리한 위치."
         elif dscr_min_lta >= 1.20:
             # 배당제한(lock-up) 임계 1.20x 이상 → covenant 충족. 'base-case 여유'만 얇은 상태(미달 아님).
             if ramp_only_130:
                 risk_level = "🟢 SAFE"
-                risk_color = "#2E7D32"
-                risk_bg = "#E8F5E9"
+                risk_color = _T['ok']
+                risk_bg = _T['ok_bg']
                 risk_msg = (
                     f"최소 DSCR이 배당제한(lock-up) 임계 1.20x를 상회해 covenant를 충족. "
                     f"1.30x 미만은 {_yrs_txt(yrs_below_130)}의 초기 램프업 구간에 한정되며, "
@@ -493,24 +494,24 @@ def render_phase_construction(ctx: dict):
                 )
             else:
                 risk_level = "🟡 CAUTION"
-                risk_color = "#E65100"
-                risk_bg = "#FFF3E0"
+                risk_color = _T['warn']
+                risk_bg = _T['warn_bg']
                 risk_msg = (
                     f"배당제한(lock-up) 임계 1.20x는 충족하나 base-case 권고치(1.30x) 대비 여유가 얇음 "
                     f"({_yrs_txt(yrs_below_130)} 1.30x 미만). DSRA 적립·MRG 조건 점검 권장."
                 )
         elif dscr_min_lta >= 1.05:
             risk_level = "🟠 LOCK-UP"
-            risk_color = "#C62828"
-            risk_bg = "#FFEBEE"
+            risk_color = _T['bad']
+            risk_bg = _T['bad_bg']
             risk_msg = (
                 f"{_yrs_txt(yrs_below_120)} 배당제한(lock-up) 임계 1.20x 미달 → 해당 기간 주주 배당 제한·현금 트랩. "
                 f"부도 임계(1.05x) 도달 전이나 자기자본 확충 또는 MRG 활용 검토 필요."
             )
         else:
             risk_level = "🔴 DEFAULT RISK"
-            risk_color = "#B71C1C"
-            risk_bg = "#FFCDD2"
+            risk_color = _T['bad']
+            risk_bg = _T['bad_bg']
             risk_msg = (
                 f"{_yrs_txt(yrs_below_105)} 부도(default·EOD) 임계 1.05x 미달 → 기한이익상실 위험. "
                 f"본 구조로는 자금조달 곤란, 사업구조 재설계 필요."
@@ -522,7 +523,7 @@ def render_phase_construction(ctx: dict):
                 <div style="font-weight:bold;color:{risk_color};font-size:16px;">
                     {risk_level} — 최소 DSCR {dscr_min_lta:.2f}
                 </div>
-                <div style="margin-top:6px;font-size:13px;color:#333;">
+                <div style="margin-top:6px;font-size:13px;color:{_T['text']};">
                     {risk_msg}
                 </div>
             </div>""",
@@ -594,7 +595,7 @@ def render_phase_construction(ctx: dict):
         fig_cifi.add_trace(go.Pie(
             labels=['CI (건설투자자)', 'FI (금융투자자)', 'SI (운영투자자)'],
             values=[ci_amount, fi_amount, si_amount],
-            marker_colors=['#1F3864', '#4A6FA5', '#EF9F27'],
+            marker_colors=[_T['chart'][0], _T['chart'][1], _T['chart'][2]],
             textinfo='label+percent+value',
             textposition='inside',
         ))
@@ -756,12 +757,12 @@ def render_phase_construction(ctx: dict):
         st.dataframe(df_compare, use_container_width=True, hide_index=True)
         
         st.markdown(
-            f"""<div style="background:#E3F2FD;border-left:5px solid #1F3864;
+            f"""<div style="background:{_T['accent_bg']};border-left:5px solid {_T['primary']};
                 padding:14px 18px;border-radius:6px;margin:8px 0;">
-                <div style="font-weight:bold;color:#1F3864;font-size:15px;">
+                <div style="font-weight:bold;color:{_T['primary']};font-size:15px;">
                     💡 Forenode 통합 가치 — 양쪽 모두에게 같은 분석 도구
                 </div>
-                <div style="margin-top:6px;font-size:13px;color:#444;">
+                <div style="margin-top:6px;font-size:13px;color:{_T['muted']};">
                     양측이 같은 입력·같은 기준으로 시나리오를 즉시 비교 —<br>
                     확보된 정확성 위에서 검토 사이클을 수개월 단위에서 실시간 반복으로 단축.
                 </div>
@@ -790,6 +791,7 @@ def render_phase_construction(ctx: dict):
 # 시점 3: 운영 — 실적 비교
 # ════════════════════════════════════════════════════════════
 def render_phase_operation(ctx: dict):
+    _T = ui_theme.theme()
     _render_mode_badge(
         mode="실적",
         accuracy="±5%",
@@ -836,11 +838,11 @@ def render_phase_operation(ctx: dict):
     fig = go.Figure()
     fig.add_trace(go.Bar(
         x=years_array, y=assumed_rev,
-        name='실시협약 가정', marker_color='#1F3864', opacity=0.6,
+        name='실시협약 가정', marker_color=_T['chart'][0], opacity=0.6,
     ))
     fig.add_trace(go.Bar(
         x=years_array, y=actual_rev,
-        name='실제 실적', marker_color='#EF9F27',
+        name='실제 실적', marker_color=_T['chart'][1],
     ))
     fig.update_layout(
         title=f"운영 {elapsed_years}년차까지 수익 비교",
@@ -855,19 +857,19 @@ def render_phase_operation(ctx: dict):
     gap_pct = (actual_traffic_ratio - 1.0) * 100
     if gap_pct < -15:
         msg = f"⚠️ **실적이 가정 대비 {abs(gap_pct):.0f}% 미달** — MRG 발동 요건 해당, 재구조화 시나리오 비교 권장(재구조화 탭)"
-        color = "#D45F5F"
+        color = _T['bad']
     elif gap_pct < 0:
         msg = f"📉 **실적이 가정 대비 {abs(gap_pct):.0f}% 미달** — 시장 변동 범위, 지속 모니터링"
-        color = "#EF9F27"
+        color = _T['warn']
     elif gap_pct < 15:
         msg = f"✅ **실적이 가정 대비 +{gap_pct:.0f}%** — 안정적 운영"
-        color = "#1D9E75"
+        color = _T['ok']
     else:
         msg = f"📈 **실적이 가정 대비 +{gap_pct:.0f}%** — 자금재조달(Refinancing) 검토 호기"
-        color = "#1F3864"
+        color = _T['primary']
 
     st.markdown(
-        f"""<div style="background:#F8F9FA;border-left:5px solid {color};
+        f"""<div style="background:{_T['surface']};border-left:5px solid {color};
             padding:12px 16px;border-radius:6px;margin:8px 0;">
             <span style="color:{color};font-weight:bold;">{msg}</span>
         </div>""",
@@ -884,6 +886,7 @@ def render_phase_operation(ctx: dict):
 # 시점 4: 재구조화 — 잔여기간 시뮬레이션
 # ════════════════════════════════════════════════════════════
 def render_phase_restructuring(ctx: dict):
+    _T = ui_theme.theme()
     _render_mode_badge(
         mode="시뮬",
         accuracy="±5%",
@@ -962,7 +965,7 @@ def render_phase_restructuring(ctx: dict):
         y=[s[2] for s in scenarios],
         text=[f"{s[2]:,.0f}억" for s in scenarios],
         textposition='outside',
-        marker_color=['#888888'] + ['#1F3864'] * (len(scenarios) - 1),
+        marker_color=[_T['muted']] + [_T['primary']] * (len(scenarios) - 1),
         name='잔여 NPV',
     ))
     fig.update_layout(
@@ -983,12 +986,12 @@ def render_phase_restructuring(ctx: dict):
     best = max(scenarios[1:], key=lambda x: x[3]) if len(scenarios) > 1 else None
     if best:
         st.markdown(
-            f"""<div style="background:#E3F2FD;border-left:5px solid #1F3864;
+            f"""<div style="background:{_T['accent_bg']};border-left:5px solid {_T['primary']};
                 padding:14px 18px;border-radius:6px;margin:8px 0;">
-                <div style="font-weight:bold;color:#1F3864;font-size:15px;">
+                <div style="font-weight:bold;color:{_T['primary']};font-size:15px;">
                     🎯 권장 협상 카드: {best[0]}
                 </div>
-                <div style="margin-top:6px;font-size:13px;color:#444;">
+                <div style="margin-top:6px;font-size:13px;color:{_T['muted']};">
                     잔여 NPV {best[2]:,.0f}억 → 현재 조건 대비 <strong>+{best[3]:,.0f}억</strong> 추가 수익. 
                     정부에 통행료 인하 또는 안전·환경 투자로 공공 편익 제시 시 협상 우위 확보.
                 </div>
@@ -1084,12 +1087,12 @@ def render_phase_restructuring(ctx: dict):
     govt_save_by_negotiation = govt_burden - (base_npv * 0.1)
     if govt_save_by_negotiation > 0:
         st.markdown(
-            f"""<div style="background:#FFF3E0;border-left:5px solid #EF9F27;
+            f"""<div style="background:{_T['warn_bg']};border-left:5px solid {_T['warn']};
                 padding:14px 18px;border-radius:6px;margin:8px 0;">
-                <div style="font-weight:bold;color:#1F3864;font-size:15px;">
+                <div style="font-weight:bold;color:{_T['primary']};font-size:15px;">
                     💼 협상 권고: 정부·SPC 모두 협상이 우위
                 </div>
-                <div style="margin-top:6px;font-size:13px;color:#444;">
+                <div style="margin-top:6px;font-size:13px;color:{_T['muted']};">
                     정부는 해지 시 <strong>{govt_burden:,.0f}억</strong> 손실 vs 협상 시 <strong>{base_npv*0.1:,.0f}억</strong> 손실
                     (절감액 <strong>{govt_save_by_negotiation:,.0f}억</strong>).
                     SPC는 도산 시 운영권 상실 vs 협상 시 운영기간 연장으로 <strong>+{best[3] if best else 0:,.0f}억</strong> 확보 가능.
