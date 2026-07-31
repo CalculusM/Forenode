@@ -1788,9 +1788,11 @@ def main():
         _gc3.metric(
             "협약수익률 위치", f"{_ap_icon} {_b_rirr_txt}",
             help=f"실질 사업수익률(세후) {_b_rirr_txt}는 {_ap_msg}.")
+        _gc4_short = {"ig": "투자등급", "edge": "등급 경계", "spec": "투기등급",
+                      "default": "디폴트 위험"}.get(_b_ir.get("level"), "—")
         _gc4.metric(
-            "예비 신용등급", f"{_ir_icon} {_b_ir.get('implied_band', '—')}",
-            help=f"최소 DSCR {_b_dmin_txt} 기준 {_ir_msg}.")
+            "예비 신용등급", f"{_ir_icon} {_gc4_short}",
+            help=f"{_b_ir.get('implied_band', '—')} — 최소 DSCR {_b_dmin_txt} 기준 {_ir_msg}.")
         st.caption("ⓘ에 판정 전문 — 근거·벤치마크는 아래 '🔎 가정 점검 오버레이'.")
     except Exception:
         pass

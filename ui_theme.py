@@ -104,9 +104,10 @@ def inject_css() -> None:
     }
     .fn-hd-title { font-size: 32px; font-weight: 600; color: #1E3A5F; line-height: 1.2; }
     .fn-hd-sub { font-size: 12px; color: #64748B; margin-top: 2px; }
-    .fn-hd svg .fn-ln { stroke: #1E3A5F; }
-    .fn-hd svg .fn-nd { fill: #1E3A5F; }
-    .fn-hd svg .fn-nd-acc { fill: #2563EB; }
+    /* 로고 심볼은 브랜드 원색 고정(네이비 #1F3864 + 주황 #EF9F27) — 테마 무관, '26-07-31 대표 지시 */
+    .fn-hd svg .fn-ln { stroke: #1F3864; }
+    .fn-hd svg .fn-nd { fill: #1F3864; }
+    .fn-hd svg .fn-nd-acc { fill: #EF9F27; }
 
     .fn-sec {
         background: #F8FAFC; border: 1px solid #E2E8F0;
@@ -127,9 +128,6 @@ def inject_css() -> None:
         .fn-hd { background: #1E293B; border-color: #334155; }
         .fn-hd-title { color: #2DD4BF; }
         .fn-hd-sub { color: #94A3B8; }
-        .fn-hd svg .fn-ln { stroke: #2DD4BF; }
-        .fn-hd svg .fn-nd { fill: #2DD4BF; }
-        .fn-hd svg .fn-nd-acc { fill: #5EEAD4; }
         .fn-sec { background: #1E293B; border-color: #334155; }
         .fn-sec-kicker { color: #94A3B8; }
         .fn-sec-title { color: #2DD4BF; }
@@ -152,9 +150,6 @@ def inject_css() -> None:
     body[data-fn-theme="light"] .fn-hd-sub,
     body[data-fn-theme="light"] .fn-sec-kicker,
     body[data-fn-theme="light"] .fn-sec-desc { color: #64748B; }
-    body[data-fn-theme="light"] .fn-hd svg .fn-ln { stroke: #1E3A5F; }
-    body[data-fn-theme="light"] .fn-hd svg .fn-nd { fill: #1E3A5F; }
-    body[data-fn-theme="light"] .fn-hd svg .fn-nd-acc { fill: #2563EB; }
 
     body[data-fn-theme="dark"] .metric-card { background: #1E293B; border-color: #334155; color: #F1F5F9; }
     body[data-fn-theme="dark"] .metric-card h4 { color: #94A3B8; }
@@ -170,9 +165,6 @@ def inject_css() -> None:
     body[data-fn-theme="dark"] .fn-hd-sub,
     body[data-fn-theme="dark"] .fn-sec-kicker,
     body[data-fn-theme="dark"] .fn-sec-desc { color: #94A3B8; }
-    body[data-fn-theme="dark"] .fn-hd svg .fn-ln { stroke: #2DD4BF; }
-    body[data-fn-theme="dark"] .fn-hd svg .fn-nd { fill: #2DD4BF; }
-    body[data-fn-theme="dark"] .fn-hd svg .fn-nd-acc { fill: #5EEAD4; }
 
     .stTabs [data-baseweb="tab-list"] { gap: 8px; }
     .stTabs [data-baseweb="tab"] { padding: 8px 16px; border-radius: 8px; }
