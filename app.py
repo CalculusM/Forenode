@@ -485,11 +485,15 @@ def build_cashflow(
         'payback_year': None,
     }
 
-    # Payback period
+    # Payback period — 누적 FCF가 최초 음수 진입 후 다시 0 이상으로 회복하는 첫 연차
+    # (0년차 FCF=0이라 누적 0을 회수로 오판하지 않도록 음수 구간 진입을 선행 조건으로 둠.
+    #  음수 구간이 없으면 None 유지 — reverse_solver.surplus_years와 동일 정의)
     cum_fcf = np.cumsum(project_fcf)
-    payback_idx = np.where(cum_fcf >= 0)[0]
-    if len(payback_idx) > 0:
-        metrics['payback_year'] = int(payback_idx[0])
+    neg_idx = np.where(cum_fcf < 0)[0]
+    if len(neg_idx) > 0:
+        rec_idx = np.where(cum_fcf[neg_idx[0]:] >= 0)[0]
+        if len(rec_idx) > 0:
+            metrics['payback_year'] = int(neg_idx[0] + rec_idx[0])
 
     return cf_df, metrics
 

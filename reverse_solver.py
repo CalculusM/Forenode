@@ -139,7 +139,8 @@ def surplus_years(
     first_profit = int(pos[0]) + 1 if len(pos) else None
 
     # 누적 회수(payback): 누적 프로젝트 FCF가 최초 적자 후 0 이상으로 회복하는 연차.
-    # (엔진 metrics['payback_year']는 0년차 누적=0을 회수로 오판하는 결함이 있어 자체 계산)
+    # (엔진 metrics['payback_year']와 동일 정의. 여기서는 건설기 제외 운영연차
+    #  payback_op_year를 함께 내야 해서 자체 계산을 유지한다.)
     cum = np.asarray(cf["CumProjectFCF"], dtype=float)
     payback_total = None
     neg = np.where(cum < 0)[0]
