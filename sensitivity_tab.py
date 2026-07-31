@@ -14,6 +14,7 @@ import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
 
+import ui_theme
 from scenario_engine import (
     BaseCase, run_scenario, one_way_sensitivity, tornado,
     monte_carlo, risk_register, optimism_flag, sculpt_debt,
@@ -55,6 +56,7 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
                            cov_base: float = _DSCR_BASE,
                            cov_lockup: float = _DSCR_LOCKUP,
                            cov_default: float = _DSCR_DEFAULT):
+    _T = ui_theme.theme()
     st.subheader("민감도 · 시나리오 · 리스크 등록부")
     st.caption(
         "수요·통행량은 **외부 입력 가정**입니다. 이 탭은 그 가정을 흔들었을 때 "
@@ -106,10 +108,10 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
             fig.add_trace(go.Bar(
                 y=[var_kr.get(row["variable"], row["variable"])],
                 x=[hi - lo], base=min(lo, hi), orientation="h",
-                marker_color="#3b6ea5", showlegend=False,
+                marker_color=_T['primary'], showlegend=False,
                 hovertemplate=f"low={lo:.2f}<br>high={hi:.2f}<extra></extra>",
             ))
-        fig.add_vline(x=base_metric, line_dash="dash", line_color="#888",
+        fig.add_vline(x=base_metric, line_dash="dash", line_color=_T['muted'],
                       annotation_text=f"기준 {base_metric:.2f}")
         fig.update_layout(height=240, margin=dict(l=10, r=10, t=10, b=10),
                           xaxis_title=metric_label[tmetric])
@@ -137,10 +139,10 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
         sdf.insert(0, "케이스", xfmt)
         fig2 = go.Figure()
         fig2.add_trace(go.Scatter(x=xfmt, y=sdf["dscr_min"], name="DSCR_min",
-                                  mode="lines+markers", line_color="#3b6ea5"))
-        fig2.add_hline(y=cov_lockup, line_dash="dot", line_color="#d9822b",
+                                  mode="lines+markers", line_color=_T['primary']))
+        fig2.add_hline(y=cov_lockup, line_dash="dot", line_color=_T['warn'],
                        annotation_text=f"lock-up {cov_lockup:.2f}")
-        fig2.add_hline(y=cov_default, line_dash="dot", line_color="#c0392b",
+        fig2.add_hline(y=cov_default, line_dash="dot", line_color=_T['bad'],
                        annotation_text=f"default {cov_default:.2f}")
         fig2.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10),
                            xaxis_title=xlabel, yaxis_title="DSCR_min")

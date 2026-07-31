@@ -51,6 +51,63 @@ BENCHMARK_PRIORS = {
 }
 
 
+def loo_prior_params(exclude_routes, panel_path=None):
+    """묶음 LOO — 실현율 패널에서 지정 노선(들)을 제외한 KOTI prior 파라미터 재계산.
+
+    검증 프로토콜 v2 조건 1(분리): 채점 대상 사업이 prior 학습 표본에 있으면
+    해당 노선을 빼고 평균·표준편차를 다시 계산해 그 prior로 채점한다.
+    집계 기준 = 노선×연도 풀링(n=62)·표본분산(ddof=1) — KOTI 발표치(평균 81.4%·
+    분산 0.041→σ 0.2025)와 전 표본 기준으로 일치함을 확인('26-07-31,
+    build_realization_panel.prior_basis_check). backtest_plan_actual.loo_prior와
+    동일 기준(전사본 62/62 교차 일치 검증됨).
+
+    Parameters
+    ----------
+    exclude_routes : str | list[str]
+        제외할 노선명(패널 canonical 표기 — 예: "상주-영천", "인천공항").
+        묶음(blocked) LOO는 노선군 리스트를 그대로 전달.
+    panel_path : str, optional
+        data/realization_panel.csv 경로(기본: 모듈 기준 상대 경로).
+
+    Returns
+    -------
+    dict — {"p1": 평균, "p2": 표준편차, "n_obs": 관측 수, "n_routes": 노선 수,
+            "excluded": 실제로 제외된 노선 리스트}
+        패널 파일이 없으면 전 표본 발표치(0.814, 0.2025)로 폴백하고
+        "fallback": True를 표기한다(과소표기 방지 — 호출부에서 고지).
+    """
+    import csv
+    import os
+
+    if isinstance(exclude_routes, str):
+        exclude_routes = [exclude_routes]
+    exclude = set(exclude_routes)
+
+    if panel_path is None:
+        panel_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                  "data", "realization_panel.csv")
+    if not os.path.exists(panel_path):
+        return {"p1": 0.814, "p2": 0.2025, "n_obs": 62, "n_routes": 22,
+                "excluded": [], "fallback": True}
+
+    ratios, routes, excluded = [], set(), set()
+    with open(panel_path, encoding="utf-8-sig") as f:
+        for row in csv.DictReader(f):
+            if row["지표"] != "교통량":
+                continue
+            name = row["노선"]
+            if name in exclude:
+                excluded.add(name)
+                continue
+            routes.add(name)
+            ratios.append(float(row["실현율_pct"]) / 100.0)
+
+    arr = np.asarray(ratios, dtype=float)
+    return {"p1": float(arr.mean()), "p2": float(arr.std(ddof=1)),
+            "n_obs": int(len(arr)), "n_routes": int(len(routes)),
+            "excluded": sorted(excluded), "fallback": False}
+
+
 def demand_optimism_band(forecast_traffic, prior="도로 — 국제(Bain 2009)",
                          n_sims=3000, seed=20260625):
     """예측 교통량 × (실측/예측) prior → 실제 가능 교통량 밴드 + 낙관편향 진단.

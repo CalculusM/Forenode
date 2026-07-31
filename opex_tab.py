@@ -27,6 +27,15 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+import ui_theme
+
+
+def _rgba(hex_color: str, alpha: float) -> str:
+    """테마 hex 색 → plotly rgba 문자열 (반투명 채움용)."""
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
 
 # ════════════════════════════════════════════════════════════
 # 데이터 로드
@@ -153,18 +162,19 @@ def simulate_30year_opex(
 # ════════════════════════════════════════════════════════════
 def render_data_overview(data):
     """데이터 출처 + 핵심 통계"""
+    _T = ui_theme.theme()
     event = data.get("event", {})
     route = data.get("route", {})
-    
+
     st.markdown(
-        """<div style="background: #1D9E7515;
-                       border-left: 4px solid #1D9E75;
+        f"""<div style="background: {_T['ok_bg']};
+                       border-left: 4px solid {_T['ok']};
                        padding: 14px 18px;
                        border-radius: 6px;
                        margin: 12px 0;">
-            <strong style="color: #1D9E75;">✅ 학습 데이터 출처</strong><br>
-            <span style="font-size: 13px; color: #1a1a2e;">
-            한국도로공사 포장보수현황 (공공데이터포털) — 
+            <strong style="color: {_T['ok']};">✅ 학습 데이터 출처</strong><br>
+            <span style="font-size: 13px; color: {_T['text']};">
+            한국도로공사 포장보수현황 (공공데이터포털) —
             2015~2025년 11년치, 4,380건 발주이력 분석
             </span>
         </div>""",
@@ -210,39 +220,41 @@ def render_data_overview(data):
 
 def render_business_type_analysis(data):
     """사업구분별 패턴 분석"""
+    _T = ui_theme.theme()
     event = data.get("event", {})
     stats = event.get("사업구분별_통계", {})
-    
+
     st.markdown("### 📊 사업구분별 OPEX 패턴")
     st.caption(
         "한국도로공사는 보수공사를 두 가지로 분류합니다. "
         "이 분류 기준이 OPEX 모델의 핵심입니다."
     )
-    
+
     cols = st.columns(2)
-    
+
     biz_descriptions = {
         "수선유지사업": {
-            "color": "#1F3864",
+            "color": _T['chart'][0],
             "icon": "🛠",
             "description": "지사별 연간 패키지 보수공사",
             "characteristic": "정기적 베이스라인 OPEX",
             "cycle": "1~3년 주기",
         },
         "개량사업": {
-            "color": "#E24B4A",
+            "color": _T['chart'][5],
             "icon": "🏗",
             "description": "개별 단발 보수·개량공사",
             "characteristic": "특정 위치 부분 개선",
             "cycle": "8~15년 주기",
         },
     }
-    
+
     for i, (biz, info) in enumerate(biz_descriptions.items()):
         with cols[i]:
             stat = stats.get(biz, {})
             st.markdown(
-                f"""<div style="background: {info['color']}10;
+                f"""<div style="background: {_T['surface']};
+                                border: 1px solid {_T['border']};
                                 border-top: 4px solid {info['color']};
                                 padding: 16px 20px;
                                 border-radius: 6px;
@@ -251,7 +263,7 @@ def render_business_type_analysis(data):
                     <div style="font-size: 18px; font-weight: 600; color: {info['color']};">
                         {biz}
                     </div>
-                    <div style="font-size: 12px; color: #666; margin: 6px 0;">
+                    <div style="font-size: 12px; color: {_T['muted']}; margin: 6px 0;">
                         {info['description']}
                     </div>
                     <div style="margin-top: 14px; font-size: 13px; line-height: 1.7;">
@@ -285,7 +297,8 @@ def render_lifecycle_chart(data):
     try:
         import plotly.graph_objects as go
         from plotly.subplots import make_subplots
-        
+
+        _T = ui_theme.theme()
         labels = list(cost_data.keys())
         repair_costs = [cost_data[k].get("수선유지사업", 0) or 0 for k in labels]
         improve_costs = [cost_data[k].get("개량사업", 0) or 0 for k in labels]
@@ -300,25 +313,25 @@ def render_lifecycle_chart(data):
         
         # 평균 공사비
         fig.add_trace(
-            go.Bar(name='수선유지사업', x=labels, y=repair_costs, 
-                   marker_color='#1F3864', showlegend=True),
+            go.Bar(name='수선유지사업', x=labels, y=repair_costs,
+                   marker_color=_T['chart'][0], showlegend=True),
             row=1, col=1
         )
         fig.add_trace(
-            go.Bar(name='개량사업', x=labels, y=improve_costs, 
-                   marker_color='#E24B4A', showlegend=True),
+            go.Bar(name='개량사업', x=labels, y=improve_costs,
+                   marker_color=_T['chart'][5], showlegend=True),
             row=1, col=1
         )
-        
+
         # 공사 빈도
         fig.add_trace(
-            go.Bar(name='수선유지사업', x=labels, y=repair_counts, 
-                   marker_color='#1F3864', showlegend=False),
+            go.Bar(name='수선유지사업', x=labels, y=repair_counts,
+                   marker_color=_T['chart'][0], showlegend=False),
             row=1, col=2
         )
         fig.add_trace(
-            go.Bar(name='개량사업', x=labels, y=improve_counts, 
-                   marker_color='#E24B4A', showlegend=False),
+            go.Bar(name='개량사업', x=labels, y=improve_counts,
+                   marker_color=_T['chart'][5], showlegend=False),
             row=1, col=2
         )
         
@@ -439,38 +452,39 @@ def render_simulator(data):
     # 차트
     try:
         import plotly.graph_objects as go
-        
+
+        _T = ui_theme.theme()
         fig = go.Figure()
-        
+
         # 누적 영역 차트
         fig.add_trace(go.Scatter(
             x=sim_df['운영연차'], y=sim_df['베이스라인_OPEX'],
             mode='lines', name='베이스라인',
-            stackgroup='one', line=dict(width=0.5, color='#999'),
-            fillcolor='rgba(153, 153, 153, 0.4)',
+            stackgroup='one', line=dict(width=0.5, color=_T['muted']),
+            fillcolor=_rgba(_T['muted'], 0.4),
         ))
         fig.add_trace(go.Scatter(
             x=sim_df['운영연차'], y=sim_df['수선유지_OPEX'],
             mode='lines', name='수선유지사업',
-            stackgroup='one', line=dict(width=0.5, color='#1F3864'),
-            fillcolor='rgba(31, 56, 100, 0.5)',
+            stackgroup='one', line=dict(width=0.5, color=_T['chart'][0]),
+            fillcolor=_rgba(_T['chart'][0], 0.5),
         ))
         fig.add_trace(go.Scatter(
             x=sim_df['운영연차'], y=sim_df['개량_OPEX'],
             mode='lines', name='개량사업',
-            stackgroup='one', line=dict(width=0.5, color='#E24B4A'),
-            fillcolor='rgba(226, 75, 74, 0.5)',
+            stackgroup='one', line=dict(width=0.5, color=_T['chart'][5]),
+            fillcolor=_rgba(_T['chart'][5], 0.5),
         ))
-        
+
         # Weibull η 마커
         fig.add_vline(
-            x=weibull_eta, line_color='#EF9F27', line_width=2, line_dash='dash',
+            x=weibull_eta, line_color=_T['warn'], line_width=2, line_dash='dash',
             annotation_text=f"Weibull η={weibull_eta:.1f}년",
             annotation_position="top right"
         )
         if weibull_eta * 2 <= operation_years:
             fig.add_vline(
-                x=weibull_eta * 2, line_color='#EF9F27', line_width=1, line_dash='dot',
+                x=weibull_eta * 2, line_color=_T['warn'], line_width=1, line_dash='dot',
                 annotation_text=f"2η={weibull_eta*2:.1f}년",
                 annotation_position="top right"
             )

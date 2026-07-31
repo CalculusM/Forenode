@@ -44,6 +44,10 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.graphics.shapes import Drawing, Line, Circle, String
 
+# PDF는 인쇄물 — 다크 전환과 무관하게 항상 라이트 팔레트 고정.
+# ui_theme.theme()(st.context 의존)를 호출하지 않고 LIGHT 딕셔너리를 직접 참조한다.
+from ui_theme import LIGHT as _PDF
+
 
 # ════════════════════════════════════════════════════════════
 # 한글 폰트 자동 검색 + 등록
@@ -142,9 +146,9 @@ def _forenode_logo(width_pt: float = 400):
     n2_x, n2_y = 50 * scale, height_pt - 20 * scale
     n3_x, n3_y = 80 * scale, height_pt - 50 * scale
     
-    color_primary = colors.HexColor("#1F3864")
-    color_accent = colors.HexColor("#EF9F27")
-    color_subtitle = colors.HexColor("#888780")
+    color_primary = colors.HexColor(_PDF['primary'])
+    color_accent = colors.HexColor(_PDF['accent'])
+    color_subtitle = colors.HexColor(_PDF['muted'])
     
     # 연결선 3개 (삼각형 모양)
     d.add(Line(n1_x, n1_y, n2_x, n2_y, strokeColor=color_primary, strokeWidth=2.5 * scale))
@@ -190,14 +194,14 @@ def _chart_opex_series(opex_estimation: dict) -> bytes:
     peak_y = opex_estimation['peak_year']
     
     fig, ax = plt.subplots(figsize=(7, 3.2))
-    ax.fill_between(years, opex, alpha=0.2, color='#1F3864')
-    ax.plot(years, opex, color='#1F3864', linewidth=2, marker='o', markersize=3)
-    ax.axvline(x=peak_y, linestyle='--', color='#EF9F27', alpha=0.7)
+    ax.fill_between(years, opex, alpha=0.2, color=_PDF['primary'])
+    ax.plot(years, opex, color=_PDF['primary'], linewidth=2, marker='o', markersize=3)
+    ax.axvline(x=peak_y, linestyle='--', color=_PDF['warn'], alpha=0.7)
     ax.annotate(
         f'정점 {peak_y}년차',
         xy=(peak_y, opex_estimation['peak_amount_억']),
         xytext=(peak_y + 1, opex_estimation['peak_amount_억']),
-        color='#EF9F27', fontsize=9,
+        color=_PDF['warn'], fontsize=9,
     )
     ax.set_xlabel('운영 연차')
     ax.set_ylabel('OPEX (억원)')
@@ -220,12 +224,12 @@ def _chart_opex_band(opex_estimation: dict) -> bytes:
     fig, ax = plt.subplots(figsize=(6.6, 4.6))
     if band and band.get('p10') and band.get('p90'):
         ax.fill_between(years, band['p10'], band['p90'], alpha=0.18,
-                        color='#1F3864', label='P10–P90')
-        ax.plot(years, band.get('p50', opex), color='#1F3864', linewidth=2, label='P50 (기준)')
+                        color=_PDF['primary'], label='P10–P90')
+        ax.plot(years, band.get('p50', opex), color=_PDF['primary'], linewidth=2, label='P50 (기준)')
         ax.legend(fontsize=8, loc='upper left')
     else:
-        ax.fill_between(years, opex, alpha=0.18, color='#1F3864')
-        ax.plot(years, opex, color='#1F3864', linewidth=2, marker='o', markersize=2)
+        ax.fill_between(years, opex, alpha=0.18, color=_PDF['primary'])
+        ax.plot(years, opex, color=_PDF['primary'], linewidth=2, marker='o', markersize=2)
     ax.set_xlabel('운영 연차')
     ax.set_ylabel('OPEX (억원/년)')
     ax.set_title('동적 OPEX 시계열 · 불확실성 밴드')
@@ -247,7 +251,7 @@ def _chart_capex_comparison(capex_ref: dict, user_capex: int) -> bytes:
         capex_ref['capex_low_억'],
         capex_ref['capex_high_억'],
     ]
-    colors_bar = ['#1F3864', '#1D9E75', '#888888', '#888888']
+    colors_bar = [_PDF['primary'], _PDF['ok'], _PDF['muted'], _PDF['muted']]
     
     fig, ax = plt.subplots(figsize=(7, 3.2))
     bars = ax.bar(labels, values, color=colors_bar, alpha=0.85)
@@ -296,7 +300,7 @@ def _chart_restructuring(ctx: dict) -> bytes:
     
     labels = [s[0] for s in scenarios]
     values = [s[1] for s in scenarios]
-    colors_bar = ['#888888'] + ['#1F3864'] * (len(scenarios) - 1)
+    colors_bar = [_PDF['muted']] + [_PDF['primary']] * (len(scenarios) - 1)
     
     fig, ax = plt.subplots(figsize=(7, 3.2))
     bars = ax.bar(labels, values, color=colors_bar, alpha=0.85)
@@ -343,22 +347,22 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     title_style = ParagraphStyle(
         'KorTitle', parent=styles['Title'],
         fontName=_KOR_FONT, fontSize=28, alignment=TA_CENTER,
-        spaceAfter=8, textColor=colors.HexColor('#1F3864'),
+        spaceAfter=8, textColor=colors.HexColor(_PDF['primary']),
     )
     subtitle_style = ParagraphStyle(
         'KorSub', parent=styles['Normal'],
         fontName=_KOR_FONT, fontSize=12, alignment=TA_CENTER,
-        spaceAfter=24, textColor=colors.HexColor('#555555'),
+        spaceAfter=24, textColor=colors.HexColor(_PDF['muted']),
     )
     h1_style = ParagraphStyle(
         'KorH1', parent=styles['Heading1'],
         fontName=_KOR_FONT, fontSize=16, alignment=TA_LEFT,
-        spaceAfter=8, textColor=colors.HexColor('#1F3864'),
+        spaceAfter=8, textColor=colors.HexColor(_PDF['primary']),
     )
     h2_style = ParagraphStyle(
         'KorH2', parent=styles['Heading2'],
         fontName=_KOR_FONT, fontSize=12, alignment=TA_LEFT,
-        spaceAfter=6, textColor=colors.HexColor('#1F3864'),
+        spaceAfter=6, textColor=colors.HexColor(_PDF['primary']),
     )
     body_style = ParagraphStyle(
         'KorBody', parent=styles['Normal'],
@@ -368,7 +372,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     caption_style = ParagraphStyle(
         'KorCaption', parent=styles['Normal'],
         fontName=_KOR_FONT, fontSize=8, alignment=TA_LEFT,
-        textColor=colors.HexColor('#666666'),
+        textColor=colors.HexColor(_PDF['muted']),
     )
     
     story = []
@@ -393,9 +397,9 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     t.setStyle(TableStyle([
         ('FONTNAME', (0, 0), (-1, -1), _KOR_FONT),
         ('FONTSIZE', (0, 0), (-1, -1), 11),
-        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F5F5F5')),
-        ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#1F3864')),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CCCCCC')),
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor(_PDF['surface'])),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor(_PDF['primary'])),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor(_PDF['border'])),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('LEFTPADDING', (0, 0), (-1, -1), 12),
         ('TOPPADDING', (0, 0), (-1, -1), 8),
@@ -454,11 +458,11 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     kpi_t.setStyle(TableStyle([
         ('FONTNAME', (0, 0), (-1, -1), _KOR_FONT),
         ('FONTSIZE', (0, 0), (-1, -1), 8),
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1F3864')),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(_PDF['primary'])),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F5F7FB')]),
-        ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor('#FDF1DC')),
-        ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#CCCCCC')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor(_PDF['surface'])]),
+        ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor(_PDF['accent_bg'])),
+        ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor(_PDF['border'])),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
         ('TOPPADDING', (0, 0), (-1, -1), 2.3),
@@ -489,9 +493,9 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     t.setStyle(TableStyle([
         ('FONTNAME', (0, 0), (-1, -1), _KOR_FONT),
         ('FONTSIZE', (0, 0), (-1, -1), 9.5),
-        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#E3F2FD')),
-        ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#1F3864')),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CCCCCC')),
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor(_PDF['accent_bg'])),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor(_PDF['primary'])),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor(_PDF['border'])),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('LEFTPADDING', (0, 0), (-1, -1), 10),
         ('TOPPADDING', (0, 0), (-1, -1), 7),
@@ -518,10 +522,10 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
         rt.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (-1, -1), _KOR_FONT),
             ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('BACKGROUND', (0, 0), (0, 0), colors.HexColor('#1F3864')),
+            ('BACKGROUND', (0, 0), (0, 0), colors.HexColor(_PDF['primary'])),
             ('TEXTCOLOR', (0, 0), (0, 0), colors.white),
-            ('BACKGROUND', (1, 0), (1, 0), colors.HexColor('#FDF1DC')),
-            ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#CCCCCC')),
+            ('BACKGROUND', (1, 0), (1, 0), colors.HexColor(_PDF['accent_bg'])),
+            ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor(_PDF['border'])),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('LEFTPADDING', (0, 0), (-1, -1), 8),
             ('TOPPADDING', (0, 0), (-1, -1), 6),
@@ -634,10 +638,10 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     t.setStyle(TableStyle([
         ('FONTNAME', (0, 0), (-1, -1), _KOR_FONT),
         ('FONTSIZE', (0, 0), (-1, -1), 8),
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1F3864')),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(_PDF['primary'])),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('FONTSIZE', (0, 0), (-1, 0), 9),
-        ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#CCCCCC')),
+        ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor(_PDF['border'])),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('LEFTPADDING', (0, 0), (-1, -1), 6),
         ('TOPPADDING', (0, 0), (-1, -1), 5),

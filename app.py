@@ -485,11 +485,15 @@ def build_cashflow(
         'payback_year': None,
     }
 
-    # Payback period
+    # Payback period — 누적 FCF가 최초 음수 진입 후 다시 0 이상으로 회복하는 첫 연차
+    # (0년차 FCF=0이라 누적 0을 회수로 오판하지 않도록 음수 구간 진입을 선행 조건으로 둠.
+    #  음수 구간이 없으면 None 유지 — reverse_solver.surplus_years와 동일 정의)
     cum_fcf = np.cumsum(project_fcf)
-    payback_idx = np.where(cum_fcf >= 0)[0]
-    if len(payback_idx) > 0:
-        metrics['payback_year'] = int(payback_idx[0])
+    neg_idx = np.where(cum_fcf < 0)[0]
+    if len(neg_idx) > 0:
+        rec_idx = np.where(cum_fcf[neg_idx[0]:] >= 0)[0]
+        if len(rec_idx) > 0:
+            metrics['payback_year'] = int(neg_idx[0] + rec_idx[0])
 
     return cf_df, metrics
 
@@ -1139,34 +1143,11 @@ def main():
         initial_sidebar_state="expanded",
     )
 
-    # CSS
-    st.markdown("""
-    <style>
-    .metric-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 14px 8px; border-radius: 12px; color: white;
-        text-align: center; margin: 4px 0;
-        display: flex; flex-direction: column; justify-content: space-between;
-        min-height: 118px;
-    }
-    .metric-card.green { background: linear-gradient(135deg, #11998e, #38ef7d); }
-    .metric-card.red { background: linear-gradient(135deg, #eb3349, #f45c43); }
-    .metric-card.blue { background: linear-gradient(135deg, #2193b0, #6dd5ed); }
-    .metric-card.orange { background: linear-gradient(135deg, #f7971e, #ffd200); }
-    .metric-card h4 {
-        margin: 0; font-size: 11.5px; line-height: 1.25; opacity: 0.92;
-        min-height: 29px; display: flex; align-items: center; justify-content: center;
-    }
-    .metric-card h2 {
-        margin: 6px 0 0; font-size: clamp(15px, 1.55vw, 23px); font-weight: 700;
-        white-space: nowrap; letter-spacing: -0.3px;
-    }
-    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
-    .stTabs [data-baseweb="tab"] {
-        padding: 8px 16px; border-radius: 8px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    # 디자인 시스템 ('26-07 개편) — 라이트=기관 네이비 / 다크=그래파이트 틸
+    import ui_theme
+    ui_theme.inject_css()
+    ui_theme.apply_plotly_template()
+    _T = ui_theme.theme()
 
     # ── 사이드바 ──
     st.sidebar.title("⚙️ 시나리오 설정")
@@ -1214,21 +1195,30 @@ def main():
     _bd = _BIZ_DEFAULTS.get(business_type) or _BIZ_FALLBACK[business_type]
     st.sidebar.caption(f"※ {_bd['desc']}")
 
-    # ─── 핵심 입력 (항상 노출: 연장·사업비·교통량·요금) ───
-    st.sidebar.subheader("🏗️ 핵심 입력")
-    st.sidebar.caption("슬라이더로 드래그하거나, 옆 칸에 실측치를 직접 입력하세요. "
-                       "나머지 조건은 아래 접힌 그룹(▼)에서 조정합니다.")
+    # ─── 필수 입력 여섯 칸 (사업 유형 + 아래 다섯) — 나머지는 실측 자료가 자동 채움 ───
+    st.sidebar.subheader("🧾 필수 입력 여섯 칸")
+    st.sidebar.caption(
+        "사업 유형·연장·총사업비·일 통행량·통행료·운영 기간 — 이 여섯 개만 넣으면 "
+        "나머지 30여 항목은 실측 자료 기반 자동값이 채웁니다. 전부 수정 가능하며 "
+        "각 항목 ⓘ에 값의 출처가 적혀 있습니다."
+    )
     road_length = linked_slider_input("연장(km)", 5, 200, 45, 1, "road_length")
     total_capex = linked_slider_input("총사업비(억)", 1000, 100000, 20725, 100, "total_capex")
     daily_traffic = linked_slider_input("일통행량(대)", 5000, 200000, 110000, 500, "daily_traffic")
+    _toll_default = _preset.get("toll_per_km", _bd["toll"] if _bd["toll"] > 0 else 80)
     toll_per_km = st.sidebar.slider(
-        "통행료 km단가(원)", 20, 300,
-        _preset.get("toll_per_km", _bd["toll"] if _bd["toll"] > 0 else 80), 5)
+        "통행료 km단가(원)", 20, 300, _toll_default, 5,
+        help=f"자동값 {_toll_default}원/km — 출처: 사업유형별 기본값(config/finance_params.json, "
+             "실측 협약 프리셋 우선). 도공 60원/km 대비 1.1배가 정부 심사 기준선.")
+    operation_years = st.sidebar.slider(
+        "운영기간(년)", 15, 50, _preset.get("operation_years", 30),
+        help="자동값 30년 — 출처: 국내 민자도로 실시협약 표준 운영기간(BTO 30년 관행).")
 
     # ─── 노선·수요 상세 (접힘) ───
-    with st.sidebar.expander("▼ 노선·수요 상세 (기간·지형·성장률)"):
-        construction_years = st.slider("건설기간(년)", 2, 10, _preset.get("construction_years", 5))
-        operation_years = st.slider("운영기간(년)", 15, 50, _preset.get("operation_years", 30))
+    with st.sidebar.expander("▼ 노선·수요 상세 (건설기간·지형·성장률)"):
+        construction_years = st.slider(
+            "건설기간(년)", 2, 10, _preset.get("construction_years", 5),
+            help="자동값 5년 — 출처: 국내 민자 고속도로 실측 공기(협약 프리셋 우선).")
         terrain = st.radio(
             "지형", options=["평지", "구릉", "산악"], index=0, horizontal=True,
             help="지형 난이도에 따라 CAPEX 보정 (평지 1.0 / 구릉 1.3 / 산악 1.8)"
@@ -1239,8 +1229,13 @@ def main():
             "차로 수", options=[2, 4, 6, 8],
             index=[2, 4, 6, 8].index(_preset.get("lanes", 4)), horizontal=True
         )
-        growth = st.slider("교통량 성장률(%)", -2.0, 8.0, float(_preset.get("growth", 2.5)), 0.1)
-        heavy_ratio = st.slider("화물비율(%)", 5, 60, _preset.get("heavy_ratio", 30))
+        growth = st.slider(
+            "교통량 성장률(%)", -2.0, 8.0, float(_preset.get("growth", 2.5)), 0.1,
+            help="자동값 2.5% — 출처: 국내 고속도로 교통량 장기 성장률 통상 가정(협약 프리셋 우선). "
+                 "실측 실현율 분포는 '가정 점검 오버레이'에서 별도 대조.")
+        heavy_ratio = st.slider(
+            "화물비율(%)", 5, 60, _preset.get("heavy_ratio", 30),
+            help="자동값 30% — 출처: 고속도로 차종 구성 통상 범위(중차량 비중). 수입 혼합계수에 반영.")
         heavy_surcharge = st.slider(
             "대형 차량 할증배율", 1.0, 5.0, 1.50, 0.1,
             help="차종 구성 가중 할증 — 공식 요금체계상 차종 간 최대 할증 1.68배(5종/1종). "
@@ -1251,11 +1246,13 @@ def main():
     with st.sidebar.expander("▼ 협약·정부 조건 (MRG·MCC·재구조화)"):
         mrg_ratio = st.slider(
             "MRG 보장률(%)", 0, 100, _bd["mrg"], 5,
-            help="MRG = 최소수입보장. 정부가 통행료 수입을 보장하는 비율 (예측 대비). BTO-rs/BTO-a 활용"
+            help=f"MRG = 최소수입보장. 정부가 통행료 수입을 보장하는 비율 (예측 대비). BTO-rs/BTO-a 활용. "
+                 f"자동값 {_bd['mrg']}% — 출처: 사업유형별 기본값(config/finance_params.json)"
         ) / 100
         mcc_ratio = st.slider(
             "MCC 비용보전율(%)", 0, 100, _bd["mcc"], 5,
-            help="MCC = 최소비용보전. 정부가 운영비 초과분을 보전하는 비율. BTO-a/BTL 핵심 변수 (2024.10 정부 활성화 방안 명시)"
+            help=f"MCC = 최소비용보전. 정부가 운영비 초과분을 보전하는 비율. BTO-a/BTL 핵심 변수 (2024.10 정부 활성화 방안 명시). "
+                 f"자동값 {_bd['mcc']}% — 출처: 사업유형별 기본값(config)"
         ) / 100
         restructuring_year = st.slider(
             "재구조화 시점(운영년차)", 0, operation_years, 0, 1,
@@ -1268,7 +1265,10 @@ def main():
 
     # ─── 금융 구조 (접힘) ───
     with st.sidebar.expander("▼ 금융 구조 (자본·금리·커버넌트·물가)"):
-        equity_ratio = st.slider("자기자본비율(%)", 5, 50, _bd["equity"]) / 100
+        equity_ratio = st.slider(
+            "자기자본비율(%)", 5, 50, _bd["equity"],
+            help=f"자동값 {_bd['equity']}% — 출처: 사업유형별 기본값(config, 민간투자 실무 통상 범위 10~25%)"
+        ) / 100
         base_rate = st.slider("기준금리(%)", 0.0, 8.0, 2.50, 0.25) / 100
         # 자기자본비용 Ke — CAPM(Ke = rf + β·MRP)으로 산출. rf는 기준금리.
         capm_beta = st.slider(
@@ -1421,6 +1421,38 @@ def main():
         else:
             opex_routine_ratio = 0.18
 
+    # ─── ✎ 자동값 오버라이드 추적 — 자동값과 회사값을 나란히 남긴다 (사이트 §3 약속 이행) ───
+    _auto_defaults = [
+        ("통행료(원/km)", float(_toll_default), float(toll_per_km), ""),
+        ("MRG(%)", float(_bd["mrg"]), mrg_ratio * 100, ""),
+        ("MCC(%)", float(_bd["mcc"]), mcc_ratio * 100, ""),
+        ("자기자본(%)", float(_bd["equity"]), equity_ratio * 100, ""),
+        ("성장률(%)", float(_preset.get("growth", 2.5)), float(growth), ""),
+        ("화물비율(%)", float(_preset.get("heavy_ratio", 30)), float(heavy_ratio), ""),
+        ("대형할증(배)", 1.5, float(heavy_surcharge), ""),
+        ("선순위가산(bp)", 150.0, senior_spread * 10000, ""),
+        ("후순위가산(bp)", 400.0, sub_spread * 10000, ""),
+        ("Base DSCR", 1.30, float(cov_base), ""),
+        ("물가(%)", 2.0, float(infl), ""),
+        ("법인세(%)", 22.0, tax_rate * 100, ""),
+    ]
+    _overrides = [
+        (label, auto, now) for label, auto, now, _ in _auto_defaults
+        if abs(auto - now) > 1e-9
+    ]
+    if opex_ratio_manual is not None:
+        _overrides.append(("OPEX 산출", "자동", "수동 입력"))
+    if _overrides:
+        st.sidebar.markdown("---")
+        _ov_lines = " · ".join(
+            f"{lb} {a:g}→{n:g}" if not isinstance(a, str) else f"{lb} {a}→{n}"
+            for lb, a, n in _overrides
+        )
+        st.sidebar.caption(
+            f"✎ **자동값 수정 {len(_overrides)}건** — {_ov_lines}  \n"
+            "(자동값→회사값 병기 — 이후 계산은 회사값 기준, 심의 자료에 수정 이력으로 남습니다)"
+        )
+
     # ECOS 연동
     st.sidebar.markdown("---")
     st.sidebar.subheader("📡 ECOS 금리연동")
@@ -1552,6 +1584,20 @@ def main():
     if opex_band:
         opex_estimation['band'] = opex_band
 
+    # ── 🎯 역산(Goal Seek) 전역 1회 계산 — CI 뷰·예타 사전 시뮬 패널·보고 세 줄 공용 ──
+    # 근거: 한상욱 처방 + 금광기업 실무 요구('26-07-29 수렴). 결정론 역산 — 예측·학습 아님.
+    import reverse_solver as _rsv
+    _rev_K = _rsv.traffic_revenue_coeff(
+        road_length, toll_per_km, heavy_ratio / 100, heavy_surcharge)
+    _gov_seek = _rsv.min_revenue_for(
+        base_params, build_cashflow, _rsv.make_predicate("gov"))
+    _gov_min_traffic = (
+        _gov_seek["min_rev"] / _rev_K if _gov_seek.get("min_rev") and _rev_K > 0 else None)
+    _surplus_now = _rsv.surplus_years(base_params, build_cashflow)
+    # 문턱 수준의 흑자 전환 연차 — "X대를 넘으면 n년차부터 흑자" 메시지용
+    _gov_sy = (_rsv.surplus_years(base_params, build_cashflow, _gov_seek["min_rev"])
+               if _gov_seek.get("min_rev") else {"first_profit_op_year": None, "payback_op_year": None})
+
     # 데이터 출처 — 2026-07 별도 페이지로 분리 (pages/1_데이터_출처.py)
     with st.sidebar:
         st.markdown("---")
@@ -1566,45 +1612,9 @@ def main():
     # ============================================================
     # 메인 영역 — Forenode 헤더 (SVG 로고 + 사업명 입력)
     # ============================================================
-    st.markdown("""
-        <style>
-        .forenode-header {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            padding: 12px 16px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border: 0.5px solid #e0e0e0;
-        }
-        .forenode-logo-text {
-            font-size: 32px;
-            font-weight: 500;
-            color: #1F3864;
-            line-height: 1.2;
-        }
-        .forenode-subtitle {
-            font-size: 12px;
-            color: #888780;
-            margin-top: 2px;
-        }
-        </style>
-        <div class="forenode-header">
-            <svg width="80" height="50" viewBox="0 0 80 50" xmlns="http://www.w3.org/2000/svg">
-                <line x1="10" y1="35" x2="40" y2="15" stroke="#1F3864" stroke-width="2.5"/>
-                <line x1="40" y1="15" x2="70" y2="45" stroke="#1F3864" stroke-width="2.5"/>
-                <line x1="70" y1="45" x2="40" y2="15" stroke="#1F3864" stroke-width="2.5"/>
-                <circle cx="10" cy="35" r="6" fill="#1F3864"/>
-                <circle cx="40" cy="15" r="8" fill="#EF9F27"/>
-                <circle cx="70" cy="45" r="6" fill="#1F3864"/>
-            </svg>
-            <div>
-                <div class="forenode-logo-text">Forenode</div>
-                <div class="forenode-subtitle">민자 사업 발굴·제안 솔루션 엔진 — 제안 전에 시나리오로 정량화</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+    st.markdown(
+        ui_theme.header_html("Forenode", "민자 사업 발굴·제안 솔루션 엔진 — 제안 전에 시나리오로 정량화"),
+        unsafe_allow_html=True)
 
     # 사업명 입력 (별도 라인)
     project_name = st.text_input(
@@ -1719,12 +1729,11 @@ def main():
             st.markdown(f"""<div class="metric-card blue">
                 <h4>WACC</h4><h2>{wacc_info['wacc']*100:.2f}%</h2></div>""",
                 unsafe_allow_html=True)
-
-    st.caption(
-        "ⓘ 수익률 표기 기준: 프로젝트 IRR=세후(명목/불변) · 협약수익률=실질·세전(역할별 지표 참조). "
-        "민자 실시협약·재구조화 벤치마크는 노선마다 세전경상·세후실질을 병기하므로 비교 시 기준 확인 필수 "
-        "(KOTI MP-24-11, 2024, pp.78-86)."
-    )
+        st.caption(
+            "ⓘ 수익률 표기 기준: 프로젝트 IRR=세후(명목/불변) · 협약수익률=실질·세전(역할별 지표 참조). "
+            "민자 실시협약·재구조화 벤치마크는 노선마다 세전경상·세후실질을 병기하므로 비교 시 기준 확인 필수 "
+            "(KOTI MP-24-11, 2024, pp.78-86)."
+        )
 
     # ── 🔎 가정 검증 요약 배지 — 판정을 분명한 문장으로 끝맺는다 (상세: 가정 검증 오버레이) ──
     try:
@@ -1766,17 +1775,25 @@ def main():
         _b_rirr_txt = f"{_b_rirr*100:.1f}%" if _b_rirr == _b_rirr else "—"
         _b_dmin = metrics.get('dscr_min', float('nan'))
         _b_dmin_txt = f"{_b_dmin:.2f}" if _b_dmin == _b_dmin else "—"
-        st.markdown("**🔎 제안 전 가정 점검 — 4줄 시사점**")
-        st.markdown(
-            f"{_b_dicon} **수요** — 입력 교통량은 과거 실적 분포 기준, 예측의 "
-            f"{_b_db['median_ratio']*100:.0f}%가 실현 중앙값입니다. {_b_db['flag']}.\n\n"
-            f"{_tg_icon} **재협상 트리거** — 실측이 협약 대비 {_TR['ratio_threshold']*100:.0f}% "
-            f"미달에 머물 확률이 약 {_b_p70*100:.0f}%입니다. 법정 트리거(유료도로법 §23의5)에 "
-            f"{_tg_msg}.\n\n"
-            f"{_ap_icon} **협약수익률 위치** — 이 시나리오의 실질 사업수익률(세후) "
-            f"{_b_rirr_txt}는 {_ap_msg}.\n\n"
-            f"{_ir_icon} **예비 신용등급** — 최소 DSCR {_b_dmin_txt} 기준 {_ir_msg}.")
-        st.caption("근거·벤치마크·상세 점검은 아래 '🔎 가정 점검 오버레이'에서 확인하세요.")
+        # 가정 점검 — KPI 바로 아래 지표행(전문은 각 ⓘ 도움말·상세는 오버레이)
+        _gc1, _gc2, _gc3, _gc4 = st.columns(4)
+        _gc1.metric(
+            "수요 실현 중앙값", f"{_b_dicon} {_b_db['median_ratio']*100:.0f}%",
+            help=f"입력 교통량은 과거 실적 분포 기준, 예측의 {_b_db['median_ratio']*100:.0f}%가 "
+                 f"실현 중앙값입니다. {_b_db['flag']}.")
+        _gc2.metric(
+            "재협상 트리거 확률", f"{_tg_icon} {_b_p70*100:.0f}%",
+            help=f"실측이 협약 대비 {_TR['ratio_threshold']*100:.0f}% 미달에 머물 확률 — "
+                 f"법정 트리거(유료도로법 §23의5)에 {_tg_msg}.")
+        _gc3.metric(
+            "협약수익률 위치", f"{_ap_icon} {_b_rirr_txt}",
+            help=f"실질 사업수익률(세후) {_b_rirr_txt}는 {_ap_msg}.")
+        _gc4_short = {"ig": "투자등급", "edge": "등급 경계", "spec": "투기등급",
+                      "default": "디폴트 위험"}.get(_b_ir.get("level"), "—")
+        _gc4.metric(
+            "예비 신용등급", f"{_ir_icon} {_gc4_short}",
+            help=f"{_b_ir.get('implied_band', '—')} — 최소 DSCR {_b_dmin_txt} 기준 {_ir_msg}.")
+        st.caption("ⓘ에 판정 전문 — 근거·벤치마크는 아래 '🔎 가정 점검 오버레이'.")
     except Exception:
         pass
 
@@ -1865,6 +1882,22 @@ def main():
             key="pdf_download_top",
         )
 
+    # ── 📋 부서 보고용 세 줄 — 상신·회람용(견적팀 결재 동선 실측 반영, 복사해 그대로 사용) ──
+    _p3_name = project_name or "본 사업"
+    if _gov_min_traffic and daily_traffic:
+        _p3_sp = (f"흑자 전환 운영 {_gov_sy['first_profit_op_year']}년차부터"
+                  if _gov_sy['first_profit_op_year'] else "그 수준에서도 당기 흑자 미달")
+        _l1 = (f"{_p3_name}: 일 통행량 {_gov_min_traffic:,.0f}대(입력의 "
+               f"{_gov_min_traffic/daily_traffic*100:.0f}%)를 넘으면 정부 게이트 통과 — {_p3_sp} 사업성 확보")
+    else:
+        _l1 = f"{_p3_name}: 교통량 축만으로는 정부 게이트 미달(수입 3배 탐색 상한) — 통행료·기간 조정 검토 필요"
+    _l2 = (f"자동 채움 값 전 항목 출처 표기 · 자동값 수정 {len(_overrides)}건 병기(자동값→회사값)"
+           if _overrides else "자동 채움 값 전 항목 출처 표기 · 자동값 수정 없음")
+    _l3 = "검증: 국내 21개 사업 협약vs실적 대사 — 관측 95건 중 67건 적중(미적중 28건 공개)"
+    with st.expander("📋 부서 보고용 세 줄 — 복사해 그대로 상신", expanded=False):
+        st.code(f"· {_l1}\n· {_l2}\n· {_l3}", language=None)
+        st.caption("우측 상단 복사 아이콘으로 복사됩니다. — 정식 적격성 판정이 아님(KDI PIMAC 별도) · 근거 미확보 값은 ✚ 빈칸.")
+
     st.markdown("")
 
     # ── 한 줄 판정 (대주단 커버넌트 입력 기준) ──
@@ -1945,10 +1978,10 @@ def main():
             _fig = _go.Figure()
             _fig.add_trace(_go.Bar(
                 x=_div_df['운영년차'], y=_div_df['DSCR'],
-                marker_color=['#2ca02c' if v else '#d62728' for v in _div_df['배당가능']],
+                marker_color=[_T['ok'] if v else _T['bad'] for v in _div_df['배당가능']],
                 hovertemplate="운영 %{x}년차 · DSCR %{y:.2f}<extra></extra>",
             ))
-            _fig.add_hline(y=cov_lockup, line_dash="dash", line_color="#ff7f0e",
+            _fig.add_hline(y=cov_lockup, line_dash="dash", line_color=_T['warn'],
                            annotation_text=f"lock-up {cov_lockup:.2f}")
             _fig.update_layout(
                 height=260, margin=dict(l=10, r=10, t=10, b=10),
@@ -2138,6 +2171,18 @@ def main():
                           delta_color="normal" if _toll_mult <= _cap else "inverse")
             except Exception:
                 c4.metric("통행료 배수(도공 대비)", "—")
+            if _gov_min_traffic:
+                _ci_rs_ratio = _gov_min_traffic / daily_traffic if daily_traffic else float('nan')
+                _ci_rs_sp = (f"흑자 전환이 운영 {_gov_sy['first_profit_op_year']}년차부터 시작되어"
+                             if _gov_sy['first_profit_op_year'] else "단, 당기 흑자는 기간 내 미달로")
+                st.info(
+                    f"🎯 **사업성 문턱** — 일 통행량 **{_gov_min_traffic:,.0f}대**(입력의 "
+                    f"{_ci_rs_ratio*100:.0f}%)를 넘으면 정부 게이트를 통과하고 {_ci_rs_sp} 사업성이 확보됩니다. "
+                    f"기준별 문턱·실현율 시나리오 ▸ **⏱ 예타 사전 시뮬**.")
+            else:
+                st.warning(
+                    "🎯 사업성 문턱 — 교통량 축만으로는 정부 게이트 미달(수입 3배 탐색 상한). "
+                    "통행료·기간 조정 ▸ ⏱ 예타 사전 시뮬 ▸ 요구수익률 솔버.")
             st.caption(
                 "💸 **제안비 매몰 리스크** — 제안→실시협약 실측 6~10년(사상해운대·오산용인), 우선협상 탈락 시 제안서·설계비는 "
                 "사실상 전액 매몰(차상위만 일부 보상). 제안 전 시나리오 반복 검토가 이 리스크를 줄입니다."
@@ -2365,6 +2410,151 @@ def main():
             st.markdown("---")
         except Exception:
             pass
+
+        # ── 🎯 사업성 문턱 — "몇 대부터, 몇 년 차부터" (W1 개정) ──
+        st.markdown("**🎯 사업성 문턱 — 몇 대부터, 몇 년 차부터**")
+        _th_rows = []
+        _th_defs = [
+            ("정부 게이트 (현가비≥1·NPV≥0)", _gov_seek),
+            (f"대주단 (DSCR≥{cov_base:.2f})",
+             _rsv.min_revenue_for(base_params, build_cashflow,
+                                  _rsv.make_predicate("dscr", cov_base))),
+            ("협약 평균 수익률 (6.41%)",
+             _rsv.min_revenue_for(base_params, build_cashflow,
+                                  _rsv.make_predicate("irr", 0.0641))),
+        ]
+        for _th_label, _th_seek in _th_defs:
+            if _th_seek["status"] in ("ok", "below_range") and _rev_K > 0:
+                _th_rev = _th_seek["min_rev"]
+                _th_tr = _th_rev / _rev_K
+                _th_sy = _rsv.surplus_years(base_params, build_cashflow, _th_rev)
+                _th_rows.append({
+                    "기준": _th_label,
+                    "문턱 교통량(대/일)": f"{_th_tr:,.0f}",
+                    "입력 대비": f"{_th_tr/daily_traffic*100:.0f}%" if daily_traffic else "—",
+                    "그 수준의 흑자 전환": (f"운영 {_th_sy['first_profit_op_year']}년차"
+                                     if _th_sy['first_profit_op_year'] else "전 기간 적자"),
+                    "누적 회수": (f"운영 {_th_sy['payback_op_year']}년차"
+                              if _th_sy.get('payback_op_year') else "기간 내 미회수"),
+                    "_traffic": _th_tr,
+                })
+            else:
+                _th_rows.append({"기준": _th_label, "문턱 교통량(대/일)": "교통량 축만으로 미달",
+                                 "입력 대비": "—", "그 수준의 흑자 전환": "—",
+                                 "누적 회수": "—", "_traffic": None})
+        _th_gov = _th_rows[0]
+        if _th_gov["_traffic"]:
+            st.success(
+                f"일 통행량 **{_th_gov['_traffic']:,.0f}대**를 넘으면 정부 게이트(현가비≥1·NPV≥0)를 "
+                f"통과하고, 흑자 전환이 **{_th_gov['그 수준의 흑자 전환']}**부터 시작되어 사업성이 "
+                f"확보됩니다 — 입력({daily_traffic:,}대/일)의 {_th_gov['입력 대비']} 수준입니다.")
+        else:
+            st.error(
+                "교통량 축만으로는 정부 게이트 미달(수입 3배 탐색 상한) — "
+                "통행료·운영기간·MRG 조정은 아래 🎯 요구수익률 솔버에서 확인하세요.")
+        _th_df = pd.DataFrame([{k: v for k, v in r.items() if k != "_traffic"}
+                               for r in _th_rows])
+        st.dataframe(_th_df, use_container_width=True, hide_index=True)
+        try:
+            from demand_bias import prob_ratio_below as _rv_prb
+            if _th_gov["_traffic"] and daily_traffic:
+                _rv_ratio = _th_gov["_traffic"] / daily_traffic
+                _rv_p = _rv_prb(_rv_ratio)
+                _rv_icon = "🔴" if _rv_p >= 0.50 else ("🟡" if _rv_p >= 0.25 else "🟢")
+                st.caption(
+                    f"{_rv_icon} 실측 대조 — 과거 실측 분포에서 실현율이 입력 대비 "
+                    f"{_rv_ratio*100:.0f}% 아래로 떨어졌던 노선 비율 ≈ {_rv_p*100:.0f}%.")
+        except Exception:
+            pass
+        with st.expander("▸ 이 숫자는 이렇게 나왔습니다 — 계산 경로"):
+            _rv_mix = (1 - heavy_ratio / 100) + (heavy_ratio / 100) * heavy_surcharge
+            st.markdown(
+                f"**1) 수입↔교통량 선형 환산** — 연수입(억) = 일교통량 × K  \n"
+                f"K = 통행료 {toll_per_km}원/km × 연장 {road_length}km × 혼합계수 {_rv_mix:.3f}"
+                f"(경량 {100-heavy_ratio}% + 화물 {heavy_ratio}%×할증 {heavy_surcharge:.1f}배) "
+                f"× 365일 ÷ 10⁸ ÷ 1.1(VAT 차감) = **{_rev_K:.5f}억/(대/일)**  \n"
+                f"**2) 문턱 탐색** — 각 기준을 통과하는 최소 연수입을 이분법 60회로 탐색"
+                f"(대상 지표는 수입에 단조증가 → 유일해) 후 K로 나눠 교통량 환산.  \n"
+                f"가정: 운영비는 {'현 시나리오 산출 시계열 고정(교통량이 줄어도 운영비는 줄지 않는 보수 가정)' if base_params.get('opex_series_억') is not None else '매출비례(수동 비율 모드)'} · "
+                f"MRG 기준수입은 협약 수요와 함께 이동(설계 관점) · 램프업 미반영(보수).  \n"
+                f"이 계산은 예측·학습 모델이 아니라 현금흐름 엔진의 **결정론 역함수**입니다 — "
+                f"실측 분포는 위 실측 대조 캡션의 위치 참조에만 쓰입니다.")
+
+        st.markdown("---")
+
+        # ── 📉 실현율 시나리오 — "예측 대비 실제가 X%라면" (W2 개정) ──
+        st.markdown("**📉 실현율 시나리오 — 예측 대비 실제가 X%라면**")
+        st.caption(
+            "협약(입력) 교통량은 그대로 두고 **실제 실현만 낮춘** 시나리오입니다 — "
+            "MRG 보전은 협약 기준수입으로 정확히 발동합니다. 앵커 2종(실측): "
+            "81.4% = 교통량 실현율 평균(22개 노선) · 62.3% = 통행료 **수입** 실현율 10년 평균"
+            "(KOTI RR-25-10 — 수입은 교통량보다 체계적으로 낮게 실현). "
+            "'실측에서 이 이하 비율' 열은 교통량 기준 분포이며, 수입 기준 분포 학습은 다음 데이터 작업(✚).")
+        _rz_rows = _rsv.realization_scenarios(base_params, build_cashflow)
+        try:
+            from demand_bias import prob_ratio_below as _rz_prb
+        except Exception:
+            _rz_prb = None
+        _rz_disp = []
+        for _rz in _rz_rows:
+            _rz_m = _rz["metrics"]
+            _rz_eirr = _rz_m.get("equity_irr", float("nan"))
+            _rz_disp.append({
+                "실현율": f"{_rz['ratio']*100:.0f}%" + (
+                    " (교통량 실측 평균)" if abs(_rz['ratio'] - 0.814) < 1e-6
+                    else (" (수입 실측 평균)" if abs(_rz['ratio'] - 0.623) < 1e-6 else "")),
+                "실측에서 이 이하 비율": (f"{_rz_prb(_rz['ratio'])*100:.0f}%" if _rz_prb else "—"),
+                "NPV(억)": f"{_rz_m['npv']:,.0f}",
+                "자기자본IRR": f"{_rz_eirr*100:.1f}%" if _rz_eirr == _rz_eirr else "—",
+                "DSCR최소": f"{_rz_m['dscr_min']:.2f}",
+                "흑자 전환": (f"운영 {_rz['first_profit_op_year']}년차"
+                          if _rz['first_profit_op_year'] else "전 기간 적자"),
+                "MRG 보전 누적(억)": f"{_rz['mrg_total']:,.0f}",
+                "§23의5 방향": "🔴 70% 미달권" if _rz["trigger"] else "🟢",
+            })
+        st.dataframe(pd.DataFrame(_rz_disp), use_container_width=True, hide_index=True)
+        _rzc1, _rzc2 = st.columns([2, 3])
+        with _rzc1:
+            _rz_pick = st.multiselect(
+                "시나리오 비교에 담을 실현율", [f"{r['ratio']*100:.0f}%" for r in _rz_rows],
+                default=[], key="rz_pick",
+                help="선택 후 담기 — 좌측 '🧮 시나리오 나란히 비교' 페이지에서 나란히 봅니다(최대 4개).")
+        with _rzc2:
+            if st.button("📥 선택 실현율을 시나리오 비교에 담기", key="rz_save_btn"):
+                _rz_saved = st.session_state.setdefault('saved_scenarios', [])
+                _rz_added = 0
+                for _rz in _rz_rows:
+                    _rz_label = f"{_rz['ratio']*100:.0f}%"
+                    if _rz_label not in _rz_pick:
+                        continue
+                    if len(_rz_saved) >= 4:
+                        break
+                    _rz_m = _rz["metrics"]
+                    _rz_saved.append({
+                        "이름": f"실현 {_rz_label}",
+                        "사업유형": business_type,
+                        "연장(km)": float(road_length),
+                        "총사업비(억)": float(total_capex),
+                        "일교통량(대)": int(round(daily_traffic * _rz["ratio"])),
+                        "통행료(원/km)": float(toll_per_km),
+                        "MRG(%)": float(mrg_ratio) * 100,
+                        "NPV(억)": float(_rz_m['npv']),
+                        "IRR(%)": float(_rz_m['nominal_irr']) * 100 if _rz_m['nominal_irr'] == _rz_m['nominal_irr'] else float('nan'),
+                        "EquityIRR(%)": float(_rz_m.get('equity_irr', float('nan'))) * 100,
+                        "EquityMIRR(%)": float(_rz_m.get('equity_mirr', float('nan'))) * 100,
+                        "DSCR최소": float(_rz_m['dscr_min']),
+                        "수입/비용현가비율": float(_rz_m['bc_ratio']),
+                        "정부부담(억)": float(_rz_m.get('total_govt_burden', 0.0)),
+                        "회수기간(년)": _rz.get('payback_op_year'),
+                    })
+                    _rz_added += 1
+                if _rz_added:
+                    st.success(f"{_rz_added}건 담김 — 좌측 '🧮 시나리오 나란히 비교'에서 확인 "
+                               f"({len(_rz_saved)}/4)")
+                else:
+                    st.warning("담긴 시나리오가 없습니다 — 실현율을 선택했는지, 저장 슬롯(4개)이 남았는지 확인하세요.")
+        st.markdown("---")
+
         render_phase_pretest(phase_context)
         st.markdown("---")
         st.markdown("##### 🔬 예타 사전 시뮬 심화 도구")
@@ -2387,17 +2577,9 @@ def main():
 
         with tab_solver_pre:
             st.markdown(
-                """<div style="background:linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%);
-                    border-left:6px solid #EF9F27;border-radius:8px;
-                    padding:12px 18px;margin:8px 0;">
-                    <div style="font-size:13px;color:#888;font-weight:600;">━ 제안 설계 ━</div>
-                    <div style="font-size:18px;font-weight:bold;color:#1F3864;margin-top:2px;">
-                        🎯 요구수익률 솔버
-                    </div>
-                    <div style="font-size:12px;color:#555;margin-top:4px;">
-                        이해관계자별 목표 기준 진단 + 달성 시나리오 역산 — 이대로 제안하면 통과 가능한가를 즉시 확인.
-                    </div>
-                </div>""",
+                ui_theme.section_header(
+                    "제안 설계", "🎯 요구수익률 솔버",
+                    "이해관계자별 목표 기준 진단 + 달성 시나리오 역산 — 이대로 제안하면 통과 가능한가를 즉시 확인."),
                 unsafe_allow_html=True,
             )
             render_solver_tab(base_params, metrics, build_cashflow, phase_context)
@@ -2560,11 +2742,11 @@ def main():
                     fig = make_subplots(rows=1, cols=2,
                                         subplot_titles=["NPV 분포", "DSCR 분포"])
                     fig.add_trace(go.Histogram(x=mc['npv'], nbinsx=40,
-                                               marker_color='#667eea', name='NPV'),
+                                               marker_color=_T['primary'], name='NPV'),
                                   row=1, col=1)
                     fig.add_vline(x=0, line_dash="dash", line_color="red", row=1, col=1)
                     fig.add_trace(go.Histogram(x=mc['dscr'], nbinsx=40,
-                                               marker_color='#38ef7d', name='DSCR'),
+                                               marker_color=_T['ok'], name='DSCR'),
                                   row=1, col=2)
                     fig.add_vline(x=1.0, line_dash="dash", line_color="red", row=1, col=2)
                     fig.update_layout(height=350, showlegend=False,
@@ -2589,14 +2771,14 @@ def main():
                     x=[item['high_npv'] - item['base_npv']],
                     base=[item['base_npv']],
                     orientation='h', name=f"{item['param']} +20%",
-                    marker_color='#38ef7d', showlegend=False,
+                    marker_color=_T['ok'], showlegend=False,
                 ))
                 fig.add_trace(go.Bar(
                     y=[item['param']],
                     x=[item['low_npv'] - item['base_npv']],
                     base=[item['base_npv']],
                     orientation='h', name=f"{item['param']} -20%",
-                    marker_color='#eb3349', showlegend=False,
+                    marker_color=_T['bad'], showlegend=False,
                 ))
             fig.add_vline(x=metrics['npv'], line_dash="dash", line_color="white")
             fig.update_layout(height=400, template="plotly_white",
@@ -2617,15 +2799,15 @@ def main():
                                 row_heights=[0.65, 0.35], vertical_spacing=0.1)
 
             fig.add_trace(go.Bar(x=cf_df['Year'], y=cf_df['ProjectFCF'],
-                                 name='FCF', marker_color='#667eea'), row=1, col=1)
+                                 name='FCF', marker_color=_T['primary']), row=1, col=1)
             fig.add_trace(go.Scatter(x=cf_df['Year'], y=cf_df['CumProjectFCF'],
-                                     name='누적FCF', line=dict(color='#ffd200', width=2)),
+                                     name='누적FCF', line=dict(color=_T['warn'], width=2)),
                           row=1, col=1)
             fig.add_hline(y=0, line_dash="dash", line_color="gray", row=1, col=1)
 
             op_df = cf_df[cf_df['DSCR'] > 0]
             fig.add_trace(go.Scatter(x=op_df['Year'], y=op_df['DSCR'],
-                                     name='DSCR', line=dict(color='#38ef7d', width=2),
+                                     name='DSCR', line=dict(color=_T['ok'], width=2),
                                      fill='tozeroy', fillcolor='rgba(56,239,125,0.1)'),
                           row=2, col=1)
             fig.add_hline(y=1.0, line_dash="dash", line_color="red", row=2, col=1)
@@ -2654,7 +2836,7 @@ def main():
                                         fillcolor='rgba(31,56,100,0.15)', line=dict(width=0),
                                         name='P10–P90'))
                 bf.add_trace(go.Scatter(x=yrs, y=opex_band['p50'],
-                                        line=dict(color='#1F3864', width=2), name='P50(기준)'))
+                                        line=dict(color=_T['primary'], width=2), name='P50(기준)'))
                 bf.update_layout(height=240, template="plotly_white",
                                  margin=dict(t=10, b=20, l=10, r=10),
                                  yaxis_title="OPEX(억/년)", xaxis_title="운영연차")
@@ -2750,11 +2932,11 @@ def main():
             if HAS_PLOTLY:
                 fig = make_subplots(specs=[[{"secondary_y": True}]])
                 fig.add_trace(go.Bar(x=toll_df['Year'], y=toll_df['Revenue_억'],
-                                     name='통행료수입(억)', marker_color='#667eea'),
+                                     name='통행료수입(억)', marker_color=_T['primary']),
                               secondary_y=False)
                 fig.add_trace(go.Scatter(x=toll_df['Year'], y=toll_df['DailyTraffic'],
                                          name='일교통량(대)',
-                                         line=dict(color='#ffd200', width=2)),
+                                         line=dict(color=_T['warn'], width=2)),
                               secondary_y=True)
                 fig.update_layout(height=350, template="plotly_white",
                                   margin=dict(t=30, b=30))
@@ -2809,18 +2991,18 @@ def main():
         ratio_to_koex = toll_per_km / koex_toll_per_km
         if ratio_to_koex <= 1.1:
             verdict = "🟢 적정"
-            verdict_color = "#1B5E20"
-            verdict_bg = "#E8F5E9"
+            verdict_color = _T['ok']
+            verdict_bg = _T['ok_bg']
             verdict_msg = f"도공 대비 **{ratio_to_koex:.2f}배** — 정부 적정 기준(1.1배) 이내. 이익공유 대상 제외 가능."
         elif ratio_to_koex <= 1.3:
             verdict = "🟡 경계"
-            verdict_color = "#E65100"
-            verdict_bg = "#FFF3E0"
+            verdict_color = _T['warn']
+            verdict_bg = _T['warn_bg']
             verdict_msg = f"도공 대비 **{ratio_to_koex:.2f}배** — 정부 적정 기준 초과(1.1배), 사회수용 한계 근접. 통행료 협상 가능성."
         else:
             verdict = "🔴 사회수용 한계 초과"
-            verdict_color = "#B71C1C"
-            verdict_bg = "#FFCDD2"
+            verdict_color = _T['bad']
+            verdict_bg = _T['bad_bg']
             verdict_msg = f"도공 대비 **{ratio_to_koex:.2f}배** — 사회수용 한계 초과. 통행료 인하 협상 또는 정부 보전 필요."
         
         col_t4.metric("적정성 판정", verdict)
@@ -2828,7 +3010,7 @@ def main():
         st.markdown(
             f"""<div style="background:{verdict_bg};border-left:5px solid {verdict_color};
                 padding:12px 16px;border-radius:6px;margin:8px 0;">
-                <div style="font-size:13px;color:#333;">
+                <div style="font-size:13px;color:{_T['text']};">
                     {verdict_msg}
                 </div>
             </div>""",
@@ -2844,37 +3026,37 @@ def main():
                 type="rect",
                 x0=0, x1=1, y0=social_acceptance_low, y1=govt_ceiling,
                 xref="paper", yref="y",
-                fillcolor="#E8F5E9", opacity=0.5, line_width=0,
+                fillcolor=_T['ok_bg'], opacity=0.5, line_width=0,
                 layer="below",
             )
             fig_zone.add_shape(
                 type="rect",
                 x0=0, x1=1, y0=govt_ceiling, y1=social_acceptance_high,
                 xref="paper", yref="y",
-                fillcolor="#FFF3E0", opacity=0.5, line_width=0,
+                fillcolor=_T['warn_bg'], opacity=0.5, line_width=0,
                 layer="below",
             )
             fig_zone.add_shape(
                 type="rect",
                 x0=0, x1=1, y0=social_acceptance_high, y1=social_acceptance_high * 1.5,
                 xref="paper", yref="y",
-                fillcolor="#FFCDD2", opacity=0.4, line_width=0,
+                fillcolor=_T['bad_bg'], opacity=0.4, line_width=0,
                 layer="below",
             )
             
             # 기준선 3개
-            fig_zone.add_hline(y=koex_toll_per_km, line_dash="dash", line_color="#1F3864",
+            fig_zone.add_hline(y=koex_toll_per_km, line_dash="dash", line_color=_T['primary'],
                               annotation_text=f"도공 평균 {koex_toll_per_km}원/km", annotation_position="right")
-            fig_zone.add_hline(y=govt_ceiling, line_dash="dash", line_color="#E65100",
+            fig_zone.add_hline(y=govt_ceiling, line_dash="dash", line_color=_T['warn'],
                               annotation_text=f"정부 상한 {govt_ceiling:.0f}원/km (×1.1)", annotation_position="right")
-            fig_zone.add_hline(y=social_acceptance_high, line_dash="dash", line_color="#D32F2F",
+            fig_zone.add_hline(y=social_acceptance_high, line_dash="dash", line_color=_T['bad'],
                               annotation_text=f"사회수용 한계 {social_acceptance_high:.0f}원/km (×1.3)", annotation_position="right")
             
             # 현재 통행료 표시
             fig_zone.add_trace(go.Scatter(
                 x=[0.5], y=[toll_per_km],
                 mode='markers+text',
-                marker=dict(size=20, color='#EF9F27', line=dict(color='#1F3864', width=2)),
+                marker=dict(size=20, color=_T['accent'], line=dict(color=_T['primary'], width=2)),
                 text=[f"<b>현재 {toll_per_km}원/km</b>"],
                 textposition='top center',
                 name='현재 통행료',
@@ -2921,7 +3103,7 @@ def main():
                 fig = go.Figure(data=[go.Pie(
                     labels=['자기자본', '타인자본'],
                     values=[equity_amt, debt_amt],
-                    marker_colors=['#38ef7d', '#667eea'],
+                    marker_colors=[_T['ok'], _T['primary']],
                     hole=0.5,
                     textinfo='label+percent',
                 )])
@@ -2938,12 +3120,12 @@ def main():
         if HAS_PLOTLY and len(debt_df) > 0:
             fig = go.Figure()
             fig.add_trace(go.Bar(x=debt_df['Year'], y=-debt_df['Interest'],
-                                 name='이자', marker_color='#eb3349'))
+                                 name='이자', marker_color=_T['bad']))
             fig.add_trace(go.Bar(x=debt_df['Year'], y=-debt_df['Principal'],
-                                 name='원금', marker_color='#f45c43'))
+                                 name='원금', marker_color=_T['bad']))
             fig.add_trace(go.Scatter(x=debt_df['Year'], y=debt_df['DebtBalance'],
                                      name='잔액', yaxis='y2',
-                                     line=dict(color='#ffd200', width=2)))
+                                     line=dict(color=_T['warn'], width=2)))
             fig.update_layout(
                 height=350, template="plotly_white", barmode='stack',
                 yaxis=dict(title='상환액(억)'),

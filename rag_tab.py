@@ -14,6 +14,8 @@ import os
 import streamlit as st
 from pathlib import Path
 
+import ui_theme
+
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -149,7 +151,8 @@ def ask_rag(system, question):
 # ════════════════════════════════════════════════════════════
 def render_rag_tab():
     """app.py에서 호출하는 메인 함수"""
-    
+    _T = ui_theme.theme()
+
     st.subheader("📚 법제 RAG 자연어 질의응답")
     st.caption("민투법·도로법·민간투자사업기본계획 등 16개 법령(1,963 청크)에서 GPT-4o-mini가 근거를 찾아 답변합니다")
     
@@ -262,9 +265,10 @@ def render_rag_tab():
                 
                 answer_html = item['answer'].replace("\n", "<br>")
                 st.markdown(
-                    f"""<div style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-                                    padding: 16px 20px; border-radius: 8px; 
-                                    color: #1a1a2e; margin: 8px 0;
+                    f"""<div style="background: {_T['surface']};
+                                    border: 1px solid {_T['border']};
+                                    padding: 16px 20px; border-radius: 8px;
+                                    color: {_T['text']}; margin: 8px 0;
                                     line-height: 1.6;">
                         <strong>📝 답변:</strong><br>{answer_html}
                     </div>""",

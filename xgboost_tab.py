@@ -31,14 +31,17 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+import ui_theme
+
 
 # ════════════════════════════════════════════════════════════
 # 등급 분류 기준 (발표·시연용 - 사용자에게 명시 필수)
 # ════════════════════════════════════════════════════════════
+# tone: ui_theme 판정 키(ok/warn/bad) — 실제 색은 렌더 시점에 theme()에서 해석
 GRADE_CRITERIA = {
     "A": {
         "name": "우량",
-        "color": "#1D9E75",
+        "tone": "ok",
         "description": "안정적 수익 + 충분한 상환 능력",
         "conditions": [
             ("영업이익률", "≥", 0.15, "%", 15),
@@ -49,7 +52,7 @@ GRADE_CRITERIA = {
     },
     "B": {
         "name": "양호",
-        "color": "#EF9F27",
+        "tone": "warn",
         "description": "정상 운영, 일부 지표 약함",
         "conditions": [
             ("영업이익률", "≥", 0.05, "%", 5),
@@ -60,7 +63,7 @@ GRADE_CRITERIA = {
     },
     "C": {
         "name": "주의",
-        "color": "#E24B4A",
+        "tone": "bad",
         "description": "적자 또는 상환 부담 과다",
         "conditions": [
             ("영업이익률", "<", 0.00, "%", 0),
@@ -71,6 +74,15 @@ GRADE_CRITERIA = {
         "logic": "OR (하나라도 해당)",
     },
 }
+
+
+def _grade_colors(grade: str) -> tuple:
+    """등급 → (강조색, 배경색). 렌더 시점에 현재 테마에서 해석."""
+    _T = ui_theme.theme()
+    tone = GRADE_CRITERIA.get(grade, {}).get("tone")
+    if tone not in ("ok", "warn", "bad"):
+        return _T['muted'], _T['surface']
+    return _T[tone], _T[f"{tone}_bg"]
 
 
 # 입력 슬라이더 정의 (사용자가 조정할 핵심 지표)
@@ -198,8 +210,9 @@ def calculate_shap_explanation(model_obj, X_pred):
 # ════════════════════════════════════════════════════════════
 def render_grade_criteria_box():
     """등급 분류 기준 명시 박스"""
+    _T = ui_theme.theme()
     st.markdown("### 📋 등급 분류 기준")
-    
+
     cols = st.columns(3)
     for i, (grade, info) in enumerate(GRADE_CRITERIA.items()):
         with cols[i]:
@@ -207,27 +220,28 @@ def render_grade_criteria_box():
                 f"• {c[0]} {c[1]} {c[3] if c[3] != '%' else f'{c[4]}%'}"
                 for c in info["conditions"]
             ])
-            
+            color, bg = _grade_colors(grade)
+
             st.markdown(
-                f"""<div style="background: {info['color']}15;
-                                border-left: 4px solid {info['color']};
+                f"""<div style="background: {bg};
+                                border-left: 4px solid {color};
                                 padding: 14px 18px;
                                 border-radius: 6px;
                                 min-height: 180px;">
-                    <div style="font-size: 18px; font-weight: 600; 
-                                color: {info['color']}; 
+                    <div style="font-size: 18px; font-weight: 600;
+                                color: {color};
                                 margin-bottom: 4px;">
                         {grade}등급 · {info['name']}
                     </div>
-                    <div style="font-size: 12px; color: #666;
+                    <div style="font-size: 12px; color: {_T['muted']};
                                 margin-bottom: 10px;">
                         {info['description']}
                     </div>
-                    <div style="font-size: 13px; color: #1a1a2e;
+                    <div style="font-size: 13px; color: {_T['text']};
                                 line-height: 1.7;">
                         {conditions_html}
                     </div>
-                    <div style="font-size: 11px; color: #999;
+                    <div style="font-size: 11px; color: {_T['muted']};
                                 margin-top: 10px;
                                 font-style: italic;">
                         조건: {info['logic']}
@@ -274,47 +288,48 @@ def render_model_info(meta):
 
 def render_prediction_result(grade, proba_dict):
     """예측 결과 표시"""
+    _T = ui_theme.theme()
     info = GRADE_CRITERIA.get(grade, {})
-    color = info.get("color", "#999")
+    color, bg = _grade_colors(grade)
     name = info.get("name", "분류불가")
     desc = info.get("description", "")
-    
+
     st.markdown(
-        f"""<div style="background: linear-gradient(135deg, 
-                        {color} 0%, 
-                        {color}cc 100%);
-                    color: white;
+        f"""<div style="background: {bg};
+                    border: 1px solid {color};
+                    color: {_T['text']};
                     padding: 24px 28px;
                     border-radius: 10px;
                     text-align: center;
                     margin: 16px 0;">
-            <div style="font-size: 14px; opacity: 0.85; 
+            <div style="font-size: 14px; color: {_T['muted']};
                         margin-bottom: 6px;">
                 XGBoost 예측 결과
             </div>
             <div style="font-size: 48px; font-weight: 700;
+                        color: {color};
                         margin: 8px 0;">
                 {grade}등급
             </div>
-            <div style="font-size: 18px; opacity: 0.95;">
+            <div style="font-size: 18px;">
                 {name} — {desc}
             </div>
         </div>""",
         unsafe_allow_html=True
     )
-    
+
     # 확률 막대
     st.markdown("**🎲 등급별 예측 확률**")
     proba_cols = st.columns(3)
     for i, g in enumerate(["A", "B", "C"]):
         prob = proba_dict.get(g, 0)
-        c = GRADE_CRITERIA[g]["color"]
+        c, c_bg = _grade_colors(g)
         with proba_cols[i]:
             st.markdown(
                 f"""<div style="text-align: center; padding: 12px;
-                                background: {c}10; border-radius: 6px;
+                                background: {c_bg}; border-radius: 6px;
                                 border-top: 4px solid {c};">
-                    <div style="font-size: 13px; color: #666;">
+                    <div style="font-size: 13px; color: {_T['muted']};">
                         {g}등급 ({GRADE_CRITERIA[g]['name']})
                     </div>
                     <div style="font-size: 28px; font-weight: 600;
@@ -372,8 +387,9 @@ def render_shap_explanation(model_obj, X_pred, feature_vec, predicted_grade):
         # SHAP 막대 차트 (Plotly)
         try:
             import plotly.graph_objects as go
-            
-            colors = ["#1D9E75" if d["SHAP"] > 0 else "#E24B4A" for d in top_data]
+
+            _T = ui_theme.theme()
+            colors = [_T['ok'] if d["SHAP"] > 0 else _T['bad'] for d in top_data]
             
             fig = go.Figure(go.Bar(
                 y=[d["변수"] for d in top_data],
@@ -391,7 +407,7 @@ def render_shap_explanation(model_obj, X_pred, feature_vec, predicted_grade):
                 margin=dict(l=120, r=80, t=50, b=40),
                 showlegend=False,
             )
-            fig.add_vline(x=0, line_color="#999", line_width=1)
+            fig.add_vline(x=0, line_color=_T['muted'], line_width=1)
             
             st.plotly_chart(fig, use_container_width=True)
         except ImportError:
@@ -422,7 +438,8 @@ def render_benchmark_comparison(user_inputs, df):
     """학습 데이터와 비교 — 비슷한 사업 찾기"""
     if df is None:
         return
-    
+
+    _T = ui_theme.theme()
     st.markdown("### 🔎 유사 사업 사례 (학습 데이터 59건 중)")
     
     # 핵심 지표 4개로 유사도 계산
@@ -455,10 +472,10 @@ def render_benchmark_comparison(user_inputs, df):
     for i, (_, row) in enumerate(df_with_dist.iterrows()):
         with cols[i]:
             grade = row.get("등급", "?")
-            color = GRADE_CRITERIA.get(grade, {}).get("color", "#999")
-            
+            color, bg = _grade_colors(grade)
+
             st.markdown(
-                f"""<div style="background: {color}10;
+                f"""<div style="background: {bg};
                                 border-top: 4px solid {color};
                                 padding: 12px 16px;
                                 border-radius: 6px;">
@@ -469,11 +486,11 @@ def render_benchmark_comparison(user_inputs, df):
                                 margin: 6px 0;">
                         {row.get('회사명', '?')}
                     </div>
-                    <div style="font-size: 11px; color: #666;">
-                        {row.get('사업연도', '?')}년 · 
+                    <div style="font-size: 11px; color: {_T['muted']};">
+                        {row.get('사업연도', '?')}년 ·
                         <strong style="color: {color};">{grade}등급</strong>
                     </div>
-                    <div style="font-size: 11px; color: #888;
+                    <div style="font-size: 11px; color: {_T['muted']};
                                 margin-top: 8px; line-height: 1.5;">
                         영익률: {pd.to_numeric(row.get('영업이익률', 0), errors='coerce'):.1%}<br>
                         DSCR: {pd.to_numeric(row.get('DSCR_근사', 0), errors='coerce'):.2f}<br>

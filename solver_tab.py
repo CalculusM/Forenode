@@ -15,6 +15,8 @@ import pandas as pd
 from scipy.optimize import brentq
 from typing import Callable, Optional
 
+import ui_theme
+
 # ════════════════════════════════════════════════════════════
 # 이해관계자별 목표 기준 프리셋 — CI·FI 재편('26-07-28): FI 첫자리·SPC 격하·정부=통과 게이트
 # ════════════════════════════════════════════════════════════
@@ -154,18 +156,13 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
     ctx : dict           phase_context (사업유형·자기자본비율 등)
     """
     # ─── 모드 배지 ─────────────────────────────────
+    _T = ui_theme.theme()
     st.markdown(
-        f"""<div style="background:linear-gradient(90deg, #1F3864 0%, #4A6FA5 100%);
-            color:white;padding:14px 18px;border-radius:6px;margin-bottom:14px;">
-            <div style="font-size:13px;opacity:0.85;">분석 모드</div>
-            <div style="font-size:20px;font-weight:bold;margin-top:4px;">
-                🎯 통계 솔버 (Statistical Solver Mode)
-            </div>
-            <div style="font-size:12px;margin-top:8px;opacity:0.9;">
-                정확도 ±20% (학습 통계 신뢰구간) · 
-                BIM 통합 모드 Stage 2 (2026년 7월 경) 출시 예정
-            </div>
-        </div>""",
+        ui_theme.section_header(
+            "분석 모드",
+            "🎯 통계 솔버 (Statistical Solver Mode)",
+            "정확도 ±20% (학습 통계 신뢰구간) · BIM 통합 모드 Stage 2 (2026년 7월 경) 출시 예정",
+        ),
         unsafe_allow_html=True,
     )
 
@@ -200,12 +197,12 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
         preset_priority = preset["priority"]
         with col_d:
             st.markdown(
-                f"""<div style="background:#E3F2FD;border-left:5px solid #1F3864;
+                f"""<div style="background:{_T['accent_bg']};border-left:5px solid {_T['primary']};
                     padding:10px 14px;border-radius:6px;">
-                    <div style="font-weight:bold;color:#1F3864;font-size:14px;">
+                    <div style="font-weight:bold;color:{_T['primary']};font-size:14px;">
                         {preset['icon']} {group_name}
                     </div>
-                    <div style="font-size:12px;color:#555;margin-top:4px;">
+                    <div style="font-size:12px;color:{_T['muted']};margin-top:4px;">
                         {preset['description']}<br>
                         <b>우선순위</b>: {preset['priority']}
                     </div>
@@ -289,12 +286,12 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
     
     if all_met:
         st.markdown(
-            """<div style="background:#E8F5E9;border-left:5px solid #1B5E20;
+            f"""<div style="background:{_T['ok_bg']};border-left:5px solid {_T['ok']};
                 padding:14px 18px;border-radius:6px;margin:10px 0;">
-                <div style="font-weight:bold;color:#1B5E20;font-size:16px;">
+                <div style="font-weight:bold;color:{_T['ok']};font-size:16px;">
                     ✅ 모든 요구수익률 충족 — 현재 사업 조건으로 진행 가능
                 </div>
-                <div style="font-size:13px;color:#444;margin-top:6px;">
+                <div style="font-size:13px;color:{_T['muted']};margin-top:6px;">
                     별도 조정 없이 사업 추진 가능. 추가 마진 확보 시 시나리오 솔버 활용.
                 </div>
             </div>""",
@@ -302,12 +299,12 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
         )
     else:
         st.markdown(
-            """<div style="background:#FFEBEE;border-left:5px solid #C62828;
+            f"""<div style="background:{_T['bad_bg']};border-left:5px solid {_T['bad']};
                 padding:14px 18px;border-radius:6px;margin:10px 0;">
-                <div style="font-weight:bold;color:#C62828;font-size:16px;">
+                <div style="font-weight:bold;color:{_T['bad']};font-size:16px;">
                     ❌ 일부 요구수익률 미달 — 변수 조정 필요
                 </div>
-                <div style="font-size:13px;color:#444;margin-top:6px;">
+                <div style="font-size:13px;color:{_T['muted']};margin-top:6px;">
                     아래 4단계에서 자동 도출된 3가지 시나리오를 검토하세요.
                 </div>
             </div>""",
@@ -450,12 +447,12 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
         st.dataframe(df_sc, use_container_width=True, hide_index=True)
         
         st.markdown(
-            """<div style="background:#FFF3E0;border-left:5px solid #EF9F27;
+            f"""<div style="background:{_T['warn_bg']};border-left:5px solid {_T['warn']};
                 padding:14px 18px;border-radius:6px;margin:10px 0;">
-                <div style="font-weight:bold;color:#1F3864;font-size:14px;">
+                <div style="font-weight:bold;color:{_T['primary']};font-size:14px;">
                     💼 권장 시나리오 선정 기준
                 </div>
-                <div style="font-size:12px;color:#444;margin-top:6px;">
+                <div style="font-size:12px;color:{_T['muted']};margin-top:6px;">
                     <b>A 통행료 인상</b>: 즉시 조정 가능, 사회수용성 위험<br>
                     <b>B MRG 협상</b>: 정부와 협상 필요, 사업 구조적 안정성 ↑<br>
                     <b>C 운영기간 연장</b>: 장기 관점, 관리운영권 협상 필요<br>
