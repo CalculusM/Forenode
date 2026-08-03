@@ -1165,6 +1165,9 @@ def main():
         for _k in ("road_length", "total_capex", "daily_traffic"):
             if _k in _preset:
                 st.session_state[f"_lk_{_k}"] = _preset[_k]
+        if "daily_traffic" in _preset:
+            # 프리셋은 협약 예시값(예측치 보유 케이스) — 선택 입력을 자동으로 켠다
+            st.session_state["have_traffic_forecast"] = True
         st.session_state["_preset_applied"] = preset_choice
 
     # ─── 사업 유형 (최상단, 다른 변수의 기본값을 결정) ───
@@ -1195,16 +1198,18 @@ def main():
     _bd = _BIZ_DEFAULTS.get(business_type) or _BIZ_FALLBACK[business_type]
     st.sidebar.caption(f"※ {_bd['desc']}")
 
-    # ─── 필수 입력 여섯 칸 (사업 유형 + 아래 다섯) — 나머지는 실측 자료가 자동 채움 ───
-    st.sidebar.subheader("🧾 필수 입력 여섯 칸")
+    # ─── 필수 입력값 (사업 유형 + 아래 넷 = 다섯) — 나머지는 실측 자료가 자동 채움 ───
+    # '26-08-03 개편: 일 통행량은 선택 입력으로 강등 — 서면 실증(6건/5개사) 결과 견적·원가
+    # 라인은 수요 예측치를 만들지 않는다. 없으면 문턱(정부 게이트) 역산이 기준 교통량을 정한다.
+    st.sidebar.subheader("🧾 필수 입력값")
     st.sidebar.caption(
-        "사업 유형·연장·총사업비·일 통행량·통행료·운영 기간 — 이 여섯 개만 넣으면 "
-        "나머지 30여 항목은 실측 자료 기반 자동값이 채웁니다. 전부 수정 가능하며 "
-        "각 항목 ⓘ에 값의 출처가 적혀 있습니다."
+        "사업 유형·연장·총사업비·통행료·운영 기간 — 이 다섯 개만 넣으면 나머지 30여 항목은 "
+        "실측 자료 기반 자동값이 채웁니다. 전부 수정 가능하며 각 항목 ⓘ에 값의 출처가 "
+        "적혀 있습니다. 일 통행량(수요 예측치)은 필수가 아닙니다 — 없으면 필요한 교통량을 "
+        "역산해 '사업성 문턱' 기준으로 시작합니다."
     )
     road_length = linked_slider_input("연장(km)", 5, 200, 45, 1, "road_length")
     total_capex = linked_slider_input("총사업비(억)", 1000, 100000, 20725, 100, "total_capex")
-    daily_traffic = linked_slider_input("일통행량(대)", 5000, 200000, 110000, 500, "daily_traffic")
     _toll_default = _preset.get("toll_per_km", _bd["toll"] if _bd["toll"] > 0 else 80)
     toll_per_km = st.sidebar.slider(
         "통행료 km단가(원)", 20, 300, _toll_default, 5,
@@ -1213,6 +1218,14 @@ def main():
     operation_years = st.sidebar.slider(
         "운영기간(년)", 15, 50, _preset.get("operation_years", 30),
         help="자동값 30년 — 출처: 국내 민자도로 실시협약 표준 운영기간(BTO 30년 관행).")
+    _have_fc = st.sidebar.toggle(
+        "일 통행량 예측치 입력(선택)", key="have_traffic_forecast",
+        help="회사가 보유한 수요 예측치가 있을 때만 켜세요. 없으면 '사업성 문턱'(정부 게이트 "
+             "통과 최소 교통량)을 역산해 그 수준을 기준으로 화면을 계산합니다 — 예측은 하지 "
+             "않습니다. 예측치를 넣으면 낙관도 보정·입력 대비 문턱 비율이 추가로 열립니다.")
+    daily_traffic = (
+        linked_slider_input("일통행량(대)", 5000, 200000, 110000, 500, "daily_traffic")
+        if _have_fc else None)
 
     # ─── 노선·수요 상세 (접힘) ───
     with st.sidebar.expander("▼ 노선·수요 상세 (건설기간·지형·성장률)"):
@@ -1469,20 +1482,55 @@ def main():
             st.sidebar.info(f"물가상승률: {params['inflation']*100:.2f}%")
         st.sidebar.caption(f"갱신: {params.get('updated_at','')}")
 
-    # ── 수익 추정 ──
-    toll_df = estimate_toll_revenue(
-        road_length, daily_traffic, toll_per_km,
-        growth / 100, heavy_ratio / 100, heavy_surcharge, operation_years
-    )
-    ann_rev = toll_df['Revenue_억'].iloc[0] if len(toll_df) > 0 else 500
-
-    # WACC 계산 (선순위·후순위 분리 반영)
+    # WACC 계산 (선순위·후순위 분리 반영 — 교통량과 무관하므로 먼저)
     wacc_info = calc_wacc_detail(
         rf=base_rate, mrp=capm_mrp, beta=capm_beta,
         equity_ratio=equity_ratio, debt_rate=debt_rate, tax_rate=tax_rate,
         senior_ratio=senior_ratio, senior_rate=senior_rate, sub_rate=sub_rate,
         ke=ke,
     )
+
+    # ── 예측치 미입력 모드 — 사업성 문턱(정부 게이트) 역산으로 기준 교통량을 정한다 ──
+    # 서면 실증('26-08-03 재독, 6건/5개사): 견적·원가 라인은 교통량 예측치를 만들지 않는다.
+    # 부트스트랩은 운영비 매출비례(수동값 또는 유형 기본)로 풀고, 본 계산은 이 앵커로 재산출
+    # — 예측·학습이 아니라 현금흐름 엔진의 결정론 역산이다(reverse_solver 검증 명세).
+    traffic_is_forecast = daily_traffic is not None
+    if not traffic_is_forecast:
+        import reverse_solver as _rsv0
+        _boot_K = _rsv0.traffic_revenue_coeff(
+            road_length, toll_per_km, heavy_ratio / 100, heavy_surcharge)
+        _boot_params = {
+            'capex_억': total_capex, 'annual_revenue_억': 500.0,
+            'construction_years': construction_years, 'operation_years': operation_years,
+            'opex_ratio': (opex_ratio_manual if opex_ratio_manual is not None
+                           else _bd['opex'] / 100),
+            'opex_series_억': None,
+            'discount_rate': wacc_info['wacc'], 'inflation': infl / 100,
+            'growth_rate': growth / 100, 'equity_ratio': equity_ratio,
+            'debt_rate': debt_rate, 'senior_ratio': senior_ratio,
+            'senior_rate': senior_rate, 'tax_rate': tax_rate,
+            'business_type': business_type, 'mrg_ratio': mrg_ratio,
+            'mcc_ratio': mcc_ratio, 'restructuring_year': restructuring_year,
+            'restructuring_toll_adj': 1 + restructuring_toll_cut / 100,
+            'equity_recovery_method': equity_recovery_method,
+            'debt_repayment_method': debt_repayment_method,
+        }
+        _boot_seek = _rsv0.min_revenue_for(
+            _boot_params, build_cashflow, _rsv0.make_predicate("gov"))
+        if _boot_seek.get("min_rev") and _boot_K > 0:
+            daily_traffic = int(round(_boot_seek["min_rev"] / _boot_K))
+        else:
+            daily_traffic = 45000
+            st.sidebar.warning(
+                "문턱 역산이 탐색 범위를 벗어나 기준 교통량을 임시값(45,000대)으로 두었습니다 "
+                "— 통행료·운영기간을 조정해 보세요.")
+
+    # ── 수익 추정 ──
+    toll_df = estimate_toll_revenue(
+        road_length, daily_traffic, toll_per_km,
+        growth / 100, heavy_ratio / 100, heavy_surcharge, operation_years
+    )
+    ann_rev = toll_df['Revenue_억'].iloc[0] if len(toll_df) > 0 else 500
 
     # ── OPEX 자동 산출 (학습 데이터 기반) ──
     opex_estimation = estimate_opex_series(
@@ -1686,6 +1734,15 @@ def main():
         'termination_payment': total_capex,
     }
 
+    # ── 예측치 미입력 배지 — 아래 수지는 '문턱 수준' 기준임을 분명히 한다 ──
+    if not traffic_is_forecast:
+        st.info(
+            "🎯 **일 통행량 예측치 없이 시작했습니다** — 필요한 교통량은 앱이 역산합니다. "
+            f"아래 수지·지표는 **사업성 문턱 수준(≈ 일 {daily_traffic:,}대 — 정부 게이트 통과 "
+            "최소)** 기준이며, 기준별 문턱·흑자 전환 연차·권장 협약 수요는 "
+            "'⏱ 예타 사전 시뮬 ▸ 사업성 문턱'에 있습니다. 회사 예측치가 있으면 사이드바 "
+            "'일 통행량 예측치 입력(선택)'을 켜세요.")
+
     # KPI 카드 — 핵심 4종 (나머지 3종은 '전체 지표 보기'로 이동, 2026-07 UI 개편)
     _eirr = metrics.get('equity_irr', float('nan'))
     _eirr_ok = _eirr == _eirr  # NaN guard
@@ -1779,8 +1836,8 @@ def main():
         _gc1, _gc2, _gc3, _gc4 = st.columns(4)
         _gc1.metric(
             "수요 실현 중앙값", f"{_b_dicon} {_b_db['median_ratio']*100:.0f}%",
-            help=f"입력 교통량은 과거 실적 분포 기준, 예측의 {_b_db['median_ratio']*100:.0f}%가 "
-                 f"실현 중앙값입니다. {_b_db['flag']}.")
+            help=f"과거 실적 분포에서 예측 대비 실현 중앙값은 {_b_db['median_ratio']*100:.0f}%"
+                 f"입니다. {_b_db['flag']}.")
         _gc2.metric(
             "재협상 트리거 확률", f"{_tg_icon} {_b_p70*100:.0f}%",
             help=f"실측이 협약 대비 {_TR['ratio_threshold']*100:.0f}% 미달에 머물 확률 — "
@@ -1887,13 +1944,15 @@ def main():
     if _gov_min_traffic and daily_traffic:
         _p3_sp = (f"흑자 전환 운영 {_gov_sy['first_profit_op_year']}년차부터"
                   if _gov_sy['first_profit_op_year'] else "그 수준에서도 당기 흑자 미달")
-        _l1 = (f"{_p3_name}: 일 통행량 {_gov_min_traffic:,.0f}대(입력의 "
-               f"{_gov_min_traffic/daily_traffic*100:.0f}%)를 넘으면 정부 게이트 통과 — {_p3_sp} 사업성 확보")
+        _p3_vs = (f"(입력의 {_gov_min_traffic/daily_traffic*100:.0f}%)"
+                  if traffic_is_forecast else "(예측치 없이 역산)")
+        _l1 = (f"{_p3_name}: 일 통행량 {_gov_min_traffic:,.0f}대{_p3_vs}를 넘으면 "
+               f"정부 게이트 통과 — {_p3_sp} 사업성 확보")
     else:
         _l1 = f"{_p3_name}: 교통량 축만으로는 정부 게이트 미달(수입 3배 탐색 상한) — 통행료·기간 조정 검토 필요"
     _l2 = (f"자동 채움 값 전 항목 출처 표기 · 자동값 수정 {len(_overrides)}건 병기(자동값→회사값)"
            if _overrides else "자동 채움 값 전 항목 출처 표기 · 자동값 수정 없음")
-    _l3 = "검증: 국내 21개 사업 협약vs실적 대사 — 관측 95건 중 67건 적중(미적중 28건 공개)"
+    _l3 = "검증: 국내 22개 사업 대상 협약vs실적 대사 — 관측 98건 중 70건 적중, 미적중 28건 공개"
     with st.expander("📋 부서 보고용 세 줄 — 복사해 그대로 상신", expanded=False):
         st.code(f"· {_l1}\n· {_l2}\n· {_l3}", language=None)
         st.caption("우측 상단 복사 아이콘으로 복사됩니다. — 정식 적격성 판정이 아님(KDI PIMAC 별도) · 근거 미확보 값은 ✚ 빈칸.")
@@ -2048,6 +2107,7 @@ def main():
                 "mcc_ratio": round(float(mcc_ratio), 4),
                 "restructuring_year": restructuring_year,
                 "daily_traffic": daily_traffic,
+                "traffic_is_forecast": traffic_is_forecast,
                 "growth_pct": growth,
                 "heavy_ratio_pct": heavy_ratio,
                 "toll_per_km_won": toll_per_km,
@@ -2175,9 +2235,11 @@ def main():
                 _ci_rs_ratio = _gov_min_traffic / daily_traffic if daily_traffic else float('nan')
                 _ci_rs_sp = (f"흑자 전환이 운영 {_gov_sy['first_profit_op_year']}년차부터 시작되어"
                              if _gov_sy['first_profit_op_year'] else "단, 당기 흑자는 기간 내 미달로")
+                _ci_vs = (f"(입력의 {_ci_rs_ratio*100:.0f}%)"
+                          if (traffic_is_forecast and daily_traffic) else "(예측치 없이 역산)")
                 st.info(
-                    f"🎯 **사업성 문턱** — 일 통행량 **{_gov_min_traffic:,.0f}대**(입력의 "
-                    f"{_ci_rs_ratio*100:.0f}%)를 넘으면 정부 게이트를 통과하고 {_ci_rs_sp} 사업성이 확보됩니다. "
+                    f"🎯 **사업성 문턱** — 일 통행량 **{_gov_min_traffic:,.0f}대**{_ci_vs}를 "
+                    f"넘으면 정부 게이트를 통과하고 {_ci_rs_sp} 사업성이 확보됩니다. "
                     f"기준별 문턱·실현율 시나리오 ▸ **⏱ 예타 사전 시뮬**.")
             else:
                 st.warning(
@@ -2298,22 +2360,28 @@ def main():
                 )
                 _prior = st.selectbox("벤치마크 분포(prior)", list(BENCHMARK_PRIORS.keys()),
                                       key="demand_prior")
-                _db = demand_optimism_band(daily_traffic, prior=_prior)
-                _icon = {"high": "🔴", "mid": "🟡", "low": "🟢"}.get(_db["level"], "⚪")
-                st.markdown(
-                    f"입력(예측) **{daily_traffic:,}대/일** → 과거 실적 보정 시 "
-                    f"**실제 가능 중앙값 {_db['p50']:,.0f}대/일** (예측의 {_db['median_ratio']*100:.0f}%) · "
-                    f"P10~P90 **{_db['p10']:,.0f}~{_db['p90']:,.0f}**")
-                st.markdown(f"{_icon} **{_db['flag']}** — 예측 대비 평균 미달폭 약 **{_db['haircut_pct']:.0f}%**")
-                _rb = revenue_haircut_band(ann_rev, prior=_prior)
-                st.caption(
-                    f"수입 환산(교통량 선형 가정): 연매출 {ann_rev:,.0f}억 → 보정 P10~P90 ≈ "
-                    f"**{_rb['p10_revenue']:,.0f}~{_rb['p90_revenue']:,.0f}억** "
-                    f"(중앙 {_rb['p50_revenue']:,.0f}억). 근거: {_db['source']}")
-                st.caption("reference-class 추정 밴드 — 노선별 예측↔실측 매칭 시 정밀화.")
-                st.caption(
-                    "ⓘ prior는 '교통량' 기준. '수입' 기준은 체계적으로 더 낮음(협약 대비 통행료 수입 "
-                    "10년 평균 62.3% vs 교통량 81.4% — KOTI RR-25-10 p.45·p.140) — 수입 기준 점검 시 별도 보정.")
+                if not traffic_is_forecast:
+                    st.info(
+                        "낙관도 보정은 **회사 예측치가 있을 때** 여는 화면입니다 — 지금은 "
+                        "예측치 없이 문턱 기준으로 계산 중이라 보정할 예측이 없습니다. "
+                        "사이드바 '일 통행량 예측치 입력(선택)'을 켜면 열립니다.")
+                else:
+                    _db = demand_optimism_band(daily_traffic, prior=_prior)
+                    _icon = {"high": "🔴", "mid": "🟡", "low": "🟢"}.get(_db["level"], "⚪")
+                    st.markdown(
+                        f"입력(예측) **{daily_traffic:,}대/일** → 과거 실적 보정 시 "
+                        f"**실제 가능 중앙값 {_db['p50']:,.0f}대/일** (예측의 {_db['median_ratio']*100:.0f}%) · "
+                        f"P10~P90 **{_db['p10']:,.0f}~{_db['p90']:,.0f}**")
+                    st.markdown(f"{_icon} **{_db['flag']}** — 예측 대비 평균 미달폭 약 **{_db['haircut_pct']:.0f}%**")
+                    _rb = revenue_haircut_band(ann_rev, prior=_prior)
+                    st.caption(
+                        f"수입 환산(교통량 선형 가정): 연매출 {ann_rev:,.0f}억 → 보정 P10~P90 ≈ "
+                        f"**{_rb['p10_revenue']:,.0f}~{_rb['p90_revenue']:,.0f}억** "
+                        f"(중앙 {_rb['p50_revenue']:,.0f}억). 근거: {_db['source']}")
+                    st.caption("reference-class 추정 밴드 — 노선별 예측↔실측 매칭 시 정밀화.")
+                    st.caption(
+                        "ⓘ prior는 '교통량' 기준. '수입' 기준은 체계적으로 더 낮음(협약 대비 통행료 수입 "
+                        "10년 평균 62.3% vs 교통량 81.4% — KOTI RR-25-10 p.45·p.140) — 수입 기준 점검 시 별도 보정.")
             with _vc2:
                 st.markdown("**🏅 예비 신용등급 (근사)**")
                 _dmin = metrics.get('dscr_min', float('nan'))
@@ -2431,7 +2499,8 @@ def main():
                 _th_rows.append({
                     "기준": _th_label,
                     "문턱 교통량(대/일)": f"{_th_tr:,.0f}",
-                    "입력 대비": f"{_th_tr/daily_traffic*100:.0f}%" if daily_traffic else "—",
+                    "입력 대비": (f"{_th_tr/daily_traffic*100:.0f}%"
+                              if (traffic_is_forecast and daily_traffic) else "—"),
                     "그 수준의 흑자 전환": (f"운영 {_th_sy['first_profit_op_year']}년차"
                                      if _th_sy['first_profit_op_year'] else "전 기간 적자"),
                     "누적 회수": (f"운영 {_th_sy['payback_op_year']}년차"
@@ -2444,10 +2513,16 @@ def main():
                                  "누적 회수": "—", "_traffic": None})
         _th_gov = _th_rows[0]
         if _th_gov["_traffic"]:
+            _th_vs = (f" — 입력({daily_traffic:,}대/일)의 {_th_gov['입력 대비']} 수준입니다."
+                      if traffic_is_forecast else " — 예측치 없이 역산한 값입니다.")
             st.success(
                 f"일 통행량 **{_th_gov['_traffic']:,.0f}대**를 넘으면 정부 게이트(현가비≥1·NPV≥0)를 "
                 f"통과하고, 흑자 전환이 **{_th_gov['그 수준의 흑자 전환']}**부터 시작되어 사업성이 "
-                f"확보됩니다 — 입력({daily_traffic:,}대/일)의 {_th_gov['입력 대비']} 수준입니다.")
+                f"확보됩니다{_th_vs}")
+            st.info(
+                f"📝 제안(협약) 수요 권장선: **{_th_gov['_traffic']/0.814:,.0f}대/일 이상** — "
+                f"과거 실측 평균 실현율 81.4%(국토부 2025, 22개 노선)를 감안해도 문턱 "
+                f"{_th_gov['_traffic']:,.0f}대를 넘기려면, 협약(제안) 수요는 이 위로 잡아야 합니다.")
         else:
             st.error(
                 "교통량 축만으로는 정부 게이트 미달(수입 3배 탐색 상한) — "
@@ -2457,7 +2532,7 @@ def main():
         st.dataframe(_th_df, use_container_width=True, hide_index=True)
         try:
             from demand_bias import prob_ratio_below as _rv_prb
-            if _th_gov["_traffic"] and daily_traffic:
+            if _th_gov["_traffic"] and daily_traffic and traffic_is_forecast:
                 _rv_ratio = _th_gov["_traffic"] / daily_traffic
                 _rv_p = _rv_prb(_rv_ratio)
                 _rv_icon = "🔴" if _rv_p >= 0.50 else ("🟡" if _rv_p >= 0.25 else "🟢")
@@ -2484,6 +2559,10 @@ def main():
 
         # ── 📉 실현율 시나리오 — "예측 대비 실제가 X%라면" (W2 개정) ──
         st.markdown("**📉 실현율 시나리오 — 예측 대비 실제가 X%라면**")
+        if not traffic_is_forecast:
+            st.caption(
+                "기준 수요 = **사업성 문턱 수준**(예측치 미입력) — 협약 수요를 문턱으로 잡았을 "
+                "때 실제 실현이 그보다 낮으면 어떻게 되는지의 하방 전개입니다.")
         st.caption(
             "협약(입력) 교통량은 그대로 두고 **실제 실현만 낮춘** 시나리오입니다 — "
             "MRG 보전은 협약 기준수입으로 정확히 발동합니다. 앵커 2종(실측): "
