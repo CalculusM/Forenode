@@ -689,6 +689,80 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
 # ════════════════════════════════════════════════════════════
 # 자가 검증
 # ════════════════════════════════════════════════════════════
+def generate_one_pager(one: dict, project_name: str = "민자도로 검토 사업") -> bytes:
+    """한 장 요약 PDF — 회의실에 들고 가는 문서('26-08-04 개선 5).
+
+    구성 4요소: ① 판정 문장 ② 사업성 문턱 표 ③ 가장 유력한 시나리오 ④ 출처.
+    one = {business_type, road_length, operation_years, total_capex, anchor_label,
+           verdict, threshold_rows: [[기준, 문턱(대/일), 흑자 전환, 누적 회수], ...],
+           likely, kpi: [[라벨, 값], ...], sources: [str, ...]}
+    """
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=16 * mm, rightMargin=16 * mm, topMargin=14 * mm, bottomMargin=12 * mm)
+    styles = getSampleStyleSheet()
+    h = ParagraphStyle('OpTitle', parent=styles['Title'], fontName=_KOR_FONT,
+                       fontSize=18, alignment=TA_LEFT, spaceAfter=2,
+                       textColor=colors.HexColor(_PDF['primary']))
+    sub = ParagraphStyle('OpSub', parent=styles['Normal'], fontName=_KOR_FONT,
+                         fontSize=9, alignment=TA_LEFT, spaceAfter=8,
+                         textColor=colors.HexColor(_PDF['muted']))
+    sec = ParagraphStyle('OpSec', parent=styles['Heading2'], fontName=_KOR_FONT,
+                         fontSize=12, alignment=TA_LEFT, spaceBefore=8, spaceAfter=4,
+                         textColor=colors.HexColor(_PDF['primary']))
+    body = ParagraphStyle('OpBody', parent=styles['Normal'], fontName=_KOR_FONT,
+                          fontSize=10.5, alignment=TA_LEFT, spaceAfter=4, leading=15)
+    cap = ParagraphStyle('OpCap', parent=styles['Normal'], fontName=_KOR_FONT,
+                         fontSize=8, alignment=TA_LEFT, leading=11,
+                         textColor=colors.HexColor(_PDF['muted']))
+
+    def _tbl(data, widths, header=True):
+        t = Table(data, colWidths=widths)
+        style = [
+            ('FONTNAME', (0, 0), (-1, -1), _KOR_FONT),
+            ('FONTSIZE', (0, 0), (-1, -1), 9.5),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor(_PDF['border'])),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ]
+        if header:
+            style += [('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(_PDF['surface'])),
+                      ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(_PDF['primary']))]
+        t.setStyle(TableStyle(style))
+        return t
+
+    story = [
+        Paragraph(f"Forenode 한 장 요약 · {project_name}", h),
+        Paragraph(
+            f"{one.get('business_type', '')} · 연장 {one.get('road_length', '')}km · "
+            f"총사업비 {one.get('total_capex', 0):,}억 · 운영 {one.get('operation_years', '')}년 · "
+            f"기준 수요: {one.get('anchor_label', '')} · 생성 {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            sub),
+        Paragraph("① 판정", sec),
+        Paragraph(one.get('verdict', ''), body),
+        Paragraph("② 사업성 문턱 (기준별 최소 교통량)", sec),
+        _tbl([["기준", "문턱 교통량(대/일)", "흑자 전환", "누적 회수"]] + one.get('threshold_rows', []),
+             [62 * mm, 40 * mm, 38 * mm, 38 * mm]),
+        Paragraph("③ 가장 유력한 시나리오 (실측 분포 기준)", sec),
+        Paragraph(one.get('likely', ''), body),
+        Paragraph("④ 핵심 지표 (기준 수요 기준)", sec),
+        _tbl([[k for k, _ in one.get('kpi', [])], [v for _, v in one.get('kpi', [])]],
+             [44.5 * mm] * max(1, len(one.get('kpi', []))), header=True),
+        Paragraph("출처·검증", sec),
+    ]
+    for s in one.get('sources', []):
+        story.append(Paragraph(f"· {s}", cap))
+    story.append(Spacer(1, 4 * mm))
+    story.append(Paragraph(
+        "본 요약은 Forenode가 자동 생성했습니다. 정식 적격성 판정(KDI PIMAC)이 아니며, "
+        "모든 수치의 계산 경로와 원본 출처는 앱 화면의 각 항목에서 확인할 수 있습니다.", cap))
+    doc.build(story)
+    return buf.getvalue()
+
+
 if __name__ == "__main__":
     print("PDF 생성 자가 검증")
     
