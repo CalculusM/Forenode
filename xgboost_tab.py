@@ -312,7 +312,7 @@ def render_prediction_result(grade, proba_dict):
                 {grade}등급
             </div>
             <div style="font-size: 18px;">
-                {name} — {desc}
+                {name}: {desc}
             </div>
         </div>""",
         unsafe_allow_html=True
@@ -400,7 +400,7 @@ def render_shap_explanation(model_obj, X_pred, feature_vec, predicted_grade):
                 textposition="outside",
             ))
             fig.update_layout(
-                title=f"{predicted_grade}등급 예측 — SHAP 기여도 Top 8",
+                title=f"{predicted_grade}등급 예측: SHAP 기여도 Top 8",
                 xaxis_title="SHAP 값 (등급 예측에 미치는 영향)",
                 yaxis=dict(autorange="reversed"),
                 height=400,
@@ -540,7 +540,7 @@ def render_xgboost_tab():
     st.info(
         "💡 **학습 데이터 구성 원칙**: "
         "한국 신용평가 관행 + 민자 BTO 사업의 실제 운영 패턴을 반영한 룰 기반 라벨링. "
-        "벤치마크 — 천안논산고속도로 DSCR 1.29 → B등급, 제이영동고속도로 DSCR 0.31 → C등급."
+        "벤치마크: 천안논산고속도로 DSCR 1.29 → B등급, 제이영동고속도로 DSCR 0.31 → C등급."
     )
     
     # ── 3. 입력 + 예측 ──
@@ -582,13 +582,13 @@ def render_xgboost_tab():
     
     # ── 6. 케이스 스터디 ──
     st.markdown("---")
-    with st.expander("📚 학습 데이터 분석 — 등급별 SHAP 패턴"):
+    with st.expander("📚 학습 데이터 분석: 등급별 SHAP 패턴"):
         st.markdown("""
         #### 등급별 결정 변수 (학습 데이터 SHAP 분석 결과)
         
         **A등급 (28건)**
         - 결정 변수: **DSCR_근사** (압도적)
-        - 패턴: DSCR이 명확히 양극화 — 1.30 이상이면 거의 확실히 A
+        - 패턴: DSCR이 명확히 양극화. 1.30 이상이면 거의 확실히 A
         - 예: 신대구부산고속도로 (DSCR 평균 1.6+)
         
         **C등급 (25건)**
@@ -619,8 +619,8 @@ def render_xgboost_tab():
         - 부채비율: 5~6배 (B등급 한계)
         
         **구조적 원인 (도메인 지식)**:
-        해상교량 특유의 유지관리비 부담 — 염해 방지, 케이블 검사, 
-        해양 환경 모니터링 등이 수익성을 압박하는 패턴이 모델에 학습됨.
+        염해 방지, 케이블 검사, 해양 환경 모니터링 등
+        해상교량 특유의 유지관리비 부담이 수익성을 압박하는 패턴이 모델에 학습됨.
         
         **시사점**: 신규 해상교량 사업 입찰 평가 시 동일 패턴 예상 가능.
         """)

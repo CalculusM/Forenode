@@ -60,7 +60,7 @@ def render_phase_pretest(ctx: dict):
         ),
     )
 
-    st.markdown("#### ⏱ 예타 사전 시뮬 — 이대로 제안하면 어떤 항목에 걸리는가")
+    st.markdown("#### ⏱ 예타 사전 시뮬: 이대로 제안하면 어떤 항목에 걸리는가")
     st.caption(
         "**활용 주체**: FI(인프라펀드)·건설사(CI) 사업 발굴 부서 · 자문사 | "
         "**분석 업무**: 제안 전 통과 가능성 사전 정량화 · 수익성 간이판정 · 시나리오 반복 비교"
@@ -156,9 +156,9 @@ def render_phase_pretest(ctx: dict):
     st.markdown("")
 
     # D. 수익성 간이판정 (구 'VfM' 표기 제거 — '26-07 실무 정합 감사)
-    st.markdown("##### ⚖️ 수익성 간이판정 — 수입/비용 현가비율 기반")
+    st.markdown("##### ⚖️ 수익성 간이판정 (수입/비용 현가비율 기반)")
     st.caption(
-        "※ 본 판정은 Forenode 자체 간이규약(재무 축)이며 **정식 예타 통과 판정(KDI PIMAC 적격성·AHP)이 아닙니다** — "
+        "※ 본 판정은 Forenode 자체 간이규약(재무 축)이며 **정식 예타 통과 판정(KDI PIMAC 적격성·AHP)이 아닙니다**. "
         "임계·문구 단일 출처: config/finance_params.json."
     )
 
@@ -233,7 +233,7 @@ def render_phase_construction(ctx: dict):
         ),
     )
 
-    st.markdown("#### 🏗 시공·자금조달 단계 — Technical Due Diligence")
+    st.markdown("#### 🏗 시공·자금조달 단계 (Technical Due Diligence)")
     st.caption(
         "**활용 주체**: FI 선순위 대주단 · CI(시공·출자) · 자문사 | "
         "**분석 업무**: 자금조달 구조 검증, 시공 리스크 평가, 공기·공사비 위험 시뮬레이션"
@@ -318,7 +318,7 @@ def render_phase_construction(ctx: dict):
     # A. LTA (대주단) 관점
     # ════════════════════════════════════════════════════════════
     if "LTA" in perspective or "통합" in perspective:
-        st.markdown("##### 📐 LTA (Lender's Technical Advisor) — 대주단 관점")
+        st.markdown("##### 📐 LTA (Lender's Technical Advisor): 대주단 관점")
         st.caption(
             "대주단은 **부도 위험·DSCR 안정성·시공 일정 준수**가 핵심 관심사. "
             "선순위 대출 회수 가능성을 정량 평가합니다."
@@ -521,7 +521,7 @@ def render_phase_construction(ctx: dict):
             f"""<div style="background:{risk_bg};border-left:5px solid {risk_color};
                 padding:14px 18px;border-radius:6px;margin:8px 0;">
                 <div style="font-weight:bold;color:{risk_color};font-size:16px;">
-                    {risk_level} — 최소 DSCR {dscr_min_lta:.2f}
+                    {risk_level} (최소 DSCR {dscr_min_lta:.2f})
                 </div>
                 <div style="margin-top:6px;font-size:13px;color:{_T['text']};">
                     {risk_msg}
@@ -537,7 +537,7 @@ def render_phase_construction(ctx: dict):
     # B. STA (사업주) 관점
     # ════════════════════════════════════════════════════════════
     if "STA" in perspective or "통합" in perspective:
-        st.markdown("##### 🏢 STA (Sponsor's Technical Advisor) — 사업주 관점")
+        st.markdown("##### 🏢 STA (Sponsor's Technical Advisor): 사업주 관점")
         st.caption(
             "사업주는 **자기자본 회수율(ROE)·공기 준수·공사비 통제**가 핵심 관심사. "
             "CI/FI/SI 자본 구성과 시공 위험 분담을 정량 평가합니다."
@@ -546,7 +546,7 @@ def render_phase_construction(ctx: dict):
         # CI/FI/SI 자기자본 구성 (보완 9 흡수)
         st.markdown("**💼 자기자본 구성 (CI · FI · SI)**")
         st.caption(
-            "민자 자기자본은 **CI(건설)·FI(금융)·SI(운영)** 3그룹으로 구성 — 비율은 사업유형별 상이."
+            "민자 자기자본은 **CI(건설)·FI(금융)·SI(운영)** 3그룹으로 구성되며, 비율은 사업유형별로 다릅니다."
         )
         
         # 사업유형별 CI/FI/SI 기본값 (실무 관행 기반)
@@ -562,21 +562,21 @@ def render_phase_construction(ctx: dict):
         col_cifi1, col_cifi2, col_cifi3 = st.columns(3)
         with col_cifi1:
             ci_ratio = st.slider(
-                "CI 비중(%) — 건설투자자",
+                "CI(건설투자자) 비중(%)",
                 0, 100, default["ci"], 5,
                 key="phase2_ci_ratio",
                 help="건설 기성금 수익 목적. 시공사 컨소시엄의 출자 비율",
             )
         with col_cifi2:
             fi_ratio = st.slider(
-                "FI 비중(%) — 금융투자자",
+                "FI(금융투자자) 비중(%)",
                 0, 100, default["fi"], 5,
                 key="phase2_fi_ratio",
                 help="대출 이자수익 목적. 은행·증권사·연기금 출자 비율",
             )
         with col_cifi3:
             si_ratio = st.slider(
-                "SI 비중(%) — 운영투자자",
+                "SI(운영투자자) 비중(%)",
                 0, 100, default["si"], 5,
                 key="phase2_si_ratio",
                 help="운영 수익 목적. 운영사·인프라 자산운용사 출자 비율",
@@ -718,7 +718,7 @@ def render_phase_construction(ctx: dict):
     # C. 통합 비교 (LTA vs STA 의사결정 매트릭스)
     # ════════════════════════════════════════════════════════════
     if "통합" in perspective:
-        st.markdown("##### 🔁 LTA vs STA — 시공·자금조달 의사결정 비교")
+        st.markdown("##### 🔁 LTA vs STA: 시공·자금조달 의사결정 비교")
         st.caption("동일 사업에 대해 대주단·사업주가 우선시하는 지표 차이를 정리.")
         
         compare_data = [
@@ -760,11 +760,11 @@ def render_phase_construction(ctx: dict):
             f"""<div style="background:{_T['accent_bg']};border-left:5px solid {_T['primary']};
                 padding:14px 18px;border-radius:6px;margin:8px 0;">
                 <div style="font-weight:bold;color:{_T['primary']};font-size:15px;">
-                    💡 Forenode 통합 가치 — 양쪽 모두에게 같은 분석 도구
+                    💡 Forenode 통합 가치: 양쪽 모두에게 같은 분석 도구
                 </div>
                 <div style="margin-top:6px;font-size:13px;color:{_T['muted']};">
-                    양측이 같은 입력·같은 기준으로 시나리오를 즉시 비교 —<br>
-                    확보된 정확성 위에서 검토 사이클을 수개월 단위에서 실시간 반복으로 단축.
+                    양측이 같은 입력·같은 기준으로 시나리오를 즉시 비교합니다.<br>
+                    확보된 정확성 위에서 검토 사이클을 수개월 단위에서 실시간 반복으로 단축합니다.
                 </div>
             </div>""",
             unsafe_allow_html=True,
@@ -775,7 +775,7 @@ def render_phase_construction(ctx: dict):
     # ════════════════════════════════════════════════════════════
     # BIM 모드 안내 (작은 placeholder)
     # ════════════════════════════════════════════════════════════
-    with st.expander("📁 BIM(IFC) 모드 — Stage 2 (2026년 7~8월 출시 예정)"):
+    with st.expander("📁 BIM(IFC) 모드: Stage 2 (2026년 7~8월 출시 예정)"):
         uploaded_ifc = st.file_uploader(
             "IFC 파일 업로드 (자재 BoM 자동 추출, ±5% 정확도)",
             type=["ifc", "ifczip"],
@@ -783,7 +783,7 @@ def render_phase_construction(ctx: dict):
             key="phase2_ifc_upload",
         )
         st.info(
-            "🚧 **BIM 통합 모드 — 개발 예정.** 현재는 통계 모드 분석(위 LTA·STA·통합 화면)을 활용하세요."
+            "🚧 **BIM 통합 모드는 개발 예정입니다.** 현재는 통계 모드 분석(위 LTA·STA·통합 화면)을 활용하세요."
         )
 
 
@@ -801,10 +801,10 @@ def render_phase_operation(ctx: dict):
         ),
     )
 
-    st.markdown("#### 🛣 운영 단계 — 보유자산 모니터링·자금재조달")
+    st.markdown("#### 🛣 운영 단계: 보유자산 모니터링·자금재조달")
     st.caption(
         "**활용 주체**: FI(보유 자산) · 대주단 | "
-        "**분석 업무**: 보유자산 모니터링 · 자금재조달(Refinancing) 시점 포착 — 첫 재조달은 개통 2~6년차 집중(실측)"
+        "**분석 업무**: 보유자산 모니터링 · 자금재조달(Refinancing) 시점 포착. 첫 재조달은 개통 2~6년차 집중(실측)"
     )
 
     st.markdown("---")
@@ -856,16 +856,16 @@ def render_phase_operation(ctx: dict):
 
     gap_pct = (actual_traffic_ratio - 1.0) * 100
     if gap_pct < -15:
-        msg = f"⚠️ **실적이 가정 대비 {abs(gap_pct):.0f}% 미달** — MRG 발동 요건 해당, 재구조화 시나리오 비교 권장(재구조화 탭)"
+        msg = f"⚠️ 실적이 가정 대비 {abs(gap_pct):.0f}% 미달입니다. MRG 발동 요건에 해당하니 재구조화 시나리오 비교를 권장합니다(재구조화 탭)."
         color = _T['bad']
     elif gap_pct < 0:
-        msg = f"📉 **실적이 가정 대비 {abs(gap_pct):.0f}% 미달** — 시장 변동 범위, 지속 모니터링"
+        msg = f"📉 실적이 가정 대비 {abs(gap_pct):.0f}% 미달입니다. 시장 변동 범위이니 지속 모니터링을 권장합니다."
         color = _T['warn']
     elif gap_pct < 15:
-        msg = f"✅ **실적이 가정 대비 +{gap_pct:.0f}%** — 안정적 운영"
+        msg = f"✅ 실적이 가정 대비 +{gap_pct:.0f}%로 안정적인 운영입니다."
         color = _T['ok']
     else:
-        msg = f"📈 **실적이 가정 대비 +{gap_pct:.0f}%** — 자금재조달(Refinancing) 검토 호기"
+        msg = f"📈 실적이 가정 대비 +{gap_pct:.0f}%로, 자금재조달(Refinancing) 검토 호기입니다."
         color = _T['primary']
 
     st.markdown(
@@ -896,7 +896,7 @@ def render_phase_restructuring(ctx: dict):
         ),
     )
 
-    st.markdown("#### 🔄 재구조화·인수 단계 — FI 인수·CI exit 검토")
+    st.markdown("#### 🔄 재구조화·인수 단계: FI 인수·CI exit 검토")
     st.caption(
         "**활용 주체**: FI(세컨더리 인수·잔존가치) · 주무관청 | "
         "**분석 업무**: 연장 시나리오 비교 · 잔여가치 평가(인수가 상한) · CI 지분 exit 적기 판단"
@@ -1008,9 +1008,9 @@ def render_phase_restructuring(ctx: dict):
     # 해지시지급금 분석 — 정부 부담 시뮬레이션 (v2.1 신규)
     # ════════════════════════════════════════════════════════════
     st.markdown("---")
-    st.markdown("##### ⚠️ 해지시지급금 분석 — SPC 파산 시 정부 부담")
+    st.markdown("##### ⚠️ 해지시지급금 분석: SPC 파산 시 정부 부담")
     st.caption(
-        "**해지시지급금** = 실시협약 해지 시 정부가 SPC에 지급하는 금액 — "
+        "**해지시지급금** = 실시협약 해지 시 정부가 SPC에 지급하는 금액. "
         "통상 건설비용 수준(민간투자법 표준)으로 정부 재정 부담이 큽니다."
     )
     
@@ -1043,7 +1043,7 @@ def render_phase_restructuring(ctx: dict):
     st.markdown("")
     
     # 협상 카드 비교
-    st.markdown("##### 🤝 해지 vs 협상 — 정부·SPC 의사결정 매트릭스")
+    st.markdown("##### 🤝 해지 vs 협상: 정부·SPC 의사결정 매트릭스")
     
     # 4가지 시나리오 비교
     decision_data = [

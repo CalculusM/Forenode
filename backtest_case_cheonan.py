@@ -34,7 +34,7 @@ def main():
     mu, sd = pri['loo_mean'], pri['loo_sd']
     z = 1.2816
     p10r, p90r = mu - z * sd, mu + z * sd
-    init = demand_bias.BENCHMARK_PRIORS['도로 — 국내 민자 보수(초기군)']
+    init = demand_bias.BENCHMARK_PRIORS['도로: 국내 민자 보수(초기군)']
     mu0 = init['median_ratio']  # 0.55 (개통 초기 전용)
     print(f"[LOO prior — 천안-논산 제외] 평균 {mu*100:.1f}% SD {sd:.4f} n={pri['loo_n']} "
           f"(밴드 {p10r*100:.0f}~{p90r*100:.0f}%) · 초기군 prior 중앙값 {mu0*100:.0f}%")

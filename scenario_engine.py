@@ -314,7 +314,7 @@ def optimism_flag(input_aadt: float, benchmark_aadt: np.ndarray | None = None,
     """
     if benchmark_aadt is None or len(benchmark_aadt) == 0:
         return {"evaluated": False,
-                "note": "벤치마크 분포 미확보(안심구역 차량통행지표로 채울 자리) — 평가 보류"}
+                "note": "벤치마크 분포 미확보(안심구역 차량통행지표로 채울 자리)라 평가를 보류합니다"}
     benchmark_aadt = np.asarray(benchmark_aadt, dtype=float)
     pctl = float((benchmark_aadt < input_aadt).mean() * 100.0)
     return {
@@ -322,9 +322,9 @@ def optimism_flag(input_aadt: float, benchmark_aadt: np.ndarray | None = None,
         "input_aadt": input_aadt,
         "percentile": pctl,
         "flag": pctl >= warn_percentile,
-        "message": (f"입력 통행량이 비교노선 상위 {100 - pctl:.0f}% — 낙관편향 점검 권장"
+        "message": (f"입력 통행량이 비교노선 상위 {100 - pctl:.0f}%. 낙관편향 점검을 권장합니다"
                     if pctl >= warn_percentile else
-                    f"입력 통행량이 비교노선 분포 {pctl:.0f} 분위 — 정상 범위"),
+                    f"입력 통행량이 비교노선 분포 {pctl:.0f} 분위(정상 범위)"),
     }
 
 

@@ -69,7 +69,7 @@ def load_rag_system():
     
     api_key = os.environ.get("OPENAI_API_KEY", "")
     if not api_key or not api_key.startswith("sk-"):
-        return None, "OPENAI_API_KEY 미설정 — .env 파일에 키를 추가하세요"
+        return None, "OPENAI_API_KEY가 설정되지 않았습니다. .env 파일에 키를 추가해 주세요."
     
     if not Path(PERSIST_DIR).exists():
         return None, f"{PERSIST_DIR} 폴더가 없습니다. rag_index_v3.py를 먼저 실행하세요."
@@ -77,12 +77,12 @@ def load_rag_system():
     try:
         from langchain_openai import OpenAIEmbeddings, ChatOpenAI
     except ImportError:
-        return None, "langchain-openai 미설치 — pip install langchain-openai"
+        return None, "langchain-openai가 설치되지 않았습니다. 설치 명령: pip install langchain-openai"
     
     try:
         from langchain_community.vectorstores import Chroma
     except ImportError:
-        return None, "langchain-community 미설치 — pip install langchain-community"
+        return None, "langchain-community가 설치되지 않았습니다. 설치 명령: pip install langchain-community"
     
     try:
         embeddings = OpenAIEmbeddings(model=EMBED_MODEL)
