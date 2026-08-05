@@ -14,15 +14,24 @@ _PATH = os.path.join(_BASE, "config", "opex_params.json")
 _FIN_PATH = os.path.join(_BASE, "config", "finance_params.json")
 
 
-@lru_cache(maxsize=1)
-def load_params() -> dict:
-    """config/opex_params.json 로드 (1회 캐시). 실패 시 {} 반환."""
+@lru_cache(maxsize=8)
+def _load_json_cached(path: str, mtime: float) -> dict:
+    """mtime을 캐시 키에 포함 — 파일이 갱신되면(배포 핫스왑 포함) 자동 재로드."""
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _load_json(path: str) -> dict:
     try:
-        with open(_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
+        return _load_json_cached(path, os.path.getmtime(path))
     except Exception as e:
         print(f"[config_loader] 로드 실패({e}) — 호출부 폴백 사용", flush=True)
         return {}
+
+
+def load_params() -> dict:
+    """config/opex_params.json 로드 (mtime 캐시). 실패 시 {} 반환."""
+    return _load_json(_PATH)
 
 
 def materials(fallback: dict | None = None) -> dict:
@@ -42,15 +51,9 @@ def env_factor(level: str = "normal", default: float = 1.0) -> float:
     return float(load_params().get("env_factor_iso15686", {}).get(level, default))
 
 
-@lru_cache(maxsize=1)
 def load_finance_params() -> dict:
-    """config/finance_params.json 로드 (1회 캐시). 실패 시 {} 반환."""
-    try:
-        with open(_FIN_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"[config_loader] finance 로드 실패({e}) — 호출부 폴백 사용", flush=True)
-        return {}
+    """config/finance_params.json 로드 (mtime 캐시). 실패 시 {} 반환."""
+    return _load_json(_FIN_PATH)
 
 
 def profitability_bands(fallback: list | None = None) -> list:

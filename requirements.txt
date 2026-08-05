@@ -18,3 +18,5 @@ requests>=2.31.0
 protobuf==3.20.3
 shap>=0.43.0
 ifcopenshell>=0.8.0
+
+# rebuild trigger 2026-08-04 (config hot-swap cache fix)
