@@ -1220,9 +1220,10 @@ def main():
         help="자동값 30년. 출처: 국내 민자도로 실시협약 표준 운영기간(BTO 30년 관행).")
     _have_fc = st.sidebar.toggle(
         "일 통행량 예측치 입력(선택)", key="have_traffic_forecast",
-        help="회사가 보유한 수요 예측치가 있을 때만 켜세요. 없으면 '사업성 문턱'(정부 게이트 "
-             "통과 최소 교통량)을 역산해 그 수준을 기준으로 화면을 계산합니다. 예측은 하지 "
-             "않습니다. 예측치를 넣으면 낙관도 보정·입력 대비 문턱 비율이 추가로 열립니다.")
+        help="회사가 보유한 수요 예측치, 또는 상대방(투자자·용역사)이 제시한 수치를 점검할 "
+             "때 켜세요. 없으면 문턱을 역산해 권장 협약 수요 기준으로 화면을 계산합니다. "
+             "예측은 하지 않습니다. 수치를 넣으면 낙관도 보정과 입력 대비 문턱 비율이 "
+             "추가로 열립니다.")
     daily_traffic = (
         linked_slider_input("일통행량(대)", 5000, 200000, 110000, 500, "daily_traffic")
         if _have_fc else None)
@@ -1518,7 +1519,10 @@ def main():
         _boot_seek = _rsv0.min_revenue_for(
             _boot_params, build_cashflow, _rsv0.make_predicate("gov"))
         if _boot_seek.get("min_rev") and _boot_K > 0:
-            daily_traffic = int(round(_boot_seek["min_rev"] / _boot_K))
+            # 기준 수요 = 권장 협약 수요(문턱 ÷ 실측 평균 실현율 0.814) — '26-08-04 대표 확정(b안).
+            # 실측 평균이 실현되면 문턱 수준에 착지하는 제안 설계 관점. 대주단 게이트 등
+            # 미충족 항목은 그대로 드러난다(분식 아님·라벨 명시).
+            daily_traffic = int(round(_boot_seek["min_rev"] / _boot_K / 0.814))
         else:
             daily_traffic = 45000
             st.sidebar.warning(
@@ -1664,6 +1668,14 @@ def main():
         ui_theme.header_html("Forenode", "민자 사업 발굴·제안 솔루션 엔진 · 제안 전에 시나리오로 정량화"),
         unsafe_allow_html=True)
 
+    # 검증 실적 배지 — 공개 채점 기록을 첫 화면 최상단에('26-08-04 개선 1)
+    try:
+        st.page_link(
+            "pages/2_검증_성적표.py",
+            label="✅ 실측 검증: 국내 22개 사업 대사, 관측 98건 중 70건 적중(미적중 28건도 공개) · 성적표 보기")
+    except Exception:
+        pass
+
     # 사업명 입력 (별도 라인)
     project_name = st.text_input(
         "📝 분석할 사업명",
@@ -1681,19 +1693,20 @@ def main():
             f"운영 {operation_years}년"
     )
 
-    # ── 자동 산출 근거 (한 줄) ──
+    # ── 자동 산출 근거 — 최소 글씨 캡션에서 본문 박스로 승격('26-08-04 개선 3:
+    #    "숫자를 설명할 수 있는 상태"가 파는 것이므로 화면 위계도 그에 맞춘다) ──
     _capex_in_range = (
         capex_reference['capex_low_억'] <= total_capex <= capex_reference['capex_high_억']
     )
     _capex_check = "✅ 회귀 범위 내" if _capex_in_range else "⚠️ 회귀 범위 밖"
-    st.caption(
-        f"💡 **자동 산출 근거** | "
-        f"OPEX {opex_source}: 평균 {opex_ratio*100:.1f}% "
-        f"(1년차 {opex_estimation['opex_series_억'][0]:.0f}억 → "
-        f"정점 {opex_estimation['peak_year']}년차 {opex_estimation['peak_amount_억']:.0f}억) | "
-        f"CAPEX 회귀참고: {capex_reference['capex_estimate_억']:,}억 "
-        f"(참고범위 ±20%·통상 가정: {capex_reference['capex_low_억']:,}~{capex_reference['capex_high_억']:,}) {_capex_check}"
-    )
+    with st.container(border=True):
+        st.markdown(
+            f"**💡 자동 산출 근거** · OPEX {opex_source}: 평균 {opex_ratio*100:.1f}% "
+            f"(1년차 {opex_estimation['opex_series_억'][0]:.0f}억 → 정점 "
+            f"{opex_estimation['peak_year']}년차 {opex_estimation['peak_amount_억']:.0f}억) · "
+            f"CAPEX 회귀참고 {capex_reference['capex_estimate_억']:,}억"
+            f"(±20% 범위 {capex_reference['capex_low_억']:,}∼{capex_reference['capex_high_억']:,}) "
+            f"{_capex_check} · 자동 입력 30여 항목 전부 출처 표기")
 
     # ── PDF 보고서·심화탭이 공유하는 분석 컨텍스트 (KPI 위에서 미리 조립) ──
     phase_context = {
@@ -1734,14 +1747,15 @@ def main():
         'termination_payment': total_capex,
     }
 
-    # ── 예측치 미입력 배지 — 아래 수지는 '문턱 수준' 기준임을 분명히 한다 ──
+    # ── 예측치 미입력 배지 — 기준 수요가 '권장 협약 수요'임을 분명히 한다 ──
     if not traffic_is_forecast:
         st.info(
-            "🎯 일 통행량 예측치는 입력하지 않으셔도 됩니다. 사업 통과에 필요한 최소 교통량"
-            f"(일 {daily_traffic:,}대)은 앱이 역산해 두었으며, 기준별 상세는 "
-            "'⏱ 예타 사전 시뮬'의 '사업성 문턱'에서 확인하실 수 있습니다. 지금 화면의 "
-            "수지와 지표는 이 문턱 수준을 기준으로 계산되어 있으며, 회사 예측치가 있다면 "
-            "사이드바의 '일 통행량 예측치 입력'을 켜 주시면 됩니다.")
+            "🎯 일 통행량 예측치는 입력하지 않으셔도 됩니다. 사업 통과에 필요한 교통량은 "
+            "앱이 역산하며, 기준별 상세는 '⏱ 예타 사전 시뮬'의 '사업성 문턱'에서 확인하실 "
+            f"수 있습니다. 지금 화면의 수지와 지표는 권장 협약 수요(일 {daily_traffic:,}대, "
+            "문턱 교통량을 실측 평균 실현율 81.4%로 나눈 값)를 기준으로 계산되어 있습니다. "
+            "회사 예측치나 상대방이 제시한 수치가 있다면 사이드바의 '일 통행량 예측치 "
+            "입력'을 켜 주시면 됩니다.")
 
     # KPI 카드 — 핵심 4종 (나머지 3종은 '전체 지표 보기'로 이동, 2026-07 UI 개편)
     _eirr = metrics.get('equity_irr', float('nan'))
@@ -1767,7 +1781,7 @@ def main():
     with col4:
         bc_color = "green" if metrics['bc_ratio'] >= 1.0 else "orange"
         st.markdown(f"""<div class="metric-card {bc_color}">
-            <h4>수입/비용 현가비율</h4><h2>{metrics['bc_ratio']:.2f}</h2></div>""",
+            <h4>수입/비용 현가비율</h4><h2>{metrics['bc_ratio']:.2f}배</h2></div>""",
             unsafe_allow_html=True)
 
     with st.expander("📊 전체 지표 보기 (프로젝트IRR·투입자본수익률·WACC)"):
@@ -1863,6 +1877,7 @@ def main():
         "관점(역할)",
         ["전체", "CI 발굴·제안", "FI 지분·후순위", "FI 선순위 대주단",
          "정부 기준(통과 게이트)", "회계·자문"],
+        index=1,  # 기본 관점 = 1차 고객(중견 건설사 발굴·제안) — '26-08-04 개선 2
         horizontal=True, label_visibility="collapsed", key="role_lens",
     )
     _role_slot = st.container(border=True)
@@ -1956,6 +1971,88 @@ def main():
     with st.expander("📋 부서 보고용 세 줄 (복사해 그대로 상신)", expanded=False):
         st.code(f"· {_l1}\n· {_l2}\n· {_l3}", language=None)
         st.caption("우측 상단 복사 아이콘으로 복사됩니다. 정식 적격성 판정이 아님(KDI PIMAC 별도) · 근거 미확보 값은 ✚ 빈칸.")
+
+    # ── 📄 한 장 요약 — 회의실에 들고 가는 문서('26-08-04 개선 5) ──
+    _op1, _op2 = st.columns([1, 2])
+    with _op1:
+        if st.button("📄 한 장 요약 PDF 만들기", key="onepager_btn", use_container_width=True):
+            try:
+                from report_generator import generate_one_pager as _gen1p
+                _tp_rows = []
+                for _tp_label, _tp_seek in [
+                        ("정부 게이트 (현가비≥1·NPV≥0)", _gov_seek),
+                        (f"대주단 (DSCR≥{cov_base:.2f})",
+                         _rsv.min_revenue_for(base_params, build_cashflow,
+                                              _rsv.make_predicate("dscr", cov_base))),
+                        ("협약 평균 수익률 (6.41%)",
+                         _rsv.min_revenue_for(base_params, build_cashflow,
+                                              _rsv.make_predicate("irr", 0.0641)))]:
+                    if _tp_seek.get("min_rev") and _rev_K > 0:
+                        _tp_tr = _tp_seek["min_rev"] / _rev_K
+                        _tp_sy = _rsv.surplus_years(base_params, build_cashflow, _tp_seek["min_rev"])
+                        _tp_rows.append([
+                            _tp_label, f"{_tp_tr:,.0f}",
+                            (f"운영 {_tp_sy['first_profit_op_year']}년차"
+                             if _tp_sy['first_profit_op_year'] else "전 기간 적자"),
+                            (f"운영 {_tp_sy['payback_op_year']}년차"
+                             if _tp_sy.get('payback_op_year') else "기간 내 미회수")])
+                    else:
+                        _tp_rows.append([_tp_label, "교통량 축만으로 미달", "—", "—"])
+                try:
+                    _1p_means = (pd.read_csv(os.path.join(
+                        os.path.dirname(os.path.abspath(__file__)), "data", "realization_panel.csv"))
+                        .query("지표 == '교통량'").groupby("노선")["실현율_pct"].mean())
+                    _1p_n = int(((_1p_means >= 70) & (_1p_means < 90)).sum())
+                    _1p_t = int(_1p_means.shape[0])
+                    _1p_row = next((r for r in _rsv.realization_scenarios(base_params, build_cashflow)
+                                    if abs(r["ratio"] - 0.814) < 1e-6), None)
+                    if _1p_row:
+                        _1p_m = _1p_row["metrics"]
+                        _lk_txt = (
+                            f"가장 유력한 경우는 실현율 81% 부근입니다(실측 {_1p_t}개 노선 중 "
+                            f"{_1p_n}개가 노선 평균 70~90% 구간). 그 경우 NPV {_1p_m['npv']:,.0f}억, "
+                            f"최소 DSCR {_1p_m['dscr_min']:.2f}, MRG 보전 누적 "
+                            f"{_1p_row['mrg_total']:,.0f}억입니다.")
+                    else:
+                        _lk_txt = "유력 시나리오 산출 불가(실현율 행 없음)."
+                except Exception:
+                    _lk_txt = "실측 패널 로드 실패로 이번 생성에서는 생략했습니다."
+                _1p_eir = metrics.get('equity_irr', float('nan'))
+                _one = {
+                    "business_type": business_type, "road_length": road_length,
+                    "operation_years": operation_years, "total_capex": total_capex,
+                    "anchor_label": (
+                        f"입력 예측치 일 {daily_traffic:,}대" if traffic_is_forecast
+                        else f"권장 협약 수요 일 {daily_traffic:,}대(문턱을 실측 평균 실현율 81.4%로 나눈 값)"),
+                    "verdict": _l1,
+                    "threshold_rows": _tp_rows,
+                    "likely": _lk_txt,
+                    "kpi": [["NPV(억)", f"{metrics['npv']:,.0f}"],
+                            ["자기자본IRR", f"{_1p_eir*100:.1f}%" if _1p_eir == _1p_eir else "—"],
+                            ["DSCR 최소", f"{metrics['dscr_min']:.2f}"],
+                            ["수입/비용 현가비율", f"{metrics['bc_ratio']:.2f}배"]],
+                    "sources": [
+                        f"OPEX {opex_source}: 평균 {opex_ratio*100:.1f}%(실측 데이터 기반 자동 산출)",
+                        f"CAPEX 회귀 참고 {capex_reference['capex_estimate_억']:,}억(±20%, 국내 실측 회귀)",
+                        "실현율 앵커: 교통량 81.4%(국토부 민자도로 현황 보고서 2025, 22개 노선) · "
+                        "수입 62.3%(KOTI RR-25-10)",
+                        "예측 검증: 국내 22개 사업 협약 대 실적 대사, 관측 98건 중 70건 적중"
+                        "(미적중 28건 공개, 2026-08-03 기준)",
+                    ],
+                }
+                st.session_state['onepager_bytes'] = _gen1p(_one, project_name or "민자도로 검토 사업")
+                st.session_state['onepager_name'] = (
+                    f"Forenode_한장요약_{(project_name or '사업').replace(' ', '_')}.pdf")
+            except Exception as _op_err:
+                st.warning(f"한 장 요약 생성 실패: {_op_err}")
+    with _op2:
+        if st.session_state.get('onepager_bytes'):
+            st.download_button(
+                "⬇️ 한 장 요약 PDF 다운로드", data=st.session_state['onepager_bytes'],
+                file_name=st.session_state.get('onepager_name', 'Forenode_한장요약.pdf'),
+                mime="application/pdf", key="onepager_dl", use_container_width=True)
+        else:
+            st.caption("판정 문장·문턱 표·유력 시나리오·출처, 네 가지가 A4 한 장에 담깁니다.")
 
     st.markdown("")
 
@@ -2241,6 +2338,10 @@ def main():
                     f"🎯 **사업성 문턱**: 일 통행량 **{_gov_min_traffic:,.0f}대**{_ci_vs}를 "
                     f"넘으면 정부 게이트를 통과하고 {_ci_rs_sp} 사업성이 확보됩니다. "
                     f"기준별 문턱·실현율 시나리오 ▸ **⏱ 예타 사전 시뮬**.")
+                st.caption(
+                    "상대방(투자자·용역사)이 제시한 수요 수치를 다시 점검하실 때는 사이드바 "
+                    "'일 통행량 예측치 입력(선택)'에 그 값을 넣으세요. 문턱 대비 비율과 "
+                    "낙관도 보정이 함께 열립니다.")
             else:
                 st.warning(
                     "🎯 사업성 문턱: 교통량 축만으로는 정부 게이트 미달(수입 3배 탐색 상한). "
@@ -2301,7 +2402,7 @@ def main():
         elif _role == "정부 기준(통과 게이트)":
             st.markdown("**🏛️ 정부 기준(통과 게이트): 제안이 넘어야 할 기준선**")
             g1, g2, g3, g4 = st.columns(4)
-            g1.metric("수입/비용 현가비율", f"{metrics['bc_ratio']:.2f}")
+            g1.metric("수입/비용 현가비율", f"{metrics['bc_ratio']:.2f}배")
             g2.metric("NPV(억)", f"{metrics['npv']:,.0f}")
             g3.metric("정부 재정부담(MRG+MCC 누적·억)", f"{_rl_govt:,.0f}")
             g4.metric("DSCR 최소", f"{_rl_dmin:.2f}")
@@ -2362,9 +2463,10 @@ def main():
                                       key="demand_prior")
                 if not traffic_is_forecast:
                     st.info(
-                        "낙관도 보정은 **회사 예측치가 있을 때** 여는 화면입니다. 지금은 "
-                        "예측치 없이 문턱 기준으로 계산 중이라 보정할 예측이 없습니다. "
-                        "사이드바 '일 통행량 예측치 입력(선택)'을 켜면 열립니다.")
+                        "낙관도 보정은 **점검할 수치가 있을 때** 여는 화면입니다. 지금은 "
+                        "예측치 없이 권장 협약 수요 기준으로 계산 중이라 보정할 대상이 "
+                        "없습니다. 회사 예측치나 상대방(투자자·용역사)이 제시한 수치를 "
+                        "사이드바 '일 통행량 예측치 입력(선택)'에 넣으면 열립니다.")
                 else:
                     _db = demand_optimism_band(daily_traffic, prior=_prior)
                     _icon = {"high": "🔴", "mid": "🟡", "low": "🟢"}.get(_db["level"], "⚪")
@@ -2561,8 +2663,9 @@ def main():
         st.markdown("**📉 실현율 시나리오: 예측 대비 실제가 X%라면**")
         if not traffic_is_forecast:
             st.caption(
-                "기준 수요 = **사업성 문턱 수준**(예측치 미입력)입니다. 협약 수요를 문턱으로 잡았을 "
-                "때 실제 실현이 그보다 낮으면 어떻게 되는지의 하방 전개입니다.")
+                "기준 수요 = **권장 협약 수요**(문턱을 실측 평균 실현율 81.4%로 나눈 값, "
+                "예측치 미입력)입니다. 실측 평균만큼 실현되면 문턱 수준에 착지하는 하방 "
+                "전개를 보여 드립니다.")
         st.caption(
             "협약(입력) 교통량은 그대로 두고 **실제 실현만 낮춘** 시나리오입니다. "
             "MRG 보전은 협약 기준수입으로 정확히 발동합니다. 앵커 2종(실측): "
@@ -2570,6 +2673,29 @@ def main():
             "(KOTI RR-25-10, 수입은 교통량보다 체계적으로 낮게 실현). "
             "'실측에서 이 이하 비율' 열은 교통량 기준 분포이며, 수입 기준 분포 학습은 다음 데이터 작업(✚).")
         _rz_rows = _rsv.realization_scenarios(base_params, build_cashflow)
+
+        # 유력 시나리오 판정문 — 나열 대신 판단부터('26-08-04 개선 4, GS "Case 순위" 실무 요구).
+        # 노선 수는 실현율 패널에서 그때그때 계산한다(하드코딩 금지 원칙).
+        try:
+            _lk_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                    "data", "realization_panel.csv")
+            _lk_means = (pd.read_csv(_lk_path).query("지표 == '교통량'")
+                         .groupby("노선")["실현율_pct"].mean())
+            _lk_n = int(((_lk_means >= 70) & (_lk_means < 90)).sum())
+            _lk_total = int(_lk_means.shape[0])
+            _lk_row = next((r for r in _rz_rows if abs(r["ratio"] - 0.814) < 1e-6), None)
+            if _lk_row is not None:
+                _lk_m = _lk_row["metrics"]
+                _lk_sp = (f"흑자 전환은 운영 {_lk_row['first_profit_op_year']}년차부터입니다"
+                          if _lk_row["first_profit_op_year"] else "기간 내 당기 흑자는 없습니다")
+                st.success(
+                    f"가장 유력한 경우는 실현율 **81% 부근**입니다(실측 {_lk_total}개 노선 중 "
+                    f"**{_lk_n}개**가 노선 평균 70∼90% 구간). 그 경우 NPV **{_lk_m['npv']:,.0f}억**, "
+                    f"최소 DSCR {_lk_m['dscr_min']:.2f}, MRG 보전 누적 {_lk_row['mrg_total']:,.0f}억이며, "
+                    f"{_lk_sp}.")
+        except Exception:
+            pass
+
         try:
             from demand_bias import prob_ratio_below as _rz_prb
         except Exception:
