@@ -45,7 +45,7 @@ def load_weibull_params():
     """weibull_params.json 로드"""
     p = Path("./weibull_params.json")
     if not p.exists():
-        return None, "weibull_params.json 없음 — weibull_fit.py 먼저 실행"
+        return None, "weibull_params.json이 없습니다. weibull_fit.py를 먼저 실행해 주세요."
     try:
         with open(p, "r", encoding="utf-8") as f:
             return json.load(f), None
@@ -94,13 +94,13 @@ def render_model_info(params):
         st.metric(
             "β (shape)",
             f"{params['beta_hat']:.3f}",
-            help="고장 모드 — 1보다 크면 마모고장 (시간 갈수록 위험 증가)"
+            help="고장 모드. 1보다 크면 마모고장 (시간 갈수록 위험 증가)"
         )
     with cols[1]:
         st.metric(
             "η (scale)",
             f"{params['eta_hat']:.2f}년",
-            help="특성수명 — 약 63.2% 손상 발생 시점"
+            help="특성수명. 약 63.2% 손상 발생 시점"
         )
     with cols[2]:
         st.metric(
@@ -122,24 +122,24 @@ def render_data_source_badge(params):
     source = params.get("data_source", "synthetic")
     if source == "synthetic":
         st.warning(
-            "🧪 **현재 합성 데이터 PoC 결과** — 한국도로공사 통계 기반 합성 데이터 100건. "
+            "🧪 **현재 합성 데이터 PoC 결과**: 한국도로공사 통계 기반 합성 데이터 100건입니다. "
             "공공 실데이터 또는 안심구역 데이터로 갱신 시 자동 학습됩니다."
         )
     else:
         # 데이터 출처 키워드로 정확한 메시지 분기
         if "포장일반현황" in source or "공공데이터포털" in source:
             st.success(
-                f"✅ **실데이터 학습 결과** — 출처: {source}. "
+                f"✅ **실데이터 학습 결과** (출처: {source}). "
                 f"공공 OpenAPI 데이터를 시계열 결합하여 보수 이벤트를 추출, MLE로 학습한 모델입니다."
             )
         elif "안심구역" in source or "포장탐지" in source or "대전남부순환" in source:
             st.success(
-                f"✅ **안심구역 실데이터 학습** — 출처: {source}. "
+                f"✅ **안심구역 실데이터 학습** (출처: {source}). "
                 f"안심구역 반출 통계로 학습된 모델입니다."
             )
         else:
             st.success(
-                f"✅ **실데이터 학습 결과** — 출처: {source}."
+                f"✅ **실데이터 학습 결과** (출처: {source})."
             )
 
 
@@ -307,7 +307,7 @@ def render_curves(params, current_age, target_prob):
     try:
         import plotly.graph_objects as go
     except ImportError:
-        st.info("Plotly 미설치 — 정적 PNG 차트만 표시")
+        st.info("Plotly가 설치되어 있지 않아 정적 PNG 차트만 표시합니다.")
         if Path("./weibull_curve.png").exists():
             st.image("./weibull_curve.png")
         if Path("./weibull_hazard.png").exists():
@@ -333,7 +333,7 @@ def render_curves(params, current_age, target_prob):
     chart_cols = st.columns(2)
     
     with chart_cols[0]:
-        st.markdown("**생존곡선 — 시간 경과별 손상 확률**")
+        st.markdown("**생존곡선: 시간 경과별 손상 확률**")
         fig1 = go.Figure()
         
         # 신뢰구간 밴드
@@ -386,7 +386,7 @@ def render_curves(params, current_age, target_prob):
         st.plotly_chart(fig1, use_container_width=True)
     
     with chart_cols[1]:
-        st.markdown("**위험률 함수 — 단위시간당 손상률**")
+        st.markdown("**위험률 함수: 단위시간당 손상률**")
         hazard = weibull_hazard(t_grid, beta, eta)
         
         # 색상 직접 지정 (테마 판정색 기반)
@@ -429,7 +429,7 @@ def render_curves(params, current_age, target_prob):
 # ════════════════════════════════════════════════════════════
 def render_weibull_tab():
     """app.py에서 호출하는 메인 함수"""
-    st.subheader("🔧 Weibull 열화 모델 — 시설물 보수 예측")
+    st.subheader("🔧 Weibull 열화 모델: 시설물 보수 예측")
     st.caption(
         "Weibull 분포 최우도추정(MLE)으로 도로 포장의 손상 발생 시점을 학습하고, "
         "신규 사업의 잔여수명·보수시점을 예측합니다."
@@ -482,7 +482,7 @@ def render_weibull_tab():
           - 도로 포장의 경우 일반적으로 8~15년
         
         #### 일반적 가정 vs 실데이터 학습 결과
-        **이론 표준 (한국도로공사 가이드)**: β ≈ 2.5, η ≈ 12년 — 마모고장 가정
+        **이론 표준 (한국도로공사 가이드)**: β ≈ 2.5, η ≈ 12년 (마모고장 가정)
         
         **공공 실데이터 학습 결과** (포장일반현황 1969~2025, 357건):
         - β ≈ 1.04 → **우발고장 모드**
@@ -490,7 +490,7 @@ def render_weibull_tab():
         - **해석**: 한국 고속도로의 대규모 재포장은 시간 의존적 마모보다
           외부 요인(중차량·기상·시공 품질)에 의한 무작위 보수 패턴이 지배적
         
-        #### 추가 검증 — 안심구역 데이터
+        #### 추가 검증: 안심구역 데이터
         대전남부순환고속도로 2023 포장탐지 데이터로 추가 학습 시,
         노선별 특수성을 반영한 정밀 모델로 진화 가능합니다.
         공공 데이터(전국 평균) vs 안심구역 데이터(노선 특수) 비교가

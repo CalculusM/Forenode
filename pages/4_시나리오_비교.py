@@ -6,7 +6,7 @@ import io
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="시나리오 비교 — Forenode", page_icon="🧮", layout="wide")
+st.set_page_config(page_title="시나리오 비교 · Forenode", page_icon="🧮", layout="wide")
 
 import ui_theme
 ui_theme.inject_css()
@@ -14,7 +14,7 @@ ui_theme.apply_plotly_template()
 _T = ui_theme.theme()
 
 st.title("🧮 시나리오 나란히 비교")
-st.caption("메인 화면에서 변수를 바꿔 '💾 시나리오 저장'을 반복하면 여기에 쌓입니다(최대 4개) — "
+st.caption("메인 화면에서 변수를 바꿔 '💾 시나리오 저장'을 반복하면 여기에 쌓입니다(최대 4개). "
            "이대로 제안하면 어떤 조건이 안전한지 한눈에 비교하세요.")
 
 _saved = st.session_state.get('saved_scenarios', [])
@@ -86,10 +86,10 @@ def _likelihood_row(saved: list) -> list:
 _lk = _likelihood_row(_saved)
 _disp.insert(1, "유력도(실측)", _lk)
 st.dataframe(_disp.set_index("이름").T, use_container_width=True, height=560)
-st.caption("행 = 입력·지표, 열 = 시나리오. 판정 기준 없이 산출값만 나란히 — 판정은 각 시나리오의 메인 화면 기준.")
+st.caption("행 = 입력·지표, 열 = 시나리오. 판정 기준 없이 산출값만 나란히 보여 줍니다. 판정은 각 시나리오의 메인 화면 기준입니다.")
 st.caption(
     "**유력도(실측)** = 기준(첫 저장) 대비 수요 가정 변화가 과거 실측 분포(국내외 협약 대비 실현율)에서 "
-    "나타난 비율 — 발생 가능성이 높은 Case부터 보는 용도(실무 요구 반영). "
+    "나타난 비율. 발생 가능성이 높은 Case부터 보는 용도(실무 요구 반영). "
     "수요 외 축(통행료·공사비·MRG·금리)은 실측 분포 근거 미확보 → ✚ 표기(그럴듯한 값으로 채우지 않음).")
 
 # ── ② 비교 차트 ──
@@ -160,8 +160,8 @@ with _x2:
             ("TOPPADDING", (0, 0), (-1, -1), 3.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
             ("LEFTPADDING", (0, 0), (-1, -1), 5),
         ]))
-        story = [Paragraph("Forenode — 시나리오 나란히 비교", _h), Spacer(1, 4 * mm), t, Spacer(1, 4 * mm),
-                 Paragraph("저장 시점의 엔진 산출값 비교(재계산 없음) · 판정 기준 미포함 — 상세는 각 시나리오의 본 보고서 참조.", _n)]
+        story = [Paragraph("Forenode 시나리오 나란히 비교", _h), Spacer(1, 4 * mm), t, Spacer(1, 4 * mm),
+                 Paragraph("저장 시점의 엔진 산출값 비교(재계산 없음) · 판정 기준 미포함. 상세는 각 시나리오의 본 보고서 참조.", _n)]
         doc.build(story)
         return buf.getvalue()
 

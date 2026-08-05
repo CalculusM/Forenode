@@ -295,7 +295,7 @@ def plot_survival_curve(times, censored, beta, eta, data_source):
     
     ax.set_xlabel("운영 경과 시간 (년)", fontsize=12)
     ax.set_ylabel("생존 확률 S(t)", fontsize=12)
-    ax.set_title(f"Weibull 열화 생존곡선 — {data_source}", fontsize=14)
+    ax.set_title(f"Weibull 열화 생존곡선: {data_source}", fontsize=14)
     ax.legend(loc="upper right")
     ax.grid(alpha=0.3)
     ax.set_xlim([0, np.max(times) * 1.2])
@@ -338,7 +338,7 @@ def plot_hazard_function(beta, eta, data_source):
     
     ax.set_xlabel("운영 경과 시간 (년)", fontsize=12)
     ax.set_ylabel("위험률 h(t)", fontsize=12)
-    ax.set_title(f"Weibull 위험률 함수 — {mode}\n(β={beta:.2f}, η={eta:.2f})",
+    ax.set_title(f"Weibull 위험률 함수: {mode}\n(β={beta:.2f}, η={eta:.2f})",
                  fontsize=14)
     ax.grid(alpha=0.3)
     
@@ -455,9 +455,9 @@ def main():
             "eta_meaning": f"η = {eta_hat:.2f}년 → 누적 발생 확률 63.2% 도달 시점",
             "expected_repairs_30y": f"30년 운영 시 약 {30.0 / mean_life:.2f}회 보수 예상",
             "data_note": (
-                "관측치 = 보수 '집행' 기록(예산·일정 의존) — 물리 열화 시점의 대용치. "
+                "관측치 = 보수 '집행' 기록(예산·일정 의존)로, 물리 열화 시점의 대용치. "
                 "무보수 31,245구간은 보수기록 관측창(11년) 밖 이력 결손으로 절단 포함 적합이 "
-                "비식별(η 발산 실검증 '26-07-22)되어 제외 — 적합 표본은 보수 관측 구간만"
+                "비식별(η 발산 실검증 '26-07-22)되어 제외. 적합 표본은 보수 관측 구간만"
             ),
         },
     }

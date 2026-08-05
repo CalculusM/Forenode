@@ -81,7 +81,7 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
     c3.metric("기준 DSCR_min", f"{base_res['dscr_min']:.2f}")
     c4.metric("기준 LLCR_min", f"{base_res['llcr_min']:.2f}"
               if not np.isnan(base_res['llcr_min']) else "—")
-    st.caption(f"DSCR covenant(텀시트 입력) — base {cov_base:.2f} / lock-up {cov_lockup:.2f} / default {cov_default:.2f}")
+    st.caption(f"DSCR covenant(텀시트 입력): base {cov_base:.2f} / lock-up {cov_lockup:.2f} / default {cov_default:.2f}")
 
     with st.expander("ⓘ 이 탭의 LLCR이 현금흐름표 LLCR과 소수점 차이가 나는 이유"):
         st.markdown(
@@ -94,7 +94,7 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
     st.divider()
 
     # ── 1. 토네이도 (어떤 변수가 DSCR을 가장 흔드나) ──
-    st.markdown("##### 1. 토네이도 — DSCR_min 민감도 순위")
+    st.markdown("##### 1. 토네이도: DSCR_min 민감도 순위")
     metric_label = {"dscr_min": "DSCR_min", "npv": "NPV", "equity_irr": "자기자본IRR"}
     tmetric = st.selectbox("토네이도 기준 지표", ["dscr_min", "npv", "equity_irr"],
                            format_func=lambda k: metric_label[k], key="sens_tornado_metric")
@@ -164,7 +164,7 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
     st.divider()
 
     # ── 3. 몬테카를로 하방확률 ──
-    st.markdown("##### 3. 몬테카를로 — 하방 리스크 확률")
+    st.markdown("##### 3. 몬테카를로: 하방 리스크 확률")
     mc1, mc2, mc3 = st.columns(3)
     demand_sd = mc1.slider("수요 변동성(σ)", 0.05, 0.40, 0.15, 0.01, key="sens_mc_dsd")
     capex_sd = mc2.slider("공사비 변동성(σ)", 0.05, 0.30, 0.10, 0.01, key="sens_mc_csd")
@@ -211,7 +211,7 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
     st.divider()
 
     # ── 5. 부채 스컬프팅 ──
-    st.markdown("##### 5. 부채 스컬프팅 — 지속가능 부채한도")
+    st.markdown("##### 5. 부채 스컬프팅: 지속가능 부채한도")
     tgt = st.slider("목표 DSCR(평탄)", 1.10, 1.60, float(cov_base), 0.05, key="sens_sculpt_tgt")
     try:
         sc = sculpt_debt(base, target_dscr=tgt)

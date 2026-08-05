@@ -13,7 +13,7 @@
     "recommendation": "정부 보전금 없이도 민간 사업주가 수익을 낼 수 있는 구조입니다. BTO 또는 BTO-rs 사업유형 검토 권장."},
    {"min_bc": 1.0, "min_dscr": 1.05, "judgment": "수익성 확보", "color": "#1F3864",
     "recommendation": "현재 MRG·자기자본비율 등 조건으로 사업 추진 가능. 민감도 분석에서 핵심 리스크 변수를 확인하세요."},
-   {"min_bc": 0.85, "min_dscr": null, "judgment": "경계선 — 재구조화 검토", "color": "#EF9F27",
+   {"min_bc": 0.85, "min_dscr": null, "judgment": "경계선(재구조화 검토)", "color": "#EF9F27",
     "recommendation": "사업 조건 보완 필요. MRG 보장률 상향, 운영기간 연장, 또는 BTO-a 전환 등 시나리오 비교를 권합니다."},
    {"min_bc": null, "min_dscr": null, "judgment": "수익성 미달", "color": "#D45F5F",
     "recommendation": "현행 조건으로는 수익성 확보가 어렵습니다. 정부 보전 설계, 재정사업 전환 또는 사업계획 재검토를 권합니다."}
@@ -40,10 +40,10 @@
   "note": "민간투자사업기본계획 제27조② — 주무관청:사업시행자. 대상 = 총사업비 500억↑·5%↑ 지분 변경 등(제28조)"
  },
  "business_type_defaults": {
-  "BTO":     {"equity": 25, "opex": 30, "mrg": 0,   "mcc": 0,  "toll": 100, "desc": "수익형 — 운영 수익으로 회수 (정부 위험 분담 없음)"},
-  "BTO-rs":  {"equity": 20, "opex": 32, "mrg": 50,  "mcc": 0,  "toll": 90,  "desc": "위험분담형 — 정부·사업자 수요위험 분담 (Risk Sharing)"},
-  "BTO-a":   {"equity": 15, "opex": 35, "mrg": 90,  "mcc": 30, "toll": 130, "desc": "정부지급형(BTO-a) — 운영비 일부 정부 보전 (Annuity)"},
-  "BTL":     {"equity": 10, "opex": 40, "mrg": 100, "mcc": 80, "toll": 0,   "desc": "임대형 — 정부 임대료 + 운영비 보전"},
-  "BTO+BTL": {"equity": 18, "opex": 35, "mrg": 60,  "mcc": 50, "toll": 60,  "desc": "결합형(2024.10 신규) — 상부 BTO 사용료로 하부 BTL 임대료 충당"}
+  "BTO":     {"equity": 25, "opex": 30, "mrg": 0,   "mcc": 0,  "toll": 100, "desc": "수익형: 운영 수익으로 회수(정부 위험 분담 없음)"},
+  "BTO-rs":  {"equity": 20, "opex": 32, "mrg": 50,  "mcc": 0,  "toll": 90,  "desc": "위험분담형: 정부·사업자 수요위험 분담(Risk Sharing)"},
+  "BTO-a":   {"equity": 15, "opex": 35, "mrg": 90,  "mcc": 30, "toll": 130, "desc": "정부지급형(BTO-a): 운영비 일부 정부 보전(Annuity)"},
+  "BTL":     {"equity": 10, "opex": 40, "mrg": 100, "mcc": 80, "toll": 0,   "desc": "임대형: 정부 임대료 + 운영비 보전"},
+  "BTO+BTL": {"equity": 18, "opex": 35, "mrg": 60,  "mcc": 50, "toll": 60,  "desc": "결합형(2024.10 신규): 상부 BTO 사용료로 하부 BTL 임대료 충당"}
  }
 }

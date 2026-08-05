@@ -41,7 +41,7 @@ def implied_rating(dscr_min, opba="중(3~5)"):
     elif d >= MARKET_DSCR["base_covenant"][0]:
         pos = "시장 base-case 커버넌트(1.2~1.3) 권역"
     elif d >= MARKET_DSCR["부실_제이영동"]:
-        pos = "정상권 미달 — 부실(제이영동 0.31)과 정상 사이"
+        pos = "정상권 미달, 부실(제이영동 0.31)과 정상 사이"
     else:
         pos = "부실(제이영동 0.31) 이하"
     return {
@@ -137,20 +137,20 @@ def agreed_return_position(after_tax_return):
     r = float(after_tax_return) * 100.0
     m = MARKET_AGREED_RETURNS
     if r > m["max"]:
-        pos, level = f"시장 전례 상단({m['max']:.1f}%) 초과 — 과대 가능성 검토", "over"
+        pos, level = f"시장 전례 상단({m['max']:.1f}%) 초과, 과대 가능성 검토", "over"
     elif r >= 9.0:
-        pos, level = f"초기 협약(MRG 시대 9~12%) 수준 — 현 시장 대비 높음", "above"
+        pos, level = f"초기 협약(MRG 시대 9~12%) 수준(현 시장 대비 높음)", "above"
     elif r >= m["avg"]:
-        pos, level = (f"시장 평균({m['avg']:.2f}%) 상회 — 중기 협약 권역"
+        pos, level = (f"시장 평균({m['avg']:.2f}%) 상회, 중기 협약 권역"
                       f"(서울춘천 6.98%~수도권1순환 8.51%)", "above")
     elif r >= m["recent_low"]:
         pos, level = (f"BTO 후기 체결 수준({m['recent_low']:.0f}~{m['recent_high']:.0f}%) "
                       f"권역 · 운영 23개 평균 {m['operating_avg']:.2f}% 부근", "recent")
     elif r >= m["btoa_pipeline"]:
         pos, level = (f"BTO-a 신규 세대 권역(기획 {m['btoa_pipeline']:.2f}%~협상 "
-                      f"{m['btoa_nego']:.2f}%) — 현행 신규 협약 눈높이", "btoa")
+                      f"{m['btoa_nego']:.2f}%), 현행 신규 협약 눈높이", "btoa")
     else:
-        pos, level = (f"BTO-a 신규 세대 하단({m['btoa_pipeline']:.2f}%) 미만 — "
+        pos, level = (f"BTO-a 신규 세대 하단({m['btoa_pipeline']:.2f}%) 미만, "
                       f"과소(투자유인 부족) 가능성 검토", "under")
     return {"position": pos, "level": level, "rate_pct": r,
             "note": f"비교기준: {m['source']} · 세후끼리 비교 · 과소평가도 투자 위축 요인"}

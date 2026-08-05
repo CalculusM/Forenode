@@ -23,7 +23,7 @@ import ui_theme
 CUSTOMER_PRESETS = {
     "FI (인프라펀드·연기금)": {
         "icon": "💼",
-        "description": "지분·후순위 FI — 회수·잔존가치 + 안정 수익 (기준선은 기관별 상이 — ✚인터뷰로 확정)",
+        "description": "지분·후순위 FI: 회수·잔존가치 + 안정 수익 (기준선은 기관별로 상이하며 ✚인터뷰로 확정)",
         "criteria": {
             "IRR_min": 0.10,
             "ROE_min": 0.12,
@@ -35,7 +35,7 @@ CUSTOMER_PRESETS = {
     },
     "FI 선순위 대주단": {
         "icon": "🏦",
-        "description": "은행·보험 대주단 — 부채 회수 안정성 중심",
+        "description": "은행·보험 대주단: 부채 회수 안정성 중심",
         "criteria": {
             "DSCR_min": 1.20,
             "IRR_min": 0.08,
@@ -46,7 +46,7 @@ CUSTOMER_PRESETS = {
     },
     "CI·사업주 (출자자)": {
         "icon": "🏗",
-        "description": "건설사(CI)·사업주 — 자기자본 회수율 중심 (CI 고유 목표 지표는 ✚인터뷰로 확정)",
+        "description": "건설사(CI)·사업주: 자기자본 회수율 중심 (CI 고유 목표 지표는 ✚인터뷰로 확정)",
         "criteria": {
             "ROE_min": 0.10,      # CAPM 기반 일반 Ke
             "Equity_IRR_min": 0.12,
@@ -57,7 +57,7 @@ CUSTOMER_PRESETS = {
     },
     "정부 적격성 기준 (통과 게이트)": {
         "icon": "🏛️",
-        "description": "제안이 넘어야 할 정부 기준선 — B/C·NPV",
+        "description": "제안이 넘어야 할 정부 기준선(B/C·NPV)",
         "criteria": {
             "BC_ratio_min": 1.00,
             "NPV_min": 0,
@@ -68,7 +68,7 @@ CUSTOMER_PRESETS = {
     },
     "참고: 운영 중 SPC 기준": {
         "icon": "🛣️",
-        "description": "운영 중 SPC 관리 기준(참고용 — 고객 아님)",
+        "description": "운영 중 SPC 관리 기준(참고용, 고객 아님)",
         "criteria": {
             "ROE_min": 0.08,   # 사이드바 Ke 기본값
             "DSCR_min": 1.10,
@@ -166,7 +166,7 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
         unsafe_allow_html=True,
     )
 
-    st.markdown("#### 🎯 요구수익률 솔버 — 이대로 제안하면 부족한 만큼, 무엇을 바꾸면 되는가")
+    st.markdown("#### 🎯 요구수익률 솔버: 이대로 제안하면 부족한 만큼, 무엇을 바꾸면 되는가")
     st.caption(
         "**활용 주체**: FI·CI 제안 설계 · 대주단 협의 | "
         "**분석 업무**: 목표 지표 입력 → 변수 조정 시나리오 자동 도출(연속 역산 병기)"
@@ -183,12 +183,12 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
             "분석 관점",
             options=list(CUSTOMER_PRESETS.keys()) + ["사용자 정의"],
             key="solver_group",
-            help="이해관계자별 목표 기준 프리셋(자체 규약 — 실무값은 인터뷰로 갱신). 사용자 정의 선택 시 직접 입력.",
+            help="이해관계자별 목표 기준 프리셋(자체 규약, 실무값은 인터뷰로 갱신). 사용자 정의 선택 시 직접 입력.",
         )
     
     if group_name == "사용자 정의":
         with col_d:
-            st.caption("⚙️ 사용자 정의 모드 — 아래에서 목표 지표·값 직접 입력")
+            st.caption("⚙️ 사용자 정의 모드입니다. 아래에서 목표 지표·값을 직접 입력해 주세요.")
         criteria = {}
         preset_priority = "사용자 정의"
     else:
@@ -247,7 +247,7 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
     st.markdown("---")
     
     # ─── 3. 자동 진단 ─────────────────────────────
-    st.markdown("##### 3단계. 자동 진단 — 현재 상태 vs 요구수익률")
+    st.markdown("##### 3단계. 자동 진단: 현재 상태 vs 요구수익률")
     
     diagnosis = []
     all_met = True
@@ -289,7 +289,7 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
             f"""<div style="background:{_T['ok_bg']};border-left:5px solid {_T['ok']};
                 padding:14px 18px;border-radius:6px;margin:10px 0;">
                 <div style="font-weight:bold;color:{_T['ok']};font-size:16px;">
-                    ✅ 모든 요구수익률 충족 — 현재 사업 조건으로 진행 가능
+                    ✅ 모든 요구수익률을 충족합니다. 현재 사업 조건으로 진행 가능합니다.
                 </div>
                 <div style="font-size:13px;color:{_T['muted']};margin-top:6px;">
                     별도 조정 없이 사업 추진 가능. 추가 마진 확보 시 시나리오 솔버 활용.
@@ -302,7 +302,7 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
             f"""<div style="background:{_T['bad_bg']};border-left:5px solid {_T['bad']};
                 padding:14px 18px;border-radius:6px;margin:10px 0;">
                 <div style="font-weight:bold;color:{_T['bad']};font-size:16px;">
-                    ❌ 일부 요구수익률 미달 — 변수 조정 필요
+                    ❌ 일부 요구수익률이 미달입니다. 변수 조정이 필요합니다.
                 </div>
                 <div style="font-size:13px;color:{_T['muted']};margin-top:6px;">
                     아래 4단계에서 자동 도출된 3가지 시나리오를 검토하세요.
@@ -314,7 +314,7 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
     st.markdown("---")
     
     # ─── 4. 자동 솔루션 (3가지 시나리오) ──────────
-    st.markdown("##### 4단계. 자동 솔루션 — 변수 조정 시나리오 3종")
+    st.markdown("##### 4단계. 자동 솔루션: 변수 조정 시나리오 3종")
     
     if all_met:
         st.info("📌 모든 요구수익률을 이미 충족하여 변수 조정이 불필요합니다. "
@@ -468,10 +468,10 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
     st.markdown("---")
     
     # ─── 5. 옵션 C placeholder (AI 권고 모드) ─────
-    with st.expander("🤖 AI 권고 모드 — Stage 2 (2026년 7~8월 출시 예정)"):
+    with st.expander("🤖 AI 권고 모드: Stage 2 (2026년 7~8월 출시 예정)"):
         st.markdown(
             """
-            **🚧 AI 기반 자동 권고 모드 — Stage 2 개발 예정**
+            **🚧 AI 기반 자동 권고 모드: Stage 2 개발 예정**
             
             현재 통계 솔버 모드는 1변수 또는 단순 다변수 조합 분석을 제공합니다. 
             Stage 2에서는 다음 기능이 추가됩니다. 예시:

@@ -7,13 +7,13 @@ import streamlit as st
 
 from data_sources import DATA_SOURCES, render_data_flow_diagram
 
-st.set_page_config(page_title="데이터 출처 — Forenode", page_icon="📊", layout="wide")
+st.set_page_config(page_title="데이터 출처 · Forenode", page_icon="📊", layout="wide")
 
 import ui_theme
 ui_theme.inject_css()
 ui_theme.apply_plotly_template()
 
-st.title("📊 데이터 출처 — 4기관 융합")
+st.title("📊 데이터 출처: 4기관 융합")
 st.caption("총 16종 데이터셋 · 7개 분석 모듈")
 
 render_data_flow_diagram()

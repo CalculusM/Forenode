@@ -539,7 +539,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     # ════════════════════════════════════════════════════════
     story.append(Paragraph("Ⅱ. 사전 검토 분석 (통계 모드)", h1_style))
     story.append(Paragraph(
-        "본 장은 제안 전에 통과 가능성을 사전 정량화하는 단계입니다 — CI·FI 발굴 부서의 제안 설계용. "
+        "본 장은 제안 전에 통과 가능성을 사전 정량화하는 단계로, CI·FI 발굴 부서의 제안 설계용입니다. "
         "BIM 없이 한국 PPP 30년 데이터를 학습한 통계 모델로 분석합니다.",
         body_style,
     ))
@@ -555,7 +555,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     in_range = (ctx['capex_reference']['capex_low_억']
                 <= ctx['total_capex_user']
                 <= ctx['capex_reference']['capex_high_억'])
-    range_text = "회귀 참고범위(±20%) 내 위치 — 적정" if in_range else "회귀 참고범위(±20%) 밖 — 재검토 필요"
+    range_text = "회귀 참고범위(±20%) 내 위치로 적정" if in_range else "회귀 참고범위(±20%) 밖으로 재검토 필요"
     story.append(Paragraph(
         f"사용자 입력 {ctx['total_capex_user']:,}억 vs 회귀 추정 "
         f"{ctx['capex_reference']['capex_estimate_억']:,}억. {range_text}.",
@@ -674,7 +674,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     # 푸터
     story.append(Paragraph(
         "─" * 70 + "<br/>"
-        "Forenode — 민자 사업 발굴·제안 솔루션 엔진<br/>"
+        "Forenode: 민자 사업 발굴·제안 솔루션 엔진<br/>"
         "© Nexus Infra Solutions · 2026 국토·교통 데이터 활용 경진대회 출품작",
         caption_style,
     ))
