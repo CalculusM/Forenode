@@ -1,0 +1,41 @@
+name: keep-streamlit-awake
+
+on:
+  schedule:
+    - cron: '23 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  visit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Install Playwright
+        run: |
+          npm init -y > /dev/null
+          npm install playwright > /dev/null
+          npx playwright install --with-deps chromium > /dev/null
+
+      - name: Visit app and wake if sleeping
+        run: |
+          cat > keepalive.mjs <<'EOF'
+          import { chromium } from 'playwright';
+          const url = 'https://forenode.streamlit.app/';
+          const browser = await chromium.launch();
+          const page = await browser.newPage();
+          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
+          await page.waitForTimeout(15000);
+          const wake = page.getByText(/back up/i).first();
+          try {
+            await wake.waitFor({ state: 'visible', timeout: 5000 });
+            console.log('App asleep - clicking wake button');
+            await wake.click();
+            await page.waitForTimeout(120000);
+            console.log('Wake clicked; app booting');
+          } catch {
+            console.log('App awake - visit registered');
+          }
+          console.log('Final title:', await page.title());
+          await browser.close();
+          EOF
+          node keepalive.mjs
