@@ -37,9 +37,9 @@ import numpy as np
 import config_loader as _cfg
 
 _DEFAULTS_FALLBACK = {
-    "BTO":     {"equity": 25, "opex": 30, "mrg": 0,   "mcc": 0,  "toll": 100, "desc": "수익형: 운영 수익으로 회수(정부 위험 분담 없음)"},
-    "BTO-rs":  {"equity": 20, "opex": 32, "mrg": 50,  "mcc": 0,  "toll": 90,  "desc": "위험분담형: 정부·사업자 수요위험 분담(Risk Sharing)"},
-    "BTO-a":   {"equity": 15, "opex": 35, "mrg": 90,  "mcc": 30, "toll": 130, "desc": "정부지급형(BTO-a): 운영비 일부 정부 보전(Annuity)"},
+    "BTO":     {"equity": 25, "opex": 30, "mrg": 0,   "mcc": 0,  "toll": 85, "desc": "수익형: 운영 수익으로 회수(정부 위험 분담 없음)"},
+    "BTO-rs":  {"equity": 20, "opex": 32, "mrg": 50,  "mcc": 0,  "toll": 85,  "desc": "위험분담형: 정부·사업자 수요위험 분담(Risk Sharing)"},
+    "BTO-a":   {"equity": 15, "opex": 35, "mrg": 90,  "mcc": 30, "toll": 85, "desc": "정부지급형(BTO-a): 운영비 일부 정부 보전(Annuity)"},
     "BTL":     {"equity": 10, "opex": 40, "mrg": 100, "mcc": 80, "toll": 0,   "desc": "임대형: 정부 임대료 + 운영비 보전"},
     "BTO+BTL": {"equity": 18, "opex": 35, "mrg": 60,  "mcc": 50, "toll": 60,  "desc": "결합형(2024.10 신규): 상부 BTO 사용료로 하부 BTL 임대료 충당"},
 }

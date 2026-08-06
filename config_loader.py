@@ -66,6 +66,11 @@ def business_defaults(fallback: dict | None = None) -> dict:
     return load_finance_params().get("business_type_defaults") or (fallback or {})
 
 
+def capacity_gate(fallback: dict | None = None) -> dict:
+    """차로수별 일 교통량 경고/한계 게이트 — KHCM 2013 산식+실측 최대('26-08-06)."""
+    return load_finance_params().get("capacity_gate") or (fallback or {})
+
+
 if __name__ == "__main__":
     p = load_params()
     print("로드:", "OK" if p else "FAIL")

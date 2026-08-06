@@ -118,6 +118,70 @@ def min_revenue_for(
     return {"status": "ok", "min_rev": hi, "hi_rev": cur * hi_frac}
 
 
+def max_capex_for(
+    base_params: dict,
+    build_fn: Callable,
+    predicate: Callable[[dict], bool],
+    ann_rev: Optional[float] = None,
+    tol_억: float = 5.0,
+) -> dict:
+    """주어진 수입에서 기준을 통과하는 최대 민간투자비(억)를 이분법으로 찾는다.
+
+    용도('26-08-06 용량 게이트 축 전환): 문턱 교통량이 물리 한계를 넘을 때
+    "수요 대신 건설보조금(민간투자비 축소)으로 얼마를 메워야 하는가"를 답한다.
+    필요 보조금 = 현재 capex − max_capex. 대상 지표는 capex에 단조감소이므로
+    이분법이 유일해를 찾는다. 결정론 역산 — 예측·학습 아님.
+    """
+    params = dict(base_params)
+    if ann_rev is not None:
+        params["annual_revenue_억"] = float(ann_rev)
+    cur = float(params["capex_억"])
+
+    def _at(capex):
+        try:
+            _, m = build_fn(**{**params, "capex_억": float(capex)})
+            return m
+        except Exception:
+            return None
+
+    m_cur = _at(cur)
+    if m_cur is not None and predicate(m_cur):
+        return {"status": "already_ok", "max_capex": cur, "subsidy_억": 0.0}
+    lo, hi = cur * 0.05, cur
+    m_lo = _at(lo)
+    if m_lo is None or not predicate(m_lo):
+        return {"status": "infeasible", "max_capex": None, "subsidy_억": None}
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        m = _at(mid)
+        if m is not None and predicate(m):
+            lo = mid
+        else:
+            hi = mid
+        if hi - lo < tol_억:
+            break
+    return {"status": "ok", "max_capex": lo, "subsidy_억": cur - lo}
+
+
+def cash_milestones(cf, construction_years: int) -> dict:
+    """현금 기준 이정표 — 이자보상(EBITDA/이자)≥1·DSCR≥1 첫 운영연차.
+
+    근거('26-08-06 흑자 실태 조사): 회계 순손실은 후순위 구조·관리운영권 상각의
+    설계 산물인 경우가 많아(실측 59건 중 영업손실 0·순손실 16.9%·이자보상<1 40.7%),
+    부실 판별은 순이익이 아니라 현금 축으로 한다 — 위키 revenue-cost-census-2026.
+    """
+    con = int(construction_years or 0)
+    ebitda = np.asarray(cf["EBITDA"], dtype=float)[con + 1:]
+    interest = -np.asarray(cf["Interest"], dtype=float)[con + 1:]  # 저장은 음수
+    dscr = np.asarray(cf["DSCR"], dtype=float)[con + 1:]
+    ic_ok = np.where((interest <= 1e-9) | (ebitda >= interest))[0]
+    dscr_ok = np.where(np.nan_to_num(dscr, nan=0.0) >= 1.0)[0]
+    return {
+        "ic_ge1_op_year": int(ic_ok[0]) + 1 if len(ic_ok) else None,
+        "dscr_ge1_op_year": int(dscr_ok[0]) + 1 if len(dscr_ok) else None,
+    }
+
+
 def surplus_years(
     base_params: dict, build_fn: Callable, ann_rev: Optional[float] = None
 ) -> dict:
