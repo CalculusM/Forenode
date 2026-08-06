@@ -21,16 +21,13 @@
   ],
   "grade_map": {
     "A": 0,
-    "B": 1,
-    "C": 2
+    "C": 1
   },
-  "loocv_accuracy": 0.9322033898305084,
+  "loocv_accuracy": 0.9148936170212766,
   "train_accuracy": 1.0,
-  "n_original": 59,
-  "n_train": 75,
+  "n_original": 47,
   "class_distribution": {
-    "C": 25,
-    "A": 28,
-    "B": 6
+    "C": 27,
+    "A": 20
   }
 }

@@ -1518,6 +1518,11 @@ def main():
     # 부트스트랩은 운영비 매출비례(수동값 또는 유형 기본)로 풀고, 본 계산은 이 앵커로 재산출
     # — 예측·학습이 아니라 현금흐름 엔진의 결정론 역산이다(reverse_solver 검증 명세).
     # ── 용량 게이트('26-08-06) — 차로수별 경고/한계 일 교통량(KHCM+실측, config 단일 출처) ──
+    # 배포 핫스왑 자가 치유: 플랫폼이 본 스크립트만 재읽고 임포트 모듈은 구버전으로 둘 수
+    # 있다(실증 '26-08-07 AttributeError). 신설 심볼이 없으면 모듈을 스스로 재로드한다.
+    if not hasattr(_cfg_fin, "capacity_gate"):
+        import importlib as _il
+        _cfg_fin = _il.reload(_cfg_fin)
     _cap_cfg = _cfg_fin.capacity_gate(fallback={
         "warn_by_lanes": {"4": 58000, "6": 86000, "8": 116000},
         "limit_by_lanes": {"4": 95000, "6": 140000, "8": 190000}})
@@ -1684,6 +1689,9 @@ def main():
     # ── 🎯 역산(Goal Seek) 전역 1회 계산 — CI 뷰·예타 사전 시뮬 패널·보고 세 줄 공용 ──
     # 근거: 한상욱 처방 + 금광기업 실무 요구('26-07-29 수렴). 결정론 역산 — 예측·학습 아님.
     import reverse_solver as _rsv
+    if not hasattr(_rsv, "cash_milestones"):  # 배포 핫스왑 자가 치유(capacity_gate 참조)
+        import importlib as _il
+        _rsv = _il.reload(_rsv)
     _rev_K = _rsv.traffic_revenue_coeff(
         road_length, toll_per_km, heavy_ratio / 100, heavy_surcharge)
     _gov_seek = _rsv.min_revenue_for(

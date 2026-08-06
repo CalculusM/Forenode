@@ -167,10 +167,20 @@ def main():
     print("\n[1/5] 데이터 로드")
     X, y, meta = load_data()
     print(f"  Feature 수: {X.shape[1]}")
+
+    # 실제 존재하는 등급만으로 클래스 인덱스 재매핑
+    # (XGBoost는 0..K-1 연속 라벨을 요구 — 예: B등급 0건이면 {A,C}→{0,1})
+    present = sorted(set(y))
+    class_index = {c: i for i, c in enumerate(present)}
+    y = np.array([class_index[v] for v in y])
+    n_classes = len(present)
+    grade_reverse = {i: GRADE_REVERSE[c] for i, c in enumerate(present)}
+    grade_map = {g: i for i, g in grade_reverse.items()}
+
     print(f"  클래스 분포 (학습 전):")
     cnt = Counter(y)
     for label_idx, count in sorted(cnt.items()):
-        grade = GRADE_REVERSE[label_idx]
+        grade = grade_reverse[label_idx]
         print(f"    {grade}등급: {count}건")
     
     # ─── SMOTE 적용 ───
@@ -200,7 +210,7 @@ def main():
                 print(f"  SMOTE 적용 (k_neighbors={k_n})")
                 cnt_new = Counter(y_resampled)
                 for label_idx, count in sorted(cnt_new.items()):
-                    grade = GRADE_REVERSE[label_idx]
+                    grade = grade_reverse[label_idx]
                     print(f"    {grade}등급: {count}건 (합성 {count - cnt[label_idx]}건 추가)")
             except Exception as e:
                 print(f"  SMOTE 실패: {e} — 원본 사용")
@@ -218,16 +228,19 @@ def main():
     
     sample_weight = np.array([class_weights[cls] for cls in y_resampled])
     
-    model = xgb.XGBClassifier(
+    # 공통 하이퍼파라미터 — 2클래스면 binary:logistic(기본), 3클래스 이상만 multi:softprob
+    xgb_params = dict(
         n_estimators=100,
         max_depth=4,           # 작은 데이터 → 얕은 트리
         learning_rate=0.1,
-        objective="multi:softprob",
-        num_class=3,
-        eval_metric="mlogloss",
+        eval_metric="mlogloss" if n_classes > 2 else "logloss",
         random_state=42,
         n_jobs=-1,
     )
+    if n_classes > 2:
+        xgb_params.update(objective="multi:softprob", num_class=n_classes)
+
+    model = xgb.XGBClassifier(**xgb_params)
     model.fit(X_resampled, y_resampled, sample_weight=sample_weight)
     
     # 학습 정확도
@@ -261,11 +274,7 @@ def main():
                     pass
         
         # 학습
-        model_fold = xgb.XGBClassifier(
-            n_estimators=100, max_depth=4, learning_rate=0.1,
-            objective="multi:softprob", num_class=3,
-            eval_metric="mlogloss", random_state=42, n_jobs=-1,
-        )
+        model_fold = xgb.XGBClassifier(**xgb_params)
         model_fold.fit(X_train, y_train)
         
         pred = model_fold.predict(X_test)[0]
@@ -277,10 +286,10 @@ def main():
     
     # 클래스별 정확도
     print(f"\n  Confusion Matrix (실제 → 예측):")
-    print(f"  " + " ".join([f"{g:>4}" for g in ["A", "B", "C"]]))
-    cm = confusion_matrix(loocv_actuals, loocv_predictions, labels=[0, 1, 2])
+    print(f"  " + " ".join([f"{grade_reverse[i]:>4}" for i in range(n_classes)]))
+    cm = confusion_matrix(loocv_actuals, loocv_predictions, labels=list(range(n_classes)))
     for actual_idx, row in enumerate(cm):
-        actual_grade = GRADE_REVERSE[actual_idx]
+        actual_grade = grade_reverse[actual_idx]
         print(f"  {actual_grade} " + " ".join([f"{v:>4}" for v in row]))
     
     # ─── SHAP 분석 ───
@@ -296,13 +305,16 @@ def main():
             # 또는 list of (n_samples, n_features) per class
             
             # Summary plot (global) — 클래스별
-            for class_idx in range(3):
-                grade = GRADE_REVERSE[class_idx]
+            for class_idx in range(n_classes):
+                grade = grade_reverse[class_idx]
                 
                 if isinstance(shap_values, list):
                     sv_class = shap_values[class_idx]
-                else:
+                elif getattr(shap_values, "ndim", 0) == 3:
                     sv_class = shap_values[:, :, class_idx]
+                else:
+                    # 2클래스(binary:logistic): SHAP은 양성 클래스(인덱스 1) 기준 단일 행렬
+                    sv_class = shap_values if class_idx == n_classes - 1 else -shap_values
                 
                 plt.figure(figsize=(10, 8))
                 shap.summary_plot(
@@ -350,8 +362,8 @@ def main():
         pickle.dump({
             "model": model,
             "feature_cols": FEATURE_COLS,
-            "grade_map": GRADE_MAP,
-            "grade_reverse": GRADE_REVERSE,
+            "grade_map": grade_map,
+            "grade_reverse": grade_reverse,
             "loocv_accuracy": loocv_acc,
             "train_accuracy": train_acc,
             "n_train": len(X_resampled),
@@ -363,11 +375,11 @@ def main():
     with open(FEATURE_NAMES_OUT, "w", encoding="utf-8") as f:
         json.dump({
             "feature_cols": FEATURE_COLS,
-            "grade_map": GRADE_MAP,
+            "grade_map": grade_map,
             "loocv_accuracy": loocv_acc,
             "train_accuracy": train_acc,
             "n_original": len(X),
-            "class_distribution": dict(Counter(y).most_common()),
+            "class_distribution": {grade_reverse[k]: v for k, v in Counter(y).most_common()},
         }, f, ensure_ascii=False, indent=2)
     print(f"  ✓ {FEATURE_NAMES_OUT}")
     

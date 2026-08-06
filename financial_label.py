@@ -68,6 +68,11 @@ def classify_grade(row):
     # 핵심 지표 모두 누락 시 등급 불능
     if all(x is None for x in [영익률, dscr, 부채비율]):
         return "?", "주요 지표 추출 실패"
+
+    # 수익성·상환능력 지표가 하나도 없으면(건설중 SPC 등) 수익성 등급 판정 불가
+    # — 부채비율 하나만으로 A/B를 주면 학습 데이터가 오염됨
+    if 영익률 is None and dscr is None:
+        return "?", "수익성 지표 없음 (건설중 등) — 등급 판정 불가"
     
     # 적자 사업: 무조건 C
     if 영익률 is not None and 영익률 < 0:

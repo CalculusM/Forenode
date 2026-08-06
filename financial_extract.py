@@ -65,20 +65,37 @@ EXTRACTION_PATTERNS = {
     # 재무상태표 - 자본
     "자본금": ["자본금"],
     "이익잉여금": ["이익잉여금", "결손금"],
-    "자본총계": ["자본총계", "자본 총계"],
+    "자본총계": ["자본총계", "자본 총계", "자 본 총 계"],
     
     # 손익계산서
-    "영업수익": ["영업수익", "매출액", "매출"],
+    # (주의) 순수 "매출" 키워드는 재무상태표 "매출채권"·현금흐름표 "매출 등 수익활동"에
+    # 오매칭되므로 금지. 매출원가형 SPC 손익서 계정(통행료수입 등)을 직접 나열한다.
+    "영업수익": ["영업수익", "매출액", "도로운영수익", "통행료수익", "통행료수입"],
     "영업비용": ["영업비용", "매출원가"],
     "영업이익": ["영업이익", "영업손실"],
     "이자비용": ["이자비용"],
     "법인세": ["법인세", "법인세비용"],
     "당기순이익": ["당기순이익", "당기순손실"],
-    
+
     # 현금흐름
     "영업활동현금흐름": ["영업활동", "영업활동으로 인한"],
-    "감가상각비": ["감가상각비", "감가상각"],
+    "감가상각비": ["감가상각비"],
+    # 관리운영권(무형자산) 상각 — 민자 SPC의 지배적 상각 항목.
+    # 손익계산서가 기능별 분류라 판관비 소액만 노출되는 노선이 있어
+    # 손익·현금흐름·주석 전체에서 최대값(=연간 총상각액)을 취한다 (MAX_ITEMS 참조).
+    "무형자산상각비": ["무형자산상각비", "관리운영권상각비", "관리운영권상각액"],
 }
+
+# 문서 전체에서 단위환산 후 최대값을 취하는 항목 (총액이 여러 곳에 분해 표기되는 상각류)
+MAX_ITEMS = {"감가상각비", "무형자산상각비"}
+
+# 손실 계정 라벨: 표에는 양수로 인쇄되지만 의미는 음수 → 부호 반전
+LOSS_KEYWORDS = {"당기순손실", "영업손실", "결손금"}
+
+# 손익계산서 구간(손익계산서 제목 ~ 현금흐름표 제목)에서만 찾는 항목.
+# 건설중 SPC는 손익서에 이자비용 계정이 없는데(차입원가 전액 자본화),
+# 전체 검색 시 현금흐름 보충주석의 "이자비용 등" 잔액이 혼입됨 → 구간 제한으로 차단.
+PL_SCOPED_ITEMS = {"영업수익", "영업비용", "영업이익", "이자비용", "법인세", "당기순이익"}
 
 
 # ════════════════════════════════════════════════════════════
@@ -94,91 +111,214 @@ def find_pdf_folder():
     return None
 
 
-def extract_amount_from_line(line):
-    """텍스트 라인에서 숫자 추출 (단위 백만원 가정)"""
-    # 콤마 포함 숫자 패턴: 1,234,567 또는 (1,234) 음수
-    nums = re.findall(r"\(?-?[\d,]+\)?", line)
-    
-    candidates = []
-    for n in nums:
-        # 콤마 제거, 괄호는 음수
-        is_negative = "(" in n or "-" in n
-        cleaned = re.sub(r"[(),\-]", "", n)
-        if cleaned.isdigit() and len(cleaned) >= 3:  # 최소 1,000 이상 (잡음 제거)
-            val = int(cleaned)
-            if is_negative:
-                val = -val
-            candidates.append(val)
-    
-    # 가장 큰 절대값을 가진 숫자가 보통 당기 값
-    if candidates:
-        return max(candidates, key=abs)
+# 금액 토큰: 콤마 3자리 그룹 필수(1,000 이상) — 주석번호·연도 등 잡음 차단.
+# 괄호는 음수. 표의 당기 칸이 "-"(해당액 없음)인 경우도 토큰으로 잡는다.
+_TOKEN_RE = re.compile(r"\(?\d{1,3}(?:,\d{3})+\)?|(?<!\S)-(?!\S)")
+# "(주석5,16)", "(주 12)" 등 계정명 뒤 주석 참조 괄호 제거용
+_NOTE_RE = re.compile(r"\([^()]*주[^()]*\)")
+# 단위 선언: "(단위 : 원)" / "(단위: 천원)" / "(단위: 백만원)" / "(단위: 주)" ...
+_UNIT_RE = re.compile(r"단\s*위\s*[::]\s*([^)\s]+)")
+
+
+def _unit_multiplier(unit_word, prev):
+    """단위 선언 문자열 → 원 환산 배수. 금액 단위가 아니면 None(해당 구간 스킵)."""
+    if "백만" in unit_word and "원" in unit_word:
+        return 1_000_000
+    if "천" in unit_word and "원" in unit_word:
+        return 1_000
+    if "원" in unit_word:  # "원" (억원·달러 표기는 본 데이터셋에 없음)
+        return 1
+    return None  # 주식수(주)·%·배 등 비금액 단위
+
+
+def find_keyword_start(line, norm, kw):
+    """계정 키워드를 원문(위치≤30) 또는 공백제거본(위치≤15)에서 탐색.
+    감사보고서 표 라벨은 '자 본 총 계'처럼 글자 사이 공백이 흔함.
+    반환: 금액 탐색 시작 위치(원문 기준) 또는 None(미매칭)."""
+    p = line.find(kw)
+    if 0 <= p <= 30:
+        return p + len(kw)
+    q = norm.find(kw.replace(" ", ""))
+    if 0 <= q <= 15:
+        # 라벨 문자열에는 콤마 숫자가 없으므로 라인 처음부터 금액을 찾아도 안전
+        return 0
     return None
 
 
+def first_amount_after(line, kw_pos, kw_len):
+    """계정 키워드 뒤 첫 금액(=당기 칸) 반환.
+    반환: (status, value) — status: 'amount' | 'dash'(당기 없음) | 'none'(금액 없음)
+    기존 max-abs 방식은 당기·전기 중 큰 값을 취해 전기값 혼입을 일으켰음."""
+    seg = line[kw_pos + kw_len:]
+    seg = _NOTE_RE.sub(" ", seg)
+    m = _TOKEN_RE.search(seg)
+    if not m:
+        return "none", None
+    tok = m.group(0)
+    if tok == "-":
+        return "dash", None
+    neg = tok.startswith("(")
+    val = int(re.sub(r"[(),]", "", tok))
+    return "amount", -val if neg else val
+
+
 def extract_financials_from_pdf(pdf_path, log_lines):
-    """PDF 1개에서 재무 항목 추출"""
+    """PDF 1개에서 재무 항목 추출 (모든 금액을 원 단위로 정규화)"""
     log_lines.append(f"\n{'='*60}")
     log_lines.append(f"파일: {pdf_path.name}")
     log_lines.append(f"{'='*60}")
-    
+
     extracted = {}
-    
+
     try:
         with pdfplumber.open(pdf_path) as pdf:
             log_lines.append(f"  페이지 수: {len(pdf.pages)}")
-            
+
             # 모든 페이지 텍스트 결합
             all_text = ""
             for page in pdf.pages:
                 text = page.extract_text() or ""
                 all_text += "\n" + text
-            
-            # 라인 단위로 분리
+
+            # 라인 단위로 분리 + 라인별 유효 단위(가장 최근 단위 선언) 추적
             lines = all_text.split("\n")
-            
+            line_units = []
+            cur_mult = 1  # 선언 전 기본: 원
+            for line in lines:
+                um = _UNIT_RE.search(line)
+                if um:
+                    cur_mult = _unit_multiplier(um.group(1), cur_mult)
+                line_units.append(cur_mult)
+
+            # 재무제표 구간 앵커: 재무상태표 → 손익계산서 → 현금흐름표 제목 라인
+            # 목차에도 같은 제목이 나오므로, 제목 직후 몇 줄 안에 "(단위: ...)" 선언이
+            # 따라오는 실제 재무제표 페이지 제목만 인정한다.
+            def _is_real_title(idx):
+                return any(
+                    _UNIT_RE.search(lines[j])
+                    for j in range(idx + 1, min(idx + 6, len(lines)))
+                )
+
+            bs_i = pl_i = cf_i = None
+            for i, line in enumerate(lines):
+                n = re.sub(r"\s+", "", line)
+                if bs_i is None and "재무상태표" in n[:6] and _is_real_title(i):
+                    bs_i = i
+                elif pl_i is None and bs_i is not None and "손익계산서" in n[:8] and _is_real_title(i):
+                    pl_i = i
+                elif cf_i is None and pl_i is not None and "현금흐름표" in n[:8] and _is_real_title(i):
+                    cf_i = i
+            if pl_i is not None and cf_i is not None:
+                pl_range = (pl_i, cf_i)
+                log_lines.append(f"  손익계산서 구간: 라인 {pl_i}~{cf_i}")
+            else:
+                pl_range = None  # 앵커 실패 시 전체 검색(기존 동작)
+
+            # 공백 제거본 (띄어쓰기 라벨 "자 본 총 계" 등 매칭용)
+            norm_lines = [re.sub(r"\s+", "", l) for l in lines]
+
             # 항목별 검색
             for item_name, keywords in EXTRACTION_PATTERNS.items():
-                for kw in keywords:
-                    for line in lines:
-                        if kw in line:
-                            # 키워드가 라인 시작 부근에 있어야 함 (목차 회피)
-                            kw_pos = line.find(kw)
-                            if kw_pos > 30:
+                if item_name in MAX_ITEMS:
+                    # 상각류: 손익서(기능별 분류)에는 판관비 소액만 나오는 노선이 있어
+                    # 문서 전체(손익·현금흐름·주석)에서 단위환산 후 최대값 = 연간 총액을 취함
+                    best = None
+                    best_src = None
+                    for li, line in enumerate(lines):
+                        mult = line_units[li]
+                        if mult is None:
+                            continue
+                        for kw in keywords:
+                            start = find_keyword_start(line, norm_lines[li], kw)
+                            if start is None:
                                 continue
-                            
-                            amount = extract_amount_from_line(line)
-                            if amount is not None and amount != 0:
-                                # 첫 번째 매칭만 사용
-                                if item_name not in extracted:
-                                    extracted[item_name] = amount
-                                    log_lines.append(
-                                        f"  ✓ {item_name}: {amount:,} ({kw})"
-                                    )
+                            status, amount = first_amount_after(line, start, 0)
+                            if status == "amount" and amount is not None and amount > 0:
+                                v = amount * mult
+                                if best is None or v > best:
+                                    best = v
+                                    best_src = f"{kw}, x{mult}"
+                    if best is not None:
+                        extracted[item_name] = best
+                        log_lines.append(f"  ✓ {item_name}: {best:,} ({best_src}, max)")
+                else:
+                    # 일반 항목: 문서 순서상 첫 매칭 라인의 첫 금액(=당기 칸)
+                    if item_name in PL_SCOPED_ITEMS and pl_range is not None:
+                        scan = range(pl_range[0], pl_range[1])
+                    else:
+                        scan = range(len(lines))
+                    done = False
+                    for li in scan:
+                        line = lines[li]
+                        mult = line_units[li]
+                        if mult is None:
+                            continue
+                        norm = norm_lines[li]
+                        for kw in keywords:
+                            start = find_keyword_start(line, norm, kw)
+                            if start is None:
+                                continue
+                            # "부채와자본총계"류 합계 라인이 "자본총계"로 오매칭되는 것 차단
+                            if item_name == "자본총계":
+                                prefix = norm[:norm.find(kw.replace(" ", ""))]
+                                if "부채" in prefix:
+                                    continue
+                            status, amount = first_amount_after(line, start, 0)
+                            if status == "amount" and amount is not None and amount != 0:
+                                if kw in LOSS_KEYWORDS and amount > 0:
+                                    amount = -amount
+                                extracted[item_name] = amount * mult
+                                log_lines.append(
+                                    f"  ✓ {item_name}: {extracted[item_name]:,} ({kw}, x{mult})"
+                                )
+                                done = True
+                            elif status == "dash":
+                                # 당기 칸이 '-' = 당기 해당액 없음 → 값 미기록으로 확정.
+                                # (뒤쪽 주석 표로 넘어가면 전기값·잔액 등 오염값을 줍게 됨)
+                                log_lines.append(f"  - {item_name}: 당기 '-' ({kw}) → 미기록")
+                                done = True
+                            if done:
                                 break
-                    if item_name in extracted:
-                        break
-            
+                        if done:
+                            break
+
+            # 자본총계 직접 추출 실패 시(라벨과 금액이 다른 라인으로 분리된 PDF)
+            # 회계 항등식 자본총계 = 자산총계 - 부채총계 로 도출 (자본잠식이면 음수)
+            if ("자본총계" not in extracted
+                    and extracted.get("자산총계") is not None
+                    and extracted.get("부채총계") is not None):
+                extracted["자본총계"] = extracted["자산총계"] - extracted["부채총계"]
+                log_lines.append(
+                    f"  ✓ 자본총계: {extracted['자본총계']:,} (자산총계-부채총계 항등식 도출)"
+                )
+
             missing = set(EXTRACTION_PATTERNS.keys()) - set(extracted.keys())
             if missing:
                 log_lines.append(f"  [⚠] 누락 항목: {', '.join(sorted(missing))}")
-    
+
     except Exception as e:
         log_lines.append(f"  [에러] PDF 파싱 실패: {e}")
         return None
-    
+
     return extracted
 
 
 def calculate_ratios(fs):
     """재무비율 30종 계산"""
     r = {}
-    
+
     # 안전 계산 함수
     def safe_div(a, b):
         if b is None or b == 0 or a is None:
             return None
         return a / b
+
+    # 총 상각비(D&A) = 유형 감가상각비 + 무형자산(관리운영권) 상각비
+    # 민자 SPC는 관리운영권 상각이 지배적 — 유형만 쓰면 EBITDA≈영업이익으로 왜곡됨
+    if fs.get("감가상각비") is None and fs.get("무형자산상각비") is None:
+        총상각비 = None
+    else:
+        총상각비 = (fs.get("감가상각비") or 0) + (fs.get("무형자산상각비") or 0)
     
     # 1. 안정성 비율
     r["부채비율"] = safe_div(fs.get("부채총계"), fs.get("자본총계"))
@@ -196,7 +336,7 @@ def calculate_ratios(fs):
     r["ROA_총자산수익률"] = safe_div(fs.get("당기순이익"), fs.get("자산총계"))
     r["ROE_자기자본수익률"] = safe_div(fs.get("당기순이익"), fs.get("자본총계"))
     r["EBITDA_마진"] = safe_div(
-        (fs.get("영업이익") or 0) + (fs.get("감가상각비") or 0),
+        (fs.get("영업이익") or 0) + (총상각비 or 0),
         fs.get("영업수익")
     )
     
@@ -214,7 +354,7 @@ def calculate_ratios(fs):
         fs.get("부채총계")
     )
     r["DSCR_근사"] = safe_div(
-        (fs.get("영업이익") or 0) + (fs.get("감가상각비") or 0),
+        (fs.get("영업이익") or 0) + (총상각비 or 0),
         fs.get("이자비용")
     )
     
@@ -231,6 +371,7 @@ def calculate_ratios(fs):
     r["자본총계_원본"] = fs.get("자본총계")
     r["이자비용_원본"] = fs.get("이자비용")
     r["감가상각비_원본"] = fs.get("감가상각비")
+    r["무형자산상각비_원본"] = fs.get("무형자산상각비")
     
     # 7. 파생 지표
     r["순부채"] = (fs.get("부채총계") or 0) - (
@@ -317,7 +458,12 @@ def main():
         fs = extract_financials_from_pdf(pdf_path, log_lines)
         if fs is None:
             continue
-        
+        # 감사보고서가 아닌 PDF(실시협약서 등)는 재무 항목이 거의 안 나옴 → 행 생성 제외
+        if len(fs) < 5:
+            print(f"  → 재무 항목 {len(fs)}개 — 감사보고서 아님, 건너뜀")
+            log_lines.append(f"  [건너뜀] 추출 항목 {len(fs)}개 < 5 — 감사보고서 아닌 PDF로 판단")
+            continue
+
         # 비율 계산
         ratios = calculate_ratios(fs)
         
