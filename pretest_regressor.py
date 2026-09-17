@@ -22,8 +22,8 @@ Forenode — 사전 검토 단계 통계 회귀 모델 (pretest_regressor.py)
   - 수익성 간이판정 (수입PV/CAPEX 비율 — PIMAC VfM과 다른 지표)
 
 기술 스택:
-  - sklearn.linear_model.LinearRegression (1차 모델)
-  - 향후: sklearn.ensemble.GradientBoostingRegressor 또는 XGBoost
+  - 결정론 휴리스틱: 기준 단가 350억/km × 차로·지형·구조물 보정, ±20% 고정 배수 (학습 회귀 미사용)
+  - 향후: 실측 학습 회귀 (GradientBoosting 또는 XGBoost)
 ============================================================
 """
 import numpy as np
@@ -36,12 +36,13 @@ import numpy as np
 # ════════════════════════════════════════════════════════════
 import config_loader as _cfg
 
+# MRG·MCC 기본 0: 폐지 제도(2006 민간제안·2009 정부고시), 레거시 협약 재현 전용 ('26-09-17, config 동치 유지)
 _DEFAULTS_FALLBACK = {
     "BTO":     {"equity": 25, "opex": 30, "mrg": 0,   "mcc": 0,  "toll": 85, "desc": "수익형: 운영 수익으로 회수(정부 위험 분담 없음)"},
-    "BTO-rs":  {"equity": 20, "opex": 32, "mrg": 50,  "mcc": 0,  "toll": 85,  "desc": "위험분담형: 정부·사업자 수요위험 분담(Risk Sharing)"},
-    "BTO-a":   {"equity": 15, "opex": 35, "mrg": 90,  "mcc": 30, "toll": 85, "desc": "정부지급형(BTO-a): 운영비 일부 정부 보전(Annuity)"},
-    "BTL":     {"equity": 10, "opex": 40, "mrg": 100, "mcc": 80, "toll": 0,   "desc": "임대형: 정부 임대료 + 운영비 보전"},
-    "BTO+BTL": {"equity": 18, "opex": 35, "mrg": 60,  "mcc": 50, "toll": 60,  "desc": "결합형(2024.10 신규): 상부 BTO 사용료로 하부 BTL 임대료 충당"},
+    "BTO-rs":  {"equity": 20, "opex": 32, "mrg": 0,   "mcc": 0,  "toll": 85,  "desc": "위험분담형(BTO-rs): 투자위험 분담(예: 5대5) 손익공유. 분담 산식 미구현, 현행 계산은 보전 없음 가정(보수)"},
+    "BTO-a":   {"equity": 15, "opex": 35, "mrg": 0,   "mcc": 0,  "toll": 85, "desc": "손익공유형(BTO-a, a=Adjusted): 최소사업운영비 부족분 보전·초과이익 공유. 보전 산식 미구현, 현행 계산은 보전 없음 가정(보수)"},
+    "BTL":     {"equity": 10, "opex": 40, "mrg": 100, "mcc": 0,  "toll": 0,   "desc": "임대형: 정부 임대료로 회수. 본 엔진은 MRG 100%로 근사"},
+    "BTO+BTL": {"equity": 18, "opex": 35, "mrg": 0,   "mcc": 0,  "toll": 60,  "desc": "결합형(제도 신설 2020.2 기본계획, 2024.10 활성화 방안 확대): 상부 BTO 사용료로 하부 BTL 임대료 충당. 결합 정산 산식 미구현, 현행 계산은 보전 없음 가정(보수)"},
 }
 
 
@@ -85,8 +86,8 @@ def estimate_capex_from_route(
     노선 특성에서 CAPEX 추정 (1차 통계 모델).
     
     근거:
-      한국도로공사 평균 1km당 사업비 ≈ 450~500억원 (2020년대 기준)
-      차로수·지형·교량·터널 비율에 따라 보정
+      한국도로공사 평균 1km당 사업비 ≈ 450~500억원 (2020년대 기준) 참고.
+      본 모델 기준 단가는 350억/km 채택(휴리스틱). 차로수·지형·교량·터널 비율에 따라 보정
     
     Parameters
     ----------
@@ -182,11 +183,11 @@ _SCREEN_BANDS_FALLBACK = [
     {"min_bc": 1.3, "min_dscr": 1.20, "judgment": "수익성 매우 양호", "color": "#1D9E75",
      "recommendation": "정부 보전금 없이도 민간 사업주가 수익을 낼 수 있는 구조입니다. BTO 또는 BTO-rs 사업유형 검토 권장."},
     {"min_bc": 1.0, "min_dscr": 1.05, "judgment": "수익성 확보", "color": "#1F3864",
-     "recommendation": "현재 MRG·자기자본비율 등 조건으로 사업 추진 가능. 민감도 분석에서 핵심 리스크 변수를 확인하세요."},
+     "recommendation": "현재 조건으로 사업 추진 가능. 민감도 분석에서 핵심 리스크 변수 확인 권장."},
     {"min_bc": 0.85, "min_dscr": None, "judgment": "경계선(재구조화 검토)", "color": "#EF9F27",
-     "recommendation": "사업 조건 보완 필요. MRG 보장률 상향, 운영기간 연장, 또는 BTO-a 전환 등 시나리오 비교를 권합니다."},
+     "recommendation": "사업 조건 보완 필요. 건설보조금 확대, 운영기간 연장, 통행료 조정 등 시나리오 비교 권장."},
     {"min_bc": None, "min_dscr": None, "judgment": "수익성 미달", "color": "#D45F5F",
-     "recommendation": "현행 조건으로는 수익성 확보가 어렵습니다. 정부 보전 설계, 재정사업 전환 또는 사업계획 재검토를 권합니다."},
+     "recommendation": "현행 조건으로는 수익성 확보 곤란. 건설보조금 등 재정지원 설계, 재정사업 전환 또는 사업계획 재검토 권장."},
 ]
 
 

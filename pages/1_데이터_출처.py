@@ -31,4 +31,10 @@ for src in DATA_SOURCES:
     with c2:
         st.markdown("**활용 모듈**")
         st.markdown(" · ".join(f"`{m}`" for m in src["modules"]))
+        _roadmap = [d.split(" · ")[0] for d in src["datasets"] if "로드맵(계산 미연동)" in d]
+        if _roadmap:
+            st.caption("로드맵(미연동): " + ", ".join(_roadmap) + ". 현재 계산 경로 미연동. 상기 활용 모듈 표기 비적용.")
     st.markdown("")
+
+st.markdown("---")
+st.caption("Forenode 베타. 정식 민자 적격성조사 아님(자체 사전 검토 도구). 입력값 서버 저장 없음(세션 한정). 문의: savewithlaw2002@gmail.com")

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """시나리오 나란히 비교 — 메인에서 '💾 시나리오 저장'한 1~4개를 표·차트·PDF로 비교.
-예타 사전 시뮬(제안 전 반복 검토)의 마감 화면. 계산은 저장 시점의 엔진 산출을 그대로 사용(재계산 없음)."""
+적격성 사전 시뮬(제안 전 반복 검토)의 마감 화면. 계산은 저장 시점의 엔진 산출을 그대로 사용(재계산 없음)."""
 import io
 
 import pandas as pd
@@ -16,6 +16,7 @@ _T = ui_theme.theme()
 st.title("🧮 시나리오 나란히 비교")
 st.caption("메인 화면에서 변수를 바꿔 '💾 시나리오 저장'을 반복하면 여기에 쌓입니다(최대 4개). "
            "이대로 제안하면 어떤 조건이 안전한지 한눈에 비교하세요.")
+st.caption("저장 시나리오는 브라우저 세션 보관. 새로고침 시 삭제.")
 
 _saved = st.session_state.get('saved_scenarios', [])
 
@@ -34,7 +35,7 @@ df = pd.DataFrame(_saved)
 st.markdown("##### 📋 비교 표")
 _metric_cols = ["NPV(억)", "IRR(%)", "EquityIRR(%)", "EquityMIRR(%)", "DSCR최소",
                 "수입/비용현가비율", "정부부담(억)", "회수기간(년)"]
-_input_cols = ["사업유형", "연장(km)", "총사업비(억)", "일교통량(대)", "통행료(원/km)", "MRG(%)"]
+_input_cols = ["사업유형", "연장(km)", "민간투자비(억)", "일교통량(대)", "통행료(원/km)", "MRG(%)"]
 def _fmt(v):
     if v is None:
         return "—"
@@ -59,7 +60,7 @@ def _likelihood_row(saved: list) -> list:
     except Exception:
         return ["산출 불가"] * len(saved)
     base = saved[0]
-    _other_cols = ["사업유형", "연장(km)", "총사업비(억)", "통행료(원/km)", "MRG(%)"]
+    _other_cols = ["사업유형", "연장(km)", "민간투자비(억)", "통행료(원/km)", "MRG(%)"]
     out = []
     for i, s in enumerate(saved):
         if i == 0:
@@ -90,7 +91,7 @@ st.caption("행 = 입력·지표, 열 = 시나리오. 판정 기준 없이 산�
 st.caption(
     "**유력도(실측)** = 기준(첫 저장) 대비 수요 가정 변화가 과거 실측 분포(국내외 협약 대비 실현율)에서 "
     "나타난 비율. 발생 가능성이 높은 Case부터 보는 용도(실무 요구 반영). "
-    "수요 외 축(통행료·공사비·MRG·금리)은 실측 분포 근거 미확보 → ✚ 표기(그럴듯한 값으로 채우지 않음).")
+    "수요 외 축(통행료·공사비·MRG·금리)은 실측 분포 근거 미확보, ✚ 표기(그럴듯한 값으로 채우지 않음).")
 
 # ── ② 비교 차트 ──
 st.markdown("##### 📊 지표 비교 차트")
@@ -184,3 +185,6 @@ with _dcols[-1]:
     if st.button("전체 삭제", key="sc_del_all", type="secondary", use_container_width=True):
         st.session_state['saved_scenarios'] = []
         st.rerun()
+
+st.markdown("---")
+st.caption("Forenode 베타. 정식 민자 적격성조사 아님(자체 사전 검토 도구). 입력값 서버 저장 없음(세션 한정). 문의: savewithlaw2002@gmail.com")

@@ -29,7 +29,11 @@ _DSCR_DEFAULT = 1.05   # 기술적 default 근처
 
 def _base_case_from_params(base_params: dict, daily_traffic: float = 0.0,
                            road_length_km: float = 0.0) -> BaseCase:
-    """app.py 의 base_params dict → scenario_engine.BaseCase 매핑."""
+    """app.py 의 base_params dict 를 scenario_engine.BaseCase 로 매핑.
+
+    E1 수정: 메인 KPI 계산(build_cashflow)에 들어가는 파라미터 전부 통과.
+    OPEX 시계열·부대수입·재구조화·회수 방식·선순위 구조 포함. 기준선(1.00x)과 메인 화면 수치 일치 보장.
+    """
     return BaseCase(
         capex_억=base_params["capex_억"],
         annual_revenue_억=base_params["annual_revenue_억"],
@@ -45,6 +49,14 @@ def _base_case_from_params(base_params: dict, daily_traffic: float = 0.0,
         tax_rate=base_params.get("tax_rate", 0.22),
         mrg_ratio=base_params.get("mrg_ratio", 0.0),
         mcc_ratio=base_params.get("mcc_ratio", 0.0),
+        opex_series_억=base_params.get("opex_series_억"),
+        ancillary_revenue_억=base_params.get("ancillary_revenue_억", 0.0),
+        restructuring_year=base_params.get("restructuring_year", 0),
+        restructuring_toll_adj=base_params.get("restructuring_toll_adj", 1.0),
+        equity_recovery_method=base_params.get("equity_recovery_method", "원금+수익률"),
+        debt_repayment_method=base_params.get("debt_repayment_method", "원리금균등"),
+        senior_ratio=base_params.get("senior_ratio"),
+        senior_rate=base_params.get("senior_rate"),
         daily_traffic=daily_traffic,
         road_length_km=road_length_km,
     )
@@ -63,10 +75,13 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
         "DSCR·LLCR·IRR·NPV의 변화와, FI·CI 제안 검토와 투자심의에서 요구하는 리스크 등록부를 산출합니다."
     )
 
-    base = _base_case_from_params(base_params, daily_traffic, road_length_km)
+    # E1: app.py 가 build_cashflow 호출 직전 저장한 fn_base_params(메인 KPI와 동일 전체
+    # 파라미터)를 1급 소스로 사용. 없으면 인자 base_params 폴백.
+    _fn_params = st.session_state.get('fn_base_params')
+    _src_params = _fn_params if _fn_params else base_params
+    base = _base_case_from_params(_src_params, daily_traffic, road_length_km)
 
-    # 참고: 민감도 시나리오는 OPEX를 비율(opex_ratio)로 단순화해 재계산하므로
-    # 메인 화면(자동 OPEX 시계열) DSCR과 소수점 단위 차이가 날 수 있습니다.
+    # 기준선(1.00x)은 메인 화면과 동일 파라미터로 계산.
     try:
         base_res = run_scenario(base)
     except Exception as e:
@@ -85,10 +100,9 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
 
     with st.expander("ⓘ 이 탭의 LLCR이 현금흐름표 LLCR과 소수점 차이가 나는 이유"):
         st.markdown(
-            "이 탭의 **LLCR_min**은 각 운영연도 **연초(직전 연도 말) 잔존부채** 기준으로, "
-            "현금흐름표의 LLCR은 **연말 잔존부채** 기준으로 계산합니다. 둘 다 통용되는 관행이며 "
-            "시점 규약 차이일 뿐 오류가 아닙니다. 또한 민감도 시나리오는 OPEX를 비율로 단순화해 "
-            "재계산하므로 메인 화면(자동 OPEX 시계열)과도 소수점 단위 차이가 있을 수 있습니다."
+            "이 탭의 **LLCR_min**은 각 운영연도 연초(직전 연도 말) 잔존부채 기준. "
+            "현금흐름표의 LLCR은 연말 잔존부채 기준. 둘 다 통용되는 시점 규약. "
+            "기준선(1.00x)은 메인 화면과 동일 파라미터로 계산."
         )
 
     st.divider()
