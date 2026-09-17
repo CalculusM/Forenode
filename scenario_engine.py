@@ -55,12 +55,21 @@ class BaseCase:
     tax_rate: float = 0.22
     mrg_ratio: float = 0.0
     mcc_ratio: float = 0.0
+    # 메인 경로(app.py base_params) 통과(passthrough) 필드: 기준선(1.00x)과 메인 KPI 일치 보장(E1)
+    opex_series_억: np.ndarray | None = None   # 자동 OPEX 시계열. 배율 시나리오에서도 고정 유지(보수 가정)
+    ancillary_revenue_억: float = 0.0
+    restructuring_year: int = 0
+    restructuring_toll_adj: float = 1.0
+    equity_recovery_method: str = "원금+수익률"
+    debt_repayment_method: str = "원리금균등"
+    senior_ratio: float | None = None          # None이면 build_cashflow 기본값 사용
+    senior_rate: float | None = None
     # 참고용 입력(낙관편향 플래그 등에 사용)
     daily_traffic: float = 0.0
     road_length_km: float = 0.0
 
     def to_kwargs(self) -> dict:
-        return dict(
+        kw = dict(
             capex_억=self.capex_억,
             annual_revenue_억=self.annual_revenue_억,
             construction_years=self.construction_years,
@@ -75,7 +84,19 @@ class BaseCase:
             tax_rate=self.tax_rate,
             mrg_ratio=self.mrg_ratio,
             mcc_ratio=self.mcc_ratio,
+            ancillary_revenue_억=self.ancillary_revenue_억,
+            restructuring_year=self.restructuring_year,
+            restructuring_toll_adj=self.restructuring_toll_adj,
+            equity_recovery_method=self.equity_recovery_method,
+            debt_repayment_method=self.debt_repayment_method,
         )
+        if self.opex_series_억 is not None:
+            kw["opex_series_억"] = np.asarray(self.opex_series_억, dtype=float)
+        if self.senior_ratio is not None:
+            kw["senior_ratio"] = float(self.senior_ratio)
+        if self.senior_rate is not None:
+            kw["senior_rate"] = float(self.senior_rate)
+        return kw
 
 
 def make_base_case(
@@ -191,6 +212,8 @@ def run_scenario(base: BaseCase, demand_mult: float = 1.0,
     kw["capex_억"] = base.capex_억 * capex_mult
     kw["debt_rate"] = max(0.0, base.debt_rate + rate_delta)
     kw["discount_rate"] = max(1e-6, base.wacc + rate_delta)
+    # 배율 적용 원칙: 수요 배율은 수입(annual_revenue_억)에만 적용.
+    # opex_series_억(자동 OPEX 시계열)은 고정 유지. 교통량 감소에도 운영비 불변의 보수 가정, 문턱 역산과 동일 철학.
 
     cf_df, metrics = build_cashflow(**kw)
     ext = _extended_metrics(cf_df, base.construction_years,

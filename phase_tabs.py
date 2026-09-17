@@ -5,7 +5,7 @@ Forenode — 시점 탭 모듈 (phase_tabs.py)
 역할:
   민자도로 사업의 라이프사이클 4단계 시점별 입력·분석 모듈
 
-시점 1: 예타 사전 시뮬 (제안 전 정량화) — 통계 모드, BIM 없음, ±20%
+시점 1: 적격성 사전 시뮬 (제안 전 정량화), 통계 모드, BIM 없음, ±20%
 시점 2: 시공·자금조달 — BIM 모드 placeholder, ±5%
 시점 3: 운영 — 보유자산 모니터링(실적 비교)
 시점 4: 재구조화·인수 (실시협약변경) — 잔여기간 시뮬
@@ -60,7 +60,7 @@ def render_phase_pretest(ctx: dict):
         ),
     )
 
-    st.markdown("#### ⏱ 예타 사전 시뮬: 이대로 제안하면 어떤 항목에 걸리는가")
+    st.markdown("#### ⏱ 적격성 사전 시뮬: 이대로 제안하면 어떤 항목에 걸리는가")
     st.caption(
         "**활용 주체**: FI(인프라펀드)·건설사(CI) 사업 발굴 부서 · 자문사 | "
         "**분석 업무**: 제안 전 통과 가능성 사전 정량화 · 수익성 간이판정 · 시나리오 반복 비교"
@@ -88,18 +88,18 @@ def render_phase_pretest(ctx: dict):
         st.metric("사용자 입력", f"{user_capex:,} 억",
                   help="사업계획서 또는 정부 고시 기준값")
     with col_m:
-        st.metric("회귀 추정 (중앙값)", f"{capex_ref['capex_estimate_억']:,} 억",
+        st.metric("단가 추정 (중앙값, 휴리스틱)", f"{capex_ref['capex_estimate_억']:,} 억",
                   delta=f"{(capex_ref['capex_estimate_억'] - user_capex):+,} 억 vs 사용자",
                   help="노선 특성 기반 통계 추정")
     with col_r:
         in_range = capex_ref['capex_low_억'] <= user_capex <= capex_ref['capex_high_억']
         status = "✅ 적정 범위" if in_range else "⚠️ 범위 밖"
-        st.metric("회귀 참고범위 (±20%·통상 가정)",
+        st.metric("참고범위 (±20%·단가 휴리스틱)",
                   f"{capex_ref['capex_low_억']:,} ~ {capex_ref['capex_high_억']:,}",
                   delta=status,
                   delta_color="normal" if in_range else "inverse")
 
-    with st.expander("📐 회귀 산출 근거"):
+    with st.expander("📐 단가 산출 근거(휴리스틱)"):
         st.code(capex_ref['explanation'])
         st.caption(
             f"km당 단가: **{capex_ref['per_km_억']:,} 억/km** | "
@@ -158,7 +158,7 @@ def render_phase_pretest(ctx: dict):
     # D. 수익성 간이판정 (구 'VfM' 표기 제거 — '26-07 실무 정합 감사)
     st.markdown("##### ⚖️ 수익성 간이판정 (수입/비용 현가비율 기반)")
     st.caption(
-        "※ 본 판정은 Forenode 자체 간이규약(재무 축)이며 **정식 예타 통과 판정(KDI PIMAC 적격성·AHP)이 아닙니다**. "
+        "※ 본 판정은 Forenode 자체 간이규약(재무 축). **정식 민자 적격성조사(KDI PIMAC·AHP) 판정 아님.** "
         "임계·문구 단일 출처: config/finance_params.json."
     )
 
@@ -276,9 +276,9 @@ def render_phase_construction(ctx: dict):
     
     col_k1, col_k2, col_k3, col_k4 = st.columns(4)
     col_k1.metric(
-        "총사업비 (CAPEX)",
+        "민간투자비 (CAPEX)",
         f"{total_capex:,} 억",
-        help=f"회귀 추정: {capex_ref['capex_estimate_억']:,}억 ±{capex_ref['capex_high_억']-capex_ref['capex_estimate_억']:,}억",
+        help=f"단가 휴리스틱: {capex_ref['capex_estimate_억']:,}억 ±{capex_ref['capex_high_억']-capex_ref['capex_estimate_억']:,}억",
     )
     col_k2.metric(
         "자기자본 (Equity)",

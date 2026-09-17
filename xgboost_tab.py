@@ -274,9 +274,10 @@ def render_model_info(meta):
         st.metric(
             "LOOCV 정확도",
             f"{loocv:.1%}",
-            help="Leave-One-Out Cross-Validation - 작은 샘플 최적 검증"
+            help="Leave-One-Out Cross-Validation, 작은 샘플 검증 "
+                 "(룰 기반 라벨 복원 정확도, 외부 라벨 검증 별도 과제)"
         )
-    
+
     with info_cols[3]:
         train = meta.get('train_accuracy', 0)
         st.metric(
@@ -284,6 +285,8 @@ def render_model_info(meta):
             f"{train:.1%}",
             help="학습 데이터에서의 분류 정확도"
         )
+
+    st.caption("LOOCV 정확도는 룰 기반 라벨 복원 정확도. 외부 라벨 검증 별도 과제.")
 
 
 def render_prediction_result(grade, proba_dict):

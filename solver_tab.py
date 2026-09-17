@@ -1,5 +1,5 @@
 """
-solver_tab.py — 요구수익률 솔버 (예타 사전 시뮬 심화 도구)
+solver_tab.py, 요구수익률 솔버 (적격성 사전 시뮬 심화 도구)
 
 기능:
   1. 이해관계자(CI·FI)별 목표 기준 프리셋
@@ -55,9 +55,9 @@ CUSTOMER_PRESETS = {
         "label_dscr": "ROE ≥ 10%",
         "label_irr": "Equity IRR ≥ 12%",
     },
-    "정부 적격성 기준 (통과 게이트)": {
+    "재무 성립선 (자체 기준)": {
         "icon": "🏛️",
-        "description": "제안이 넘어야 할 정부 기준선(B/C·NPV)",
+        "description": "재무 성립 최소선(현가비≥1·NPV≥0), Forenode 자체 기준. 정부 공표 기준 아님",
         "criteria": {
             "BC_ratio_min": 1.00,
             "NPV_min": 0,
@@ -223,7 +223,10 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
         with cols_t[0]:
             targets['NPV_min'] = st.number_input("목표 NPV (억)", value=0, step=100, key="t_npv")
         with cols_t[1]:
-            targets['IRR_min'] = st.slider("목표 IRR (%)", 0.0, 25.0, 8.0, 0.5, key="t_irr") / 100
+            targets['IRR_min'] = st.slider(
+                "목표 IRR (명목·세후, %)", 0.0, 25.0, 8.0, 0.5, key="t_irr",
+                help="비교 지표: 명목·세후 프로젝트 IRR. 협약수익률(실질·세전)과 기준 상이.",
+            ) / 100
         with cols_t[2] if len(cols_t) > 2 else cols_t[0]:
             targets['ROE_min'] = st.slider("목표 ROE (%)", 0.0, 30.0, 10.0, 0.5, key="t_roe") / 100
         with cols_t[3] if len(cols_t) > 3 else cols_t[0]:
@@ -240,8 +243,15 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
                 elif k.startswith('DSCR'):
                     targets[k] = st.slider(f"{k}", 1.00, 2.00, float(v), 0.05, key=f"t_{k}")
                 else:
-                    # 비율: IRR, ROE 등
-                    targets[k] = st.slider(f"{k} (%)", 0.0, 30.0, float(v)*100, 0.5, key=f"t_{k}") / 100
+                    # 비율: IRR, ROE 등. IRR류 라벨에는 기준(명목·세후) 병기
+                    _lab, _hlp = f"{k} (%)", None
+                    if k == "IRR_min":
+                        _lab = "IRR_min (명목·세후, %)"
+                        _hlp = "비교 지표: 명목·세후 프로젝트 IRR. 협약수익률(실질·세전)과 기준 상이."
+                    elif k == "Equity_IRR_min":
+                        _lab = "Equity_IRR_min (명목·세후, %)"
+                        _hlp = "비교 지표: 명목·세후 Equity IRR. 협약수익률(실질·세전)과 기준 상이."
+                    targets[k] = st.slider(_lab, 0.0, 30.0, float(v)*100, 0.5, key=f"t_{k}", help=_hlp) / 100
             i += 1
     
     st.markdown("---")

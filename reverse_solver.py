@@ -18,7 +18,7 @@
 1) 수입 = f(교통량)이 선형이므로 [연수입(억) = 일교통량 × 계수 K],
    K = 통행료(원/km) × 연장(km) × 혼합계수 × 365일 ÷ 1e8 ÷ 1.1(VAT 차감)
    혼합계수 = (1-화물비율) + 화물비율 × 대형할증
-2) 기준(정부 게이트/DSCR/목표 수익률)을 통과하는 최소 연수입을 이분법으로 탐색
+2) 기준(재무 성립선/DSCR/목표 수익률)을 통과하는 최소 연수입을 이분법으로 탐색
    — 모든 대상 지표는 수입에 단조증가하므로 이분법이 유일해를 찾는다.
 3) 최소 교통량 = 최소 연수입 ÷ K
 주의: MRG 보장 기준수입은 annual_revenue와 함께 움직인다(협약 설계 관점 —
@@ -68,9 +68,10 @@ def make_predicate(criterion: str, threshold: float = 0.0) -> Callable[[dict], b
     """기준별 통과 판정 함수.
 
     criterion:
-      "gov"  — 정부 게이트: 수입/비용 현가비율 ≥ 1.0 그리고 NPV ≥ 0
-      "dscr" — 대주단: DSCR 최소 ≥ threshold
-      "irr"  — 목표 사업수익률(명목·세후): nominal_irr ≥ threshold
+      "gov"      : 재무 성립선(자체 기준). 수입/비용 현가비율 ≥ 1.0 그리고 NPV ≥ 0
+      "dscr"     : 대주단. DSCR 최소 ≥ threshold
+      "irr"      : 목표 사업수익률(명목·세후). nominal_irr ≥ threshold
+      "real_irr" : 목표 사업수익률(실질·세후). real_irr ≥ threshold. 산출 불가(None·NaN) 시 미충족
     """
     if criterion == "gov":
         return lambda m: _safe_ge(m.get("bc_ratio"), 1.0) and _safe_ge(m.get("npv"), 0.0)
@@ -78,6 +79,8 @@ def make_predicate(criterion: str, threshold: float = 0.0) -> Callable[[dict], b
         return lambda m: _safe_ge(m.get("dscr_min"), threshold)
     if criterion == "irr":
         return lambda m: _safe_ge(m.get("nominal_irr"), threshold)
+    if criterion == "real_irr":
+        return lambda m: _safe_ge(m.get("real_irr"), threshold)
     raise ValueError(f"unknown criterion: {criterion}")
 
 

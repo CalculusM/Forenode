@@ -390,7 +390,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
         ['사업명', project_name],
         ['사업유형', ctx['business_type']],
         ['연장 / 운영기간', f"{ctx['road_length']} km / {ctx['operation_years']} 년"],
-        ['총사업비 (사용자 입력)', f"{ctx['total_capex_user']:,} 억원"],
+        ['민간투자비 (사용자 입력)', f"{ctx['total_capex_user']:,} 억원"],
         ['생성일시', datetime.now().strftime('%Y-%m-%d %H:%M')],
     ]
     t = Table(cover_data, colWidths=[40 * mm, 110 * mm])
@@ -410,7 +410,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     story.append(Paragraph(
         "본 보고서는 Forenode 분석 플랫폼이 자동 생성한 결과입니다. "
         "한국 PPP 30년 데이터(13개 SPC + 도로공사 11년치 4,380건)와 "
-        "BIM·AI 모델을 기반으로 산출되었습니다.",
+        "실측 데이터 학습 통계 모델을 기반으로 산출되었습니다.",
         caption_style
     ))
     story.append(PageBreak())
@@ -555,7 +555,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     in_range = (ctx['capex_reference']['capex_low_억']
                 <= ctx['total_capex_user']
                 <= ctx['capex_reference']['capex_high_억'])
-    range_text = "회귀 참고범위(±20%) 내 위치로 적정" if in_range else "회귀 참고범위(±20%) 밖으로 재검토 필요"
+    range_text = "참고범위(±20%, 단가 휴리스틱) 내 위치로 적정" if in_range else "참고범위(±20%, 단가 휴리스틱) 밖으로 재검토 필요"
     story.append(Paragraph(
         f"사용자 입력 {ctx['total_capex_user']:,}억 vs 회귀 추정 "
         f"{ctx['capex_reference']['capex_estimate_억']:,}억. {range_text}.",
@@ -626,10 +626,12 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     story.append(Paragraph("1. 활용 데이터", h2_style))
     data_sources = [
         ['구분', '출처', '활용'],
-        ['재무 (13개 SPC × 5년)', '금융감독원 DART', 'XGBoost 수익성 등급 (LOOCV 93.2%)'],
-        ['통행 (TCS·VDS)', '한국도로공사', '수요·통행료 분석'],
-        ['운행 (DTG)', '한국교통안전공단', '화물비율·통행 패턴'],
-        ['수요 (KTDB OD)', '한국교통연구원', '수요 예측·성장률'],
+        ['재무 (13개 SPC × 5년)', '금융감독원 DART',
+         Paragraph('XGBoost 수익성 등급 (LOOCV 93.2%, 룰 기반 라벨 복원 정확도, '
+                   '외부 라벨 검증 별도 과제)', caption_style)],
+        ['통행 (TCS·VDS)', '한국도로공사', '로드맵(계산 미연동)'],
+        ['운행 (DTG)', '한국교통안전공단', '로드맵(계산 미연동)'],
+        ['수요 (KTDB OD)', '한국교통연구원', '로드맵(계산 미연동)'],
         ['시설 (54,760건)', '한국도로공사 포장일반', 'Weibull 열화 (β=1.04, η=9.89년)'],
         ['보수 (4,380건)', '한국도로공사 포장보수 11년치', 'OPEX 시계열 자동 산출'],
         ['법제 (16개 법령)', '국가법령정보센터', 'RAG 법제 자문 (1,963 청크)'],
@@ -657,7 +659,8 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
         "<b>현금흐름 모델</b>: S-curve CAPEX 분배, MRG 보전금, 재구조화 통행료 조정 반영.<br/>"
         "<b>Monte Carlo NPV</b>: 1,000회 시뮬레이션으로 NPV 분포 추정.<br/>"
         "<b>Weibull 열화</b>: 357건 보수 데이터로 β=1.044, η=9.89년 도출 (95% CI).<br/>"
-        "<b>XGBoost 수익성 등급</b>: 13개 SPC 5년치, SMOTE 적용, LOOCV 정확도 93.2%.",
+        "<b>XGBoost 수익성 등급</b>: 13개 SPC 5년치, SMOTE 적용, LOOCV 정확도 93.2% "
+        "(룰 기반 라벨 복원 정확도, 외부 라벨 검증 별도 과제).",
         body_style,
     ))
     story.append(Spacer(1, 8 * mm))
@@ -738,7 +741,7 @@ def generate_one_pager(one: dict, project_name: str = "민자도로 검토 사�
         Paragraph(f"Forenode 한 장 요약 · {project_name}", h),
         Paragraph(
             f"{one.get('business_type', '')} · 연장 {one.get('road_length', '')}km · "
-            f"총사업비 {one.get('total_capex', 0):,}억 · 운영 {one.get('operation_years', '')}년 · "
+            f"민간투자비 {one.get('total_capex', 0):,}억 · 운영 {one.get('operation_years', '')}년 · "
             f"기준 수요: {one.get('anchor_label', '')} · 생성 {datetime.now().strftime('%Y-%m-%d %H:%M')}",
             sub),
         Paragraph("① 판정", sec),
