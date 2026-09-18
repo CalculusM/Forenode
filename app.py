@@ -1988,7 +1988,7 @@ def main():
                     "EquityIRR(%)": float(metrics.get('equity_irr', float('nan'))) * 100,
                     "EquityMIRR(%)": float(metrics.get('equity_mirr', float('nan'))) * 100,
                     "DSCR최소": float(metrics['dscr_min']),
-                    "수입/비용현가비율": float(metrics['bc_ratio']),
+                    "현가비율": float(metrics['bc_ratio']),
                     "정부부담(억)": float(metrics.get('total_govt_burden', 0.0)),
                     "회수기간(년)": metrics.get('payback_year'),
                 })
@@ -2899,7 +2899,7 @@ def main():
                         "EquityIRR(%)": float(_rz_m.get('equity_irr', float('nan'))) * 100,
                         "EquityMIRR(%)": float(_rz_m.get('equity_mirr', float('nan'))) * 100,
                         "DSCR최소": float(_rz_m['dscr_min']),
-                        "수입/비용현가비율": float(_rz_m['bc_ratio']),
+                        "현가비율": float(_rz_m['bc_ratio']),
                         "정부부담(억)": float(_rz_m.get('total_govt_burden', 0.0)),
                         "회수기간(년)": _rz.get('payback_op_year'),
                     })

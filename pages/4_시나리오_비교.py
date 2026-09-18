@@ -34,7 +34,7 @@ df = pd.DataFrame(_saved)
 # ── ① 비교 표 ──
 st.markdown("##### 📋 비교 표")
 _metric_cols = ["NPV(억)", "IRR(%)", "EquityIRR(%)", "EquityMIRR(%)", "DSCR최소",
-                "수입/비용현가비율", "정부부담(억)", "회수기간(년)"]
+                "현가비율", "정부부담(억)", "회수기간(년)"]
 _input_cols = ["사업유형", "연장(km)", "민간투자비(억)", "일교통량(대)", "통행료(원/km)", "MRG(%)"]
 def _fmt(v):
     if v is None:
@@ -86,8 +86,15 @@ def _likelihood_row(saved: list) -> list:
 
 _lk = _likelihood_row(_saved)
 _disp.insert(1, "유력도(실측)", _lk)
+# 같은 이름 중복 저장 시 열 이름 충돌(pyarrow ValueError) 방지: 표시용 이름에 순번 부여
+_names, _seen = list(_disp["이름"]), {}
+for _i, _n in enumerate(_names):
+    _seen[_n] = _seen.get(_n, 0) + 1
+    if _seen[_n] > 1:
+        _names[_i] = f"{_n}({_seen[_n]})"
+_disp["이름"] = _names
 st.dataframe(_disp.set_index("이름").T, use_container_width=True, height=560)
-st.caption("행 = 입력·지표, 열 = 시나리오. 판정 기준 없이 산출값만 나란히 보여 줍니다. 판정은 각 시나리오의 메인 화면 기준입니다.")
+st.caption("행 = 입력·지표, 열 = 시나리오. 현가비율 = 수입/비용 현재가치 비율. 판정 기준 없이 산출값만 나란히 보여 줍니다. 판정은 각 시나리오의 메인 화면 기준입니다.")
 st.caption(
     "**유력도(실측)** = 기준(첫 저장) 대비 수요 가정 변화가 과거 실측 분포(국내외 협약 대비 실현율)에서 "
     "나타난 비율. 발생 가능성이 높은 Case부터 보는 용도(실무 요구 반영). "
