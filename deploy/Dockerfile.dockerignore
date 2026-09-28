@@ -1,0 +1,82 @@
+# ------------------------------------------------------------------
+# Forenode 이미지 빌드 제외 규칙 (.dockerignore)
+#
+# 파일명이 Dockerfile.dockerignore 인 이유
+#   - build context = 저장소 루트, Dockerfile = deploy/Dockerfile
+#   - deploy/.dockerignore 로 두면 Docker가 읽지 않음(루트 .dockerignore 만 탐색)
+#   - BuildKit(Docker 23+ 기본, docker compose v2 사용)은 Dockerfile 옆의 "Dockerfile.dockerignore"를 자동 적용
+#   - 레거시 빌더(DOCKER_BUILDKIT=0) 사용 시에만: cp deploy/Dockerfile.dockerignore .dockerignore
+#
+# 원칙: .gitignore 와 같은 범위를 제외 = Streamlit Cloud 배포본(저장소 추적 파일)과 동일 구성
+# ------------------------------------------------------------------
+
+# 비밀·로컬 설정 (이미지 내 키 반입 금지: 키는 실행 시 env_file 로만 주입)
+.env
+**/.env
+.git
+.github
+.devcontainer
+.claude
+.vscode
+.idea
+
+# 대용량 원천 데이터 폴더 (.gitignore 동일, 앱 런타임 미사용, 02 교통량데이터만 약 5.5GB)
+01 사업기본정보
+02 교통량데이터
+03 단가 및 건설비
+04 금융지표
+05 BIM IFC
+06 민자도로 재무제표
+07 법령, 시행령 자연어 처리
+08 가점증빙자료
+09 분석결과
+10 고속도로 공공데이터 포털 API
+11 가명정보
+4기관 출처모듈
+99 프로그램 테스트
+_backup_temp
+
+# 파이썬 캐시
+**/__pycache__
+**/*.pyc
+
+# 백업·발표 산출물·학습 부산물 (.gitignore 동일)
+*_backup.py
+app_v1_backup.py
+app_v2_backup.py
+app_v2.1_backup.py
+phase_tabs_backup.py
+**/*.pdf
+발표스크립트_pre3.0업데이트.md
+_야간작업_브리핑.md
+업데이트내역.txt
+_make_pitch_pdf.py
+_make_script_pdf.py
+_ppt_dump.txt
+_smoke_c9.py
+shap_summary_*.png
+weibull_curve.png
+weibull_hazard.png
+feature_importance.png
+labeling_report.html
+financial_extraction_log.txt
+fix_json.py
+app_patch_guide.py
+integration_guide.py
+indexed_files.csv
+폴더정리방법.txt
+debug.log
+
+# 미추적 작업 파일
+_tmp_ifc_probe.py
+data/obs_out.txt
+
+# 배포 폴더: 스모크 시험 스크립트·버전 고정 파일만 반입(.env·설정 예시 제외)
+deploy/*
+!deploy/smoke_test.py
+!deploy/requirements.lock.txt
+
+# chroma_db 는 제외하지 않음(이미지 포함)
+#   - 근거: rag_tab.py 가 PERSIST_DIR="./chroma_db" 를 런타임에 열어 법제 RAG 검색 수행
+#   - 저장소 추적 파일(git ls-files 5건, 약 27MB) = Streamlit Cloud 배포본에도 포함된 상태
+#   - 제외 시 법제 RAG 탭이 "./chroma_db 폴더가 없습니다" 안내로 대체됨

@@ -1,0 +1,3 @@
+# deploy/ 하위 파일은 Linux 서버에서 실행되므로 체크아웃 OS와 무관하게 LF 줄끝 고정
+# (CRLF 시 update.sh 실행 오류, systemd EnvironmentFile 값 끝 CR 문자 혼입 위험)
+* text=auto eol=lf

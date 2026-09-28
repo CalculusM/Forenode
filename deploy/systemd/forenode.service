@@ -1,0 +1,64 @@
+# ------------------------------------------------------------------
+# Forenode systemd 유닛 (Docker 없이 venv 로 운영하는 대안, 2026-09-28 작성)
+#
+# 전제 경로
+#   코드: /srv/forenode/app      (git clone https://github.com/CalculusM/Forenode.git /srv/forenode/app)
+#   venv: /srv/forenode/venv     (python3 -m venv /srv/forenode/venv)
+#   환경변수: /etc/forenode/forenode.env  (deploy/.env.example 복사, 권한 600, 키는 서버에서만 기입)
+#   실행 사용자: forenode (로그인 불가 시스템 계정)
+#
+# 준비 명령 (Ubuntu 24.04 기준, 기본 python3 = 3.12)
+#   sudo apt install -y python3-venv python3-pip git fonts-nanum libgomp1
+#   sudo useradd --system --home-dir /srv/forenode --shell /usr/sbin/nologin forenode
+#   sudo mkdir -p /srv/forenode /etc/forenode && sudo chown forenode:forenode /srv/forenode
+#   sudo -u forenode git clone https://github.com/CalculusM/Forenode.git /srv/forenode/app
+#   sudo -u forenode python3 -m venv /srv/forenode/venv
+#   sudo -u forenode /srv/forenode/venv/bin/pip install --upgrade pip
+#   sudo -u forenode /srv/forenode/venv/bin/pip install -r /srv/forenode/app/requirements.txt
+#   sudo install -m 600 -o root -g root /srv/forenode/app/deploy/.env.example /etc/forenode/forenode.env
+#
+# 등록
+#   sudo cp /srv/forenode/app/deploy/systemd/forenode.service /etc/systemd/system/forenode.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now forenode
+#   systemctl status forenode ; journalctl -u forenode -f
+#
+# Docker 경로와 동시 사용 금지 (두 방식 모두 127.0.0.1:8501 사용)
+# ------------------------------------------------------------------
+[Unit]
+Description=Forenode Streamlit app
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=forenode
+Group=forenode
+# 앱이 ./chroma_db, ./xgb_model.pkl 등을 상대경로로 열기 때문에 저장소 루트를 작업 폴더로 지정
+WorkingDirectory=/srv/forenode/app
+EnvironmentFile=/etc/forenode/forenode.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONIOENCODING=utf-8
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=TZ=Asia/Seoul
+Environment=MPLCONFIGDIR=/tmp/matplotlib
+Environment=STREAMLIT_SERVER_HEADLESS=true
+Environment=STREAMLIT_SERVER_FILE_WATCHER_TYPE=none
+Environment=STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+Environment=ANONYMIZED_TELEMETRY=False
+# 127.0.0.1 로만 대기 = 외부 공개는 nginx(80/443) 경유
+ExecStart=/srv/forenode/venv/bin/streamlit run app.py --server.address 127.0.0.1 --server.port 8501
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+
+# 기본 격리 (chroma_db 갱신을 위해 /srv/forenode 쓰기는 허용되는 수준으로 설정)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+# 메모리 상한 (4GB 서버 기준 OS 여유 확보 목적, compose mem_limit 3g 와 동일)
+MemoryMax=3G
+
+[Install]
+WantedBy=multi-user.target
