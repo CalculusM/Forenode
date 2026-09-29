@@ -149,8 +149,8 @@ def render_phase_pretest(ctx: dict):
     with st.expander("📐 OPEX 산출 근거"):
         st.code(opex_est['explanation'])
         st.caption(
-            "학습 데이터 패턴: 5~9년차 기준(1.0배) → 10~24년차 개량 정점 → "
-            "25~29년차 수선유지 급증 → 운영기간 후반 OPEX 점진 증가"
+            "학습 데이터 패턴: 5∼9년차 기준(1.0배), 10∼24년차 개량 정점, "
+            "25∼29년차 수선유지 급증, 운영기간 후반 OPEX 점진 증가"
         )
 
     st.markdown("")
@@ -505,7 +505,7 @@ def render_phase_construction(ctx: dict):
             risk_color = _T['bad']
             risk_bg = _T['bad_bg']
             risk_msg = (
-                f"{_yrs_txt(yrs_below_120)} 배당제한(lock-up) 임계 1.20x 미달 → 해당 기간 주주 배당 제한·현금 트랩. "
+                f"{_yrs_txt(yrs_below_120)} 배당제한(lock-up) 임계 1.20x 미달. 해당 기간 주주 배당 제한·현금 트랩. "
                 f"부도 임계(1.05x) 도달 전이나 자기자본 확충 또는 MRG 활용 검토 필요."
             )
         else:
@@ -513,7 +513,7 @@ def render_phase_construction(ctx: dict):
             risk_color = _T['bad']
             risk_bg = _T['bad_bg']
             risk_msg = (
-                f"{_yrs_txt(yrs_below_105)} 부도(default·EOD) 임계 1.05x 미달 → 기한이익상실 위험. "
+                f"{_yrs_txt(yrs_below_105)} 부도(default·EOD) 임계 1.05x 미달. 기한이익상실 위험. "
                 f"본 구조로는 자금조달 곤란, 사업구조 재설계 필요."
             )
         
@@ -992,7 +992,7 @@ def render_phase_restructuring(ctx: dict):
                     🎯 권장 협상 카드: {best[0]}
                 </div>
                 <div style="margin-top:6px;font-size:13px;color:{_T['muted']};">
-                    잔여 NPV {best[2]:,.0f}억 → 현재 조건 대비 <strong>+{best[3]:,.0f}억</strong> 추가 수익. 
+                    잔여 NPV {best[2]:,.0f}억, 현재 조건 대비 <strong>+{best[3]:,.0f}억</strong> 추가 수익. 
                     정부에 통행료 인하 또는 안전·환경 투자로 공공 편익 제시 시 협상 우위 확보.
                 </div>
             </div>""",
@@ -1061,7 +1061,7 @@ def render_phase_restructuring(ctx: dict):
         },
         {
             "주체": "SPC",
-            "선택": "도산 → 해지",
+            "선택": "도산 후 해지",
             "결과 (억)": termination_payment - ctx['total_capex_user'],
             "의미": "건설비용 회수 (단, 운영권 상실)",
         },

@@ -38,10 +38,12 @@ if not os.path.exists(_CSV):
     st.stop()
 
 df = pd.read_csv(_CSV)
-# 표시 정리: 원장 텍스트 셀의 문장 연결용 줄표만 쉼표로(값 없음 표시 "—"는 유지, 원본 CSV 불변)
+# 표시 정리: 원장 텍스트 셀의 문장 연결용 줄표·화살표를 쉼표·'에서 ~로'로(원본 CSV 불변)
 for _c in df.columns:
     if df[_c].dtype == object:
-        df[_c] = df[_c].str.replace(" — ", ", ", regex=False)
+        df[_c] = (df[_c].str.replace(" — ", ", ", regex=False)
+                  .str.replace(" → ", ", ", regex=False)
+                  .str.replace(r"(\d+)→(\d+)%", r"\1%에서 \2%로", regex=True))
 
 # ── ① 스코어보드 ──
 scored = df[df["우위"].isin(["A", "B"])]

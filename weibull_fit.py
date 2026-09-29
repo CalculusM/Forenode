@@ -449,10 +449,10 @@ def main():
         "interpretation": {
             "beta_meaning": (
                 f"β = {beta_hat:.3f} "
-                + ("> 1.5 → 마모성(시간 경과에 따라 위험률 증가)" if beta_hat > 1.5
-                   else ("≈ 1 → 위험률 일정" if beta_hat > 0.9 else "< 1 → 초기 집중"))
+                + ("> 1.5: 마모성(시간 경과에 따라 위험률 증가)" if beta_hat > 1.5
+                   else ("≈ 1: 위험률 일정" if beta_hat > 0.9 else "< 1: 초기 집중"))
             ),
-            "eta_meaning": f"η = {eta_hat:.2f}년 → 누적 발생 확률 63.2% 도달 시점",
+            "eta_meaning": f"η = {eta_hat:.2f}년: 누적 발생 확률 63.2% 도달 시점",
             "expected_repairs_30y": f"30년 운영 시 약 {30.0 / mean_life:.2f}회 보수 예상",
             "data_note": (
                 "관측치 = 보수 '집행' 기록(예산·일정 의존)로, 물리 열화 시점의 대용치. "

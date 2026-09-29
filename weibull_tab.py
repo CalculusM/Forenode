@@ -358,7 +358,7 @@ def render_curves(params, current_age, target_prob):
             mode="lines",
             line=dict(color=_T['primary'], width=3),
             name=f"손상확률 (β={beta:.2f}, η={eta:.2f})",
-            hovertemplate="t=%{x:.1f}년 → F(t)=%{y:.1f}%<extra></extra>"
+            hovertemplate="t=%{x:.1f}년, F(t)=%{y:.1f}%<extra></extra>"
         ))
 
         # 현재 시점 마커
@@ -404,7 +404,7 @@ def render_curves(params, current_age, target_prob):
             line=dict(color=line_color, width=3),
             fill="tozeroy",
             fillcolor=fill_color,
-            hovertemplate="t=%{x:.1f}년 → h(t)=%{y:.4f}/년<extra></extra>"
+            hovertemplate="t=%{x:.1f}년, h(t)=%{y:.4f}/년<extra></extra>"
         ))
         
         fig2.add_vline(
@@ -443,7 +443,7 @@ def render_weibull_tab():
             st.markdown("""
             1. `pip install scipy numpy matplotlib pandas --break-system-packages`
             2. `python weibull_fit.py` 실행
-            3. (선택) 안심구역에서 데이터 반출 후 `pavement_data.csv`로 저장 → 재학습
+            3. (선택) 안심구역에서 데이터 반출, `pavement_data.csv`로 저장 후 재학습
             4. app.py 재시작
             """)
         return
@@ -473,9 +473,9 @@ def render_weibull_tab():
         #### 파라미터 해석
         
         - **β (shape, 형상모수)**: 고장 모드 결정
-          - β < 1: **초기고장** (시간 갈수록 위험 감소 → 시공 결함)
-          - β ≈ 1: **우발고장** (위험률 일정 → 정기점검 충분)
-          - β > 1: **마모고장** (시간 갈수록 위험 증가 → 사전 예방보수 필요)
+          - β < 1: **초기고장** (시간 갈수록 위험 감소, 시공 결함 의심)
+          - β ≈ 1: **우발고장** (위험률 일정, 정기점검 충분)
+          - β > 1: **마모고장** (시간 갈수록 위험 증가, 사전 예방보수 필요)
         
         - **η (scale, 척도모수)**: 특성수명
           - 약 63.2% 누적 손상 시점
@@ -485,8 +485,8 @@ def render_weibull_tab():
         **이론 표준 (한국도로공사 가이드)**: β ≈ 2.5, η ≈ 12년 (마모고장 가정)
         
         **공공 실데이터 학습 결과** (포장일반현황 1969~2025, 357건):
-        - β ≈ 1.04 → **우발고장 모드**
-        - η ≈ 9.9년 → 평균 9~10년 주기
+        - β ≈ 1.04: **우발고장 모드**
+        - η ≈ 9.9년: 평균 9~10년 주기
         - **해석**: 한국 고속도로의 대규모 재포장은 시간 의존적 마모보다
           외부 요인(중차량·기상·시공 품질)에 의한 무작위 보수 패턴이 지배적
         
