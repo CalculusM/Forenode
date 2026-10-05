@@ -1,0 +1,176 @@
+{
+  "criteria_doc": "research/vp_gate_revenue_band_criteria_2026-10.md",
+  "criteria_commit": "0724c5e",
+  "candidate_tag": "revband_cand_2026-09-28",
+  "panel_version": "v1_2026-07-31",
+  "preconditions": {
+    "P1": {
+      "pass": true,
+      "verdict": "작동",
+      "adopted_model": "M2"
+    },
+    "P2": {
+      "pass": true,
+      "panel_versions": [
+        "v1_2026-07-31"
+      ],
+      "sha256_match": {
+        "data/realization_panel.csv": true,
+        "data/toll_execution_2026-09.csv": true,
+        "data/route_meta.csv": true,
+        "data/interval_scores_v1.csv": true
+      }
+    },
+    "P3": {
+      "pass": true,
+      "recomputed": {
+        "P10": 0.4896402106444624,
+        "P50": 0.7300913109821938,
+        "P90": 0.9884162837614818
+      },
+      "abs_diff_pctpt": {
+        "P10": 0.0,
+        "P50": 0.0,
+        "P90": 0.0
+      },
+      "tol_pctpt": 0.05
+    }
+  },
+  "option_C": {
+    "C1": {
+      "pass": false,
+      "n_obs": 78,
+      "n_routes": 17,
+      "MAE_M0_0.623_pct": 17.787051282051284,
+      "MAE_M2_fold_median_pct": 17.244701492565227,
+      "improve_pctpt": 0.5423497894860546,
+      "threshold_pctpt": 3.0
+    },
+    "C2": {
+      "pass": false,
+      "n_boot": 4000,
+      "seed": 20261005,
+      "improve_ci95_pctpt": [
+        -3.60924799429252,
+        4.503052205811892
+      ],
+      "route_gain_pctpt": {
+        "광주-원주": -5.998507174595256,
+        "구리-포천": 10.03201670088398,
+        "봉담-송산": -4.3141616244071335,
+        "부산신항제2배후": -12.166287840879297,
+        "상주-영천": -9.158077638678877,
+        "서수원-평택": 9.38076320041079,
+        "서울-문산": 9.872383282988206,
+        "수원-광명": 10.35612569549147,
+        "안양-성남": 5.249912879051566,
+        "옥산-오창": -10.709131098219386,
+        "용인-서울": 2.942616035328771,
+        "인천-김포": -8.707500676630815,
+        "인천대교": 3.1480463219933656,
+        "평택-부여": -11.420678751630572,
+        "평택-시흥": 10.042076074237926,
+        "포천-화도": -10.837222477681973,
+        "화성-광주": 9.24192883841517
+      },
+      "routes_gain_positive": 9
+    },
+    "C3": {
+      "pass": false,
+      "by_sample": {
+        "S1": {
+          "n_obs": 63,
+          "n_routes": 14,
+          "MAE_M0_pct": 18.585396825396828,
+          "MAE_M2_pct": 18.7492085094252,
+          "improve_pctpt": -0.16381168402836813,
+          "positive": false
+        },
+        "S2": {
+          "n_obs": 70,
+          "n_routes": 14,
+          "MAE_M0_pct": 16.452285714285715,
+          "MAE_M2_pct": 15.768279889406298,
+          "improve_pctpt": 0.6840058248794203,
+          "positive": true
+        },
+        "S3": {
+          "n_obs": 55,
+          "n_routes": 11,
+          "MAE_M0_pct": 17.002727272727274,
+          "MAE_M2_pct": 17.01872583767717,
+          "improve_pctpt": -0.01599856494989444,
+          "positive": false
+        }
+      }
+    },
+    "reference_in_sample_not_used": {
+      "MAE_0.623_pct": 17.787051282051284,
+      "MAE_0.730_pct": 16.640128205128203,
+      "improve_pctpt": 1.1469230769230805
+    },
+    "all_pass": false
+  },
+  "option_C_change_record": {
+    "realization_scenario_revenue_row": {
+      "기본값": {
+        "current_0.623": {
+          "ratio": 0.623,
+          "npv": -5305.071602850449,
+          "dscr_min": 0.1150978171088377,
+          "equity_irr": null,
+          "first_profit_op_year": 25,
+          "payback_op_year": 25,
+          "trigger_below_70": true
+        },
+        "option_C_0.730": {
+          "ratio": 0.73,
+          "npv": -3259.64945274248,
+          "dscr_min": 0.41938667683778097,
+          "equity_irr": null,
+          "first_profit_op_year": 21,
+          "payback_op_year": 21,
+          "trigger_below_70": false
+        },
+        "npv_delta": 2045.4221501079692,
+        "dscr_min_delta": 0.30428885972894326,
+        "trigger_flip": true,
+        "other_4_rows_unchanged": true
+      },
+      "교량·터널 0%": {
+        "current_0.623": {
+          "ratio": 0.623,
+          "npv": -4932.009321916646,
+          "dscr_min": 0.2014629854319347,
+          "equity_irr": null,
+          "first_profit_op_year": 24,
+          "payback_op_year": 24,
+          "trigger_below_70": true
+        },
+        "option_C_0.730": {
+          "ratio": 0.73,
+          "npv": -2915.5522287175863,
+          "dscr_min": 0.505751845160878,
+          "equity_irr": null,
+          "first_profit_op_year": 21,
+          "payback_op_year": 20,
+          "trigger_below_70": false
+        },
+        "npv_delta": 2016.4570931990593,
+        "dscr_min_delta": 0.3042888597289433,
+        "trigger_flip": true,
+        "other_4_rows_unchanged": true
+      }
+    },
+    "traffic_scoring_98": {
+      "hits": 70,
+      "n": 98,
+      "note": "교통량 채점은 수입 앵커와 무관. C안 적용 시에도 변화 없음"
+    }
+  },
+  "decision_inputs": {
+    "preconditions_pass": true,
+    "C_all_pass": false,
+    "B": "구현 후 tests/ 회귀 스위트로 B1~B6 검증"
+  }
+}
