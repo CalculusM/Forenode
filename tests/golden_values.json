@@ -1,0 +1,181 @@
+{
+  "_meta": {
+    "created": "2026-10-05",
+    "generator": "tests/make_golden.py",
+    "basis": "feat/revenue-band-gate 분기 시점 코드(5e15fde 기준). 수입 실현율 범위 표시 변경 전 계산값",
+    "panel_version": "v1_2026-07-31"
+  },
+  "_tolerance": {
+    "money_억": 0.01,
+    "ratio": 1e-07,
+    "irr": 1e-07,
+    "traffic_대": 1.0,
+    "band_fraction": 1e-09,
+    "score_mean": 1e-09,
+    "note": "결정론 계산이라 같은 코드면 차이 0. 허용 오차는 부동소수 연산 순서 차이 흡수용"
+  },
+  "case_default": {
+    "daily_traffic": 95000,
+    "anchor_capped": true,
+    "annual_revenue_억": 1386.6,
+    "opex_ratio": 0.36924999999999997,
+    "opex_series_sum": 23648.410000000003,
+    "discount_rate": 0.047509499999999996,
+    "debt_rate": 0.0565,
+    "npv": 1674.219053405106,
+    "dscr_min": 1.0679994240976554,
+    "bc_ratio": 1.194496964660806,
+    "equity_irr": 0.09361599821615534,
+    "nominal_irr": 0.057561887380209814,
+    "real_irr": 0.036825379784519274,
+    "total_mrg_subsidy": 0.0,
+    "total_mcc_subsidy": 0.0
+  },
+  "case_bridge_tunnel_0": {
+    "daily_traffic": 95000,
+    "anchor_capped": true,
+    "annual_revenue_억": 1386.6,
+    "opex_ratio": 0.35,
+    "opex_series_sum": 22415.56,
+    "discount_rate": 0.047509499999999996,
+    "debt_rate": 0.0565,
+    "npv": 2009.807985312548,
+    "dscr_min": 1.1027910795832632,
+    "bc_ratio": 1.2213351597406847,
+    "equity_irr": 0.10230009094633688,
+    "nominal_irr": 0.05941230824320281,
+    "real_irr": 0.0386395178854928,
+    "total_mrg_subsidy": 0.0,
+    "total_mcc_subsidy": 0.0
+  },
+  "thresholds_default": {
+    "gov": {
+      "traffic": 86290.52228582022,
+      "status": "ok"
+    },
+    "dscr_1.30": {
+      "traffic": 108839.58908580182,
+      "status": "ok"
+    },
+    "real_irr_0.056": {
+      "traffic": 114662.60480349821,
+      "status": "ok"
+    }
+  },
+  "thresholds_bridge_tunnel_0": {
+    "gov": {
+      "traffic": 84545.3454683504,
+      "status": "ok"
+    },
+    "dscr_1.30": {
+      "traffic": 106938.90146281487,
+      "status": "ok"
+    },
+    "real_irr_0.056": {
+      "traffic": 113021.10185637312,
+      "status": "ok"
+    }
+  },
+  "realization_scenarios_default": [
+    {
+      "ratio": 1.0,
+      "npv": 1674.219053405106,
+      "dscr_min": 1.0679994240976554,
+      "equity_irr": 0.09361599821615534,
+      "first_profit_op_year": 3,
+      "payback_op_year": 14,
+      "mrg_total": 0.0,
+      "trigger": false
+    },
+    {
+      "ratio": 0.9,
+      "npv": -149.98843327271948,
+      "dscr_min": 0.8625370806185808,
+      "equity_irr": 0.020299728041021526,
+      "first_profit_op_year": 11,
+      "payback_op_year": 15,
+      "mrg_total": 0.0,
+      "trigger": false
+    },
+    {
+      "ratio": 0.814,
+      "npv": -1718.8068718156537,
+      "dscr_min": 0.6582676508305966,
+      "equity_irr": null,
+      "first_profit_op_year": 15,
+      "payback_op_year": 18,
+      "mrg_total": 0.0,
+      "trigger": false
+    },
+    {
+      "ratio": 0.7,
+      "npv": -3826.1870097898654,
+      "dscr_min": 0.3340720432689184,
+      "equity_irr": null,
+      "first_profit_op_year": 21,
+      "payback_op_year": 22,
+      "mrg_total": 0.0,
+      "trigger": false
+    },
+    {
+      "ratio": 0.623,
+      "npv": -5305.071602850449,
+      "dscr_min": 0.1150978171088377,
+      "equity_irr": null,
+      "first_profit_op_year": 25,
+      "payback_op_year": 25,
+      "mrg_total": 0.0,
+      "trigger": true
+    }
+  ],
+  "interval_scoring": {
+    "full": {
+      "n": 98,
+      "hits": 70,
+      "coverage": 0.7142857142857143,
+      "mean_width": 0.5104397959183674,
+      "mean_IS": 0.7193969387755103
+    },
+    "recent_2022_2024": {
+      "n": 40,
+      "hits": 32
+    },
+    "traffic_62": {
+      "n": 62,
+      "coverage": 0.7903225806451613,
+      "mean_width": 0.5177532258064517,
+      "mean_IS": 0.7302274193548388
+    }
+  },
+  "revenue_band": {
+    "panel_versions": [
+      "v1_2026-07-31"
+    ],
+    "n_obs": 78,
+    "n_routes": 17,
+    "P10": 0.4896402106444624,
+    "P50": 0.7300913109821938,
+    "P90": 0.9884162837614818,
+    "P10_pct": 49.0,
+    "P50_pct": 73.0,
+    "P90_pct": 98.8,
+    "loo_main": {
+      "M0": {
+        "hits": 0,
+        "n": 78,
+        "coverage": 0.0,
+        "mean_width": 0.0,
+        "mean_IS": 1.7787051282051283,
+        "MAE_center": 0.17787051282051283
+      },
+      "M2": {
+        "hits": 61,
+        "n": 78,
+        "coverage": 0.782051282051282,
+        "mean_width": 0.498598422391438,
+        "mean_IS": 0.8037500585931188,
+        "MAE_center": 0.1724470149256523
+      }
+    }
+  }
+}
