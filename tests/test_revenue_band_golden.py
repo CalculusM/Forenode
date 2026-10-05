@@ -20,6 +20,16 @@ CAND = os.path.join(H.DATA, "revenue_band_candidate_2026-09.json")
 LOO_CSV = os.path.join(H.DATA, "revenue_band_loo_scores_2026-09.csv")
 
 
+def eol_agnostic_sha256(raw: bytes) -> set:
+    """원본·CRLF·LF 세 가지 줄바꿈 표현의 sha256 집합.
+
+    후보 JSON의 입력 sha256은 Windows 작업 트리(CRLF)에서 기록됐다. 저장소 색인은 LF라
+    LF로 체크아웃하는 환경(배포 서버 등)에서도 같은 내용이면 일치로 본다.
+    """
+    lf = raw.replace(b"\r\n", b"\n")
+    return {hashlib.sha256(x).hexdigest() for x in (raw, lf, lf.replace(b"\n", b"\r\n"))}
+
+
 class RevenueBandGolden(GoldenCase):
     @classmethod
     def setUpClass(cls):
@@ -58,7 +68,7 @@ class RevenueBandGolden(GoldenCase):
         self.assertFalse(self.cand["engine_reflected"])
         for rel, sha in self.cand["inputs_sha256"].items():
             with open(os.path.join(H.ROOT, rel), "rb") as f:
-                self.assertEqual(hashlib.sha256(f.read()).hexdigest(), sha, f"{rel} sha256")
+                self.assertIn(sha, eol_agnostic_sha256(f.read()), f"{rel} sha256")
 
     def test_loo_main_analysis(self):
         g = self.golden["revenue_band"]["loo_main"]

@@ -1,0 +1,27 @@
+{
+  "gate": "수입 실현율 범위 서비스 반영 판정(VP 게이트)",
+  "decided": "2026-10-05",
+  "criteria_doc": "research/vp_gate_revenue_band_criteria_2026-10.md",
+  "criteria_commit": "0724c5e",
+  "result_doc": "research/vp_gate_revenue_band_result_2026-10.md",
+  "display_option": "B",
+  "display_option_desc": "범위 병기. 화면 캡션·한 장 요약 PDF 표시 전용, 계산 경로 불변(실현율 시나리오 0.623 유지)",
+  "engine_reflected": false,
+  "candidate_file": "data/revenue_band_candidate_2026-09.json",
+  "candidate_tag": "revband_cand_2026-09-28",
+  "candidate_sha256_lf": "8d29850721c13299bc2ba7608bb1cee5afb1d4769555d778ba70275724a826d5",
+  "panel_version": "v1_2026-07-31",
+  "band_model": "M2",
+  "display": {
+    "strength": "약함",
+    "basis": "징수 통행료 기준",
+    "validation": "노선 분리 검증(시점 분리 아님)",
+    "calc_note": "표시 전용, 계산 미반영"
+  },
+  "reference": {
+    "value_path": "models.M0.point",
+    "label": "10년 평균",
+    "source": "KOTI RR-25-10 p.45",
+    "period": "2014~2024년"
+  }
+}

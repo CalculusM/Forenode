@@ -47,6 +47,13 @@ from opex_estimator import (estimate_opex_series, estimate_opex_series_bottomup,
                             montecarlo_opex_band, load_weibull_ci)
 from pretest_regressor import estimate_capex_from_route
 
+# 수입 실현율 범위 표시(VP 게이트 B안, 2026-10-05): 표시 전용 모듈, 계산 경로 미사용.
+# 모듈 결손 시 None으로 두고 기존 문구를 그대로 표시한다.
+try:
+    import revenue_band_display as _revband
+except Exception:
+    _revband = None
+
 # ── Plotly (없으면 matplotlib fallback) ──
 try:
     import plotly.graph_objects as go
@@ -1815,6 +1822,15 @@ def main():
         'termination_payment': total_capex,
     }
 
+    # 수입 실현율 범위(VP 게이트 B안, 2026-10-05): 화면·한 장 요약 표시 전용.
+    # 실현율 시나리오 계산 앵커(reverse_solver 0.623)는 그대로 둔다. 로드 실패 시 기존 문구.
+    _rv_band = _revband.load_band() if _revband is not None else None
+    _rv_anchor_tail = (
+        f"수입 축 추가 하방: 요금실행률 평균 0.904, {_revband.band_short(_rv_band)}. "
+        "안전 여유 별도 확보 권장."
+        if _rv_band else
+        "수입 축은 요금실행률 평균 0.904, 수입 실현율 패널 평균 71.2%로 추가 하방. 안전 여유 별도 확보 권장.")
+
     # ── 예측치 미입력 배지 — 기준 수요가 '권장 협약 수요'임을 분명히 한다 ──
     if not traffic_is_forecast:
         if _anchor_capped:
@@ -1831,7 +1847,7 @@ def main():
                 "회사 예측치·상대방 제시 수치 보유 시 사이드바 '일 통행량 예측치 입력' 사용.")
         st.caption(
             "권장 수요 앵커: 실측 평균 실현율 0.814(교통량 축). 22개 노선 중 11개가 평균 미달. "
-            "수입 축은 요금실행률 평균 0.904, 수입 실현율 패널 평균 71.2%로 추가 하방. 안전 여유 별도 확보 권장.")
+            + _rv_anchor_tail)
 
     # KPI 카드 — 핵심 4종 (나머지 3종은 '전체 지표 보기'로 이동, 2026-07 UI 개편)
     _eirr = metrics.get('equity_irr', float('nan'))
@@ -2119,7 +2135,9 @@ def main():
                         f"OPEX {opex_source}: 평균 {opex_ratio*100:.1f}%(실측 데이터 기반 자동 산출)",
                         f"CAPEX 참고 {capex_reference['capex_estimate_억']:,}억(±20%, 단가 휴리스틱: 350억/km x 보정, 통상 가정)",
                         "실현율 앵커: 교통량 81.4%(국토부 민자도로 현황 보고서 2025, 22개 노선) · "
-                        "수입 62.3%(KOTI RR-25-10)",
+                        + (f"수입 {_revband.reference_text(_rv_band)}" if _rv_band
+                           else "수입 62.3%(KOTI RR-25-10)"),
+                    ] + ([_revband.band_detail(_rv_band)] if _rv_band else []) + [
                         "예측 검증: 국내 22개 사업 협약 대 실적 대사(채점 가능 21개). "
                         "관측 98건 중 70건 적중, 80% 설계 목표 대비 71.4%. "
                         "최근 3개년 관측 40건 중 32건(80.0%). 이전 연도 관측은 소급 검정",
@@ -2572,9 +2590,15 @@ def main():
                         f"**{_rb['p10_revenue']:,.0f}∼{_rb['p90_revenue']:,.0f}억** "
                         f"(중앙 {_rb['p50_revenue']:,.0f}억). 근거: {_db['source']}")
                     st.caption("reference-class 추정 밴드. 노선별 예측·실측 매칭 시 정밀화.")
-                    st.caption(
-                        "ⓘ prior는 '교통량' 기준. '수입' 기준은 체계적으로 더 낮음(협약 대비 통행료 수입 "
-                        "10년 평균 62.3% vs 교통량 81.4%, KOTI RR-25-10 p.45·p.140). 수입 기준 점검 시 별도 보정.")
+                    if _rv_band:
+                        st.caption(
+                            "ⓘ prior는 '교통량' 기준(교통량 실현율 평균 81.4%). 수입 실현율은 중앙값 기준 더 낮음. "
+                            f"{_revband.band_short(_rv_band)}. "
+                            f"비교값: 수입 {_revband.reference_text(_rv_band)}. 수입 기준 점검 시 별도 보정.")
+                    else:
+                        st.caption(
+                            "ⓘ prior는 '교통량' 기준. '수입' 기준은 체계적으로 더 낮음(협약 대비 통행료 수입 "
+                            "10년 평균 62.3% vs 교통량 81.4%, KOTI RR-25-10 p.45·p.140). 수입 기준 점검 시 별도 보정.")
             with _vc2:
                 st.markdown("**🏅 예비 신용등급 (근사)**")
                 _dmin = metrics.get('dscr_min', float('nan'))
@@ -2764,7 +2788,7 @@ def main():
             st.info(_rec_line + _rec_tail)
             st.caption(
                 "권장선 앵커: 실측 평균 실현율 0.814(교통량 축). 22개 노선 중 11개가 평균 미달. "
-                "수입 축은 요금실행률 평균 0.904, 수입 실현율 패널 평균 71.2%로 추가 하방. 안전 여유 별도 확보 권장.")
+                + _rv_anchor_tail)
             st.caption(
                 f"용량 기준(왕복 {lanes}차로): 경고 {_cap_warn:,.0f} · 한계 {_cap_limit:,.0f}대/일. "
                 "근거: 도로용량편람(KHCM 2013) 산식(서비스수준 D·지방부 K·D 계수), 국내 실측 최대"
@@ -2813,13 +2837,21 @@ def main():
                 "전개를 보여 드립니다.")
             st.caption(
                 "권장선 앵커: 실측 평균 실현율 0.814(교통량 축). 22개 노선 중 11개가 평균 미달. "
-                "수입 축은 요금실행률 평균 0.904, 수입 실현율 패널 평균 71.2%로 추가 하방. 안전 여유 별도 확보 권장.")
-        st.caption(
-            "협약(입력) 교통량은 그대로 두고 **실제 실현만 낮춘** 시나리오입니다. "
-            "MRG 보전은 협약 기준수입으로 정확히 발동합니다. 앵커 2종(실측): "
-            "81.4% = 교통량 실현율 평균(22개 노선) · 62.3% = 통행료 **수입** 실현율 10년 평균"
-            "(KOTI RR-25-10, 수입은 교통량보다 체계적으로 낮게 실현). "
-            "'실측에서 이 이하 비율' 열은 교통량 기준 분포이며, 수입 기준 분포 학습은 다음 데이터 작업(✚).")
+                + _rv_anchor_tail)
+        if _rv_band:
+            st.caption(
+                "협약(입력) 교통량 고정, **실제 실현만 낮춘** 시나리오. "
+                "MRG 보전은 협약 기준수입으로 발동. 계산 앵커 2종: 교통량 실현율 평균 81.4%(22개 노선), "
+                f"통행료 **수입** 실현율 {_revband.reference_text(_rv_band)}. "
+                "'실측에서 이 이하 비율' 열은 교통량 기준 분포.")
+            st.caption(_revband.band_detail(_rv_band))
+        else:
+            st.caption(
+                "협약(입력) 교통량은 그대로 두고 **실제 실현만 낮춘** 시나리오입니다. "
+                "MRG 보전은 협약 기준수입으로 정확히 발동합니다. 앵커 2종(실측): "
+                "81.4% = 교통량 실현율 평균(22개 노선) · 62.3% = 통행료 **수입** 실현율 10년 평균"
+                "(KOTI RR-25-10, 수입은 교통량보다 체계적으로 낮게 실현). "
+                "'실측에서 이 이하 비율' 열은 교통량 기준 분포이며, 수입 기준 분포 학습은 다음 데이터 작업(✚).")
         _rz_rows = _rsv.realization_scenarios(base_params, build_cashflow)
 
         # 유력 시나리오 판정문 — 나열 대신 판단부터('26-08-04 개선 4, GS "Case 순위" 실무 요구).
@@ -2849,6 +2881,8 @@ def main():
         except Exception:
             _rz_prb = None
         _rz_has_mrg = any(float(_r.get("mrg_total", 0) or 0) > 0 for _r in _rz_rows)
+        _rz_rev_label = (_revband.reference_row_label(_rv_band) if _rv_band
+                         else " (수입 실측 평균)")
         _rz_disp = []
         for _rz in _rz_rows:
             _rz_m = _rz["metrics"]
@@ -2856,7 +2890,7 @@ def main():
             _rz_row = {
                 "실현율": f"{_rz['ratio']*100:.0f}%" + (
                     " (교통량 실측 평균)" if abs(_rz['ratio'] - 0.814) < 1e-6
-                    else (" (수입 실측 평균)" if abs(_rz['ratio'] - 0.623) < 1e-6 else "")),
+                    else (_rz_rev_label if abs(_rz['ratio'] - 0.623) < 1e-6 else "")),
                 "실측에서 이 이하 비율": (f"{_rz_prb(_rz['ratio'])*100:.0f}%" if _rz_prb else "산출 불가"),
                 "NPV(억)": f"{_rz_m['npv']:,.0f}",
                 "자기자본IRR": f"{_rz_eirr*100:.1f}%" if _rz_eirr == _rz_eirr else "산출 불가",
