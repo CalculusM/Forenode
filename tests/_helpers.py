@@ -30,6 +30,7 @@ APP_DEFAULT_INPUTS = {
     "lanes": 4,
     "growth_pct": 2.5,
     "heavy_ratio_pct": 30,
+    "toll_per_km": None,     # None = 사업 유형 기본 요금(화면 자동값). 노선 요금 재현 시 override
     "heavy_surcharge": 1.5,
     "base_rate": 0.025,
     "capm_beta": 0.70,
@@ -69,7 +70,8 @@ def app_default_case(**overrides) -> dict:
     p.update(overrides)
     bt = p["business_type"]
     bd = config_loader.business_defaults()[bt]
-    toll_per_km = bd["toll"] if bd["toll"] > 0 else 80
+    # 요금은 앱과 같은 순서로 부트스트랩 앵커·운영비 시계열까지 반영(수입 계수만 바꾸면 문턱이 어긋남, 2026-10-07)
+    toll_per_km = p["toll_per_km"] if p.get("toll_per_km") else (bd["toll"] if bd["toll"] > 0 else 80)
     equity_ratio = bd["equity"] / 100
     mrg_ratio = bd["mrg"] / 100
     mcc_ratio = bd["mcc"] / 100

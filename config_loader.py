@@ -71,6 +71,29 @@ def capacity_gate(fallback: dict | None = None) -> dict:
     return load_finance_params().get("capacity_gate") or (fallback or {})
 
 
+_KOTI_RETURNS_PATH = os.path.join(_BASE, "data", "koti_rr2510_return_rates.csv")
+_COVENANT_FALLBACK = (0.056, "협약 평균 수익률 (실질·세후 5.60%, 운영 중 23개)")
+
+
+def covenant_return_rate(path: str | None = None, fallback: tuple = _COVENANT_FALLBACK) -> tuple:
+    """문턱 3번째 기준: 운영 중 민자도로 협약 평균 수익률(실질 세후)을 (비율, 화면 라벨)로 반환.
+
+    data/koti_rr2510_return_rates.csv의 '운영' 서술평균 행에서 읽는다(KOTI RR-25-10 표 2-3, 2024-12).
+    파일 결손·손상 시 폴백(현행 리터럴과 동치). Decimal 경유라 5.60%는 0.056과 비트 동일.
+    """
+    import csv
+    from decimal import Decimal
+    try:
+        with open(path or _KOTI_RETURNS_PATH, encoding="utf-8-sig") as f:
+            for r in csv.DictReader(f):
+                if r["행유형"] == "서술평균" and r["단계"] == "운영":
+                    pct = Decimal(r["수익률_pct"])
+                    return float(pct / 100), f"협약 평균 수익률 (실질·세후 {pct:.2f}%, 운영 중 {int(r['표본수'])}개)"
+    except Exception as e:
+        print(f"[config_loader] KOTI 수익률 로드 실패({e}), 폴백 사용", flush=True)
+    return fallback
+
+
 if __name__ == "__main__":
     p = load_params()
     print("로드:", "OK" if p else "FAIL")
