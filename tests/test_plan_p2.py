@@ -51,6 +51,48 @@ class ConfigAssets(unittest.TestCase):
         self.assertIsNone(config_loader.koti_planning_returns(path=os.path.join(H.DATA, "없는파일.csv")))
 
 
+class AppPipelinePresetAndCovenantChoice(unittest.TestCase):
+    """A3: 추진 중 노선 참고 입력 프리셋이 화면 입력을 채우고 재구성 사례와 일치, 기준 수익률 선택이 문턱 표에 반영."""
+
+    def test_pipeline_preset_fills_inputs(self):
+        import app
+        import pipeline_loader as pl
+        from test_app_smoke import _exceptions, _run_app, assert_params_equal
+        names = [k for k in app.PROJECT_PRESETS if k.startswith("추진 중 ")]
+        self.assertGreaterEqual(len(names), 30, "추진 중 노선 참고 입력 프리셋 수")
+        pick = next(k for k in names if "용인~광주" in k)
+        row = pl.load_route_pipeline()
+        row = row[row["노선"].str.contains("용인~광주")].iloc[0]
+        cwd = os.getcwd()
+        os.chdir(H.ROOT)
+        try:
+            at = _run_app()
+            [s for s in at.selectbox if s.label.startswith("📁 사업 프리셋")][0].set_value(pick)
+            at.run()
+            at.run()   # 프리셋·사업 유형 변경에 따른 요금 재시드 반영
+            self.assertEqual(_exceptions(at), [], "추진 중 프리셋 선택 실행 예외")
+            assert_params_equal(self, at.session_state["fn_base_params"],
+                                H.app_default_case(**pl.engine_inputs(row))["base_params"], "추진 중 프리셋")
+            self.assertTrue(any("프리셋 근거" in c.value for c in at.caption))
+        finally:
+            os.chdir(cwd)
+
+    def test_covenant_choice_planning_mean(self):
+        from test_app_smoke import _exceptions, _run_app
+        cwd = os.getcwd()
+        os.chdir(H.ROOT)
+        try:
+            at = _run_app()
+            at.radio(key="cov_choice").set_value("기획단계 평균(손익공유형)")
+            at.run()
+            self.assertEqual(_exceptions(at), [], "기준 수익률 선택 실행 예외")
+            frames = [d.value for d in at.dataframe]
+            self.assertTrue(any("기획단계 평균 수익률" in str(f.get("기준", "")) for f in frames if hasattr(f, "get")),
+                            "문턱 표 3번째 행 라벨")
+        finally:
+            os.chdir(cwd)
+
+
 class AppCapexConverter(unittest.TestCase):
     def test_apply_sets_capex_and_keeps_parity(self):
         from test_app_smoke import _exceptions, _run_app, assert_params_equal

@@ -188,6 +188,28 @@ st.markdown(
     "- 새 모델(v2)은 기존 모델보다 실제로 더 정확한지 리허설(VP-2026-001)을 통과해야만 적용합니다."
 )
 
+# ── ⑥-2 제안 전 노선 문턱 봉인(채점 대기): 읽기 전용, data/pipeline_registry_2026-10.csv 기준 조건점만 ──
+st.markdown("##### 🔏 제안 전 노선 문턱 봉인(채점 대기)")
+_REG_CSV = os.path.join(_HERE, "..", "data", "pipeline_registry_2026-10.csv")
+if os.path.exists(_REG_CSV):
+    _reg = pd.read_csv(_REG_CSV, dtype=str, encoding="utf-8-sig").fillna("")
+    # 기준점 = 사업비 기준 × 요금(보도값 있으면 보도값, 없으면 기본). 조건 격자 9점 중 1점만 표시
+    _reg = _reg[(_reg["사업비_조건"] == "기준") & _reg["요금_조건"].isin(["보도값", "기본"]) & (_reg["문턱_재무성립선"] != "")]
+    _reg = _reg.sort_values("요금_조건", ascending=False).drop_duplicates("노선")
+    _show = {"노선": "노선", "구분": "구분", "단계_asof": "조사 단계(봉인 시점)", "as_of": "봉인일",
+             "민간투자비_근거": "민간투자비 근거", "요금_조건": "요금 조건", "문턱_재무성립선": "재무 성립선 문턱",
+             "권장협약수요": "권장 협약 수요", "용량대비_구간": "용량 대비 구간", "채점트리거": "채점 트리거", "채점기한": "채점 기한"}
+    st.dataframe(_reg[[c for c in _show if c in _reg.columns]].rename(columns=_show),
+                 use_container_width=True, hide_index=True)
+    _ym = _reg["as_of"].max()[:7].split("-") if len(_reg) else []
+    _when = f"{_ym[0]}년 {int(_ym[1])}월 " if len(_ym) == 2 and _ym[1].isdigit() else ""
+    _scored = 0   # 채점 결과는 data/route_pipeline_outcomes.csv 채점 실행기(research/score_pipeline_registry.py) 등재 후 반영
+    st.caption(f"제안 전 노선 {len(_reg)}건의 사업성 문턱을 {_when}봉인. 산출물은 성립 조건, 적격성 통과 예측 아님. "
+               "입력 다수는 보도값·추정값(근거 열 참조). 채점은 적격성 결과·제3자 공고·실시협약 공개 시. "
+               f"현재 채점 결과 {_scored}건.")
+else:
+    st.caption("봉인 데이터 없음")
+
 # ── ⑦ 방법론 ──
 with st.expander("📐 채점 규칙 R1~R7 (상세)"):
     st.markdown(

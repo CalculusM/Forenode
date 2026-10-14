@@ -74,6 +74,29 @@ if os.path.exists(_bp):
     st.dataframe(pd.read_csv(_bp), use_container_width=True, hide_index=True)
     st.caption("빈칸 = 미확보(추정치 미기재 원칙). 출처: 백테스트 원장 V-001~021.")
 
+
+# ── 참고 데이터 2종(계산 미연동): 행 수·as-of·출처 등급 분포를 파일에서 집계 ──
+def _prov_block(title, fname, asof_cols, grade_cols, caveat):
+    st.markdown(f"##### 📋 {title}({fname})")
+    _p = os.path.join(_ROOT, "data", fname)
+    if not os.path.exists(_p):
+        st.caption("파일 없음")
+        return
+    _d = pd.read_csv(_p, dtype=str).fillna("")
+    _asof = next((", ".join(sorted(set(_d[c]) - {""})) for c in asof_cols if c in _d.columns), "미기재")
+    _dist = " · ".join(f"{c} " + ", ".join(f"{k or '빈칸'} {n}건" for k, n in _d[c].value_counts().items())
+                       for c in grade_cols if c in _d.columns)
+    st.markdown(f"**계산 미연동(참고 데이터)** · 행 수 {len(_d)} · as-of {_asof}")
+    st.caption(f"출처 등급 분포: {_dist or '해당 열 없음'}")
+    st.caption(f"한계: {caveat}")
+
+
+_prov_block("추진 중 노선 파이프라인", "route_pipeline_2026-10.csv",
+            ["pipeline_version", "as_of", "asof", "조사_asof", "조사asof"], ["민간투자비_근거", "통행료_근거"],
+            "민간투자비 미확인 노선은 총사업비 대비 비율 추정값(근거 열 '추정' 표기), 보도값 등 2차 출처 비중 높음. 결측은 빈칸.")
+_prov_block("KOTI 수익률 표", "koti_rr2510_return_rates.csv", ["기준시점"], ["행유형"],
+            "보고서 전재(2차 출처). 협상 단계 전재 행과 서술 평균 불일치, 운영 평균은 서술값(재현검사 열 참조). 앱 계산은 기본 협약 수익률 유지.")
+
 st.page_link("pages/2_검증_성적표.py", label="▸ 📋 검증 성적표(원장 채점 기록) 보기")
 
 st.markdown("---")

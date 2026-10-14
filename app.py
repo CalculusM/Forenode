@@ -1159,8 +1159,44 @@ _PRESET_FALLBACK = {
     },
 }
 import config_loader as _cfg_presets  # noqa: E402  프리셋 단일 출처 = config/project_presets.json(근거·as_of 포함), 폴백은 동치
-PROJECT_PRESETS = _cfg_presets.project_presets(fallback=_PRESET_FALLBACK)
+PROJECT_PRESETS = dict(_cfg_presets.project_presets(fallback=_PRESET_FALLBACK))   # 사본(아래 update가 config 캐시를 오염시키지 않게)
 _BIZ_OPTIONS = ["BTO", "BTO-rs", "BTO-a", "BTL", "BTO+BTL"]
+
+
+def _pipeline_presets() -> dict:
+    """추진 중 노선 참고 입력(data/route_pipeline_2026-10.csv, 2026년 9월 기준 보도·추정값). 파일 결손 시 빈 dict.
+    계산 미연동 참고 데이터를 사이드바 입력으로 옮겨 주는 역할만 하며, 다노선 일괄 판정 기능은 아니다."""
+    try:
+        import pipeline_loader as _pl
+        df = _pl.load_route_pipeline()
+    except Exception:
+        return {}
+    out = {}
+    for _, r in df.iterrows():
+        if r.get("모형범위") != "신설" or not r.get("연장_km") or not r.get("민간투자비_억") or r.get("사업방식") not in _BIZ_OPTIONS:
+            continue
+        e = _pl.engine_inputs(r)
+        p = {"business_type": e["business_type"], "road_length": float(e["road_length"]),
+             "total_capex": int(round(e["total_capex"]))}
+        for k in ("operation_years", "lanes"):
+            if k in e:
+                p[k] = int(e[k])
+        for k in ("bridge_ratio", "tunnel_ratio"):
+            if k in e:
+                p[k] = int(round(e[k] * 100))
+        if "heavy_ratio_pct" in e:
+            p["heavy_ratio"] = int(e["heavy_ratio_pct"])
+        if r.get("통행료_근거") and r["통행료_근거"] != "기본값" and "toll_per_km" in e:
+            p["toll_per_km"] = int(round(e["toll_per_km"]))
+        est = any(w in r.get("민간투자비_근거", "") for w in ("추정", "단가"))
+        p["basis"] = (f"민간투자비 {r.get('민간투자비_근거', '')} · 통행료 {r.get('통행료_근거', '')} · "
+                      f"운영기간 {r.get('운영기간_근거', '')} · 구조 {r.get('구조비율_근거', '') or '기본값'}")
+        p["as_of"] = r.get("pipeline_version", "")
+        out[f"추진 중 {r['노선']} ({'보도·추정값' if est else '확인값 포함'}, 2026년 9월 기준)"] = p
+    return out
+
+
+PROJECT_PRESETS.update(_pipeline_presets())
 
 
 def main():
@@ -1185,7 +1221,8 @@ def main():
         "📁 사업 프리셋 (자동 채움)",
         ["직접 입력"] + list(PROJECT_PRESETS.keys()), index=0,
         help="대표 사업을 고르면 핵심 입력(연장·사업비·교통량·기간·지형 등)이 자동으로 채워집니다. "
-             "이후 자유롭게 수정 가능. (대표 예시값)",
+             "이후 자유롭게 수정 가능. (대표 예시값) '추진 중' 항목은 2026년 9월 기준 보도·추정값의 참고 입력, "
+             "선택 후 근거 캡션 확인.",
     )
     _preset = PROJECT_PRESETS.get(preset_choice, {})
     if _preset.get("basis"):
@@ -1311,7 +1348,7 @@ def main():
             help="지형 난이도에 따라 CAPEX 보정 (평지 1.0 / 구릉 1.3 / 산악 1.8)"
         )
         bridge_ratio = st.slider("교량 비율(%)", 0, 50, _preset.get("bridge_ratio", 15), 1) / 100
-        _TUNNEL_MAX = 70
+        _TUNNEL_MAX = int(_cfg_fin.load_finance_params().get("input_limits", {}).get("tunnel_ratio_max_pct", 70))
         tunnel_ratio = st.slider("터널 비율(%)", 0, _TUNNEL_MAX, _preset.get("tunnel_ratio", 20), 1) / 100
         if tunnel_ratio * 100 >= _TUNNEL_MAX:
             st.caption(f"터널 비율 상한 {_TUNNEL_MAX}% 적용. 실제 비율 초과분은 유지관리비 과소 반영 가능.")
@@ -1347,6 +1384,16 @@ def main():
             + (f" 지하·소형차 전용 노선 공개 제안 요금 {_obs['min']}~{_obs['max']}원/km"
                f"({_obs['n']}건, {_obs['as_of']})." if _obs else "")
             + " 노선 요금 입력 필수.")
+
+    # ─── 문턱 3번째 기준 수익률 선택(기본 = 운영 중 협약 평균, 계산 기본 경로 불변) ───
+    with st.sidebar.expander("문턱 기준 수익률 (3번째 기준)"):
+        _cov_choice = st.radio(
+            "기준", ["협약 평균(운영 중)", "기획단계 평균(손익공유형)", "직접 입력"], index=0, horizontal=True,
+            key="cov_choice", help="사업성 문턱 표의 3번째 행. 협약 평균은 운영 중 민자도로 협약 수익률, "
+                                   "기획단계 평균은 국토부 기획단계 손익공유형 노선 평균(KOTI RR-25-10 표 2-2). "
+                                   "사내 기준이 있으면 직접 입력.")
+        _cov_custom = st.number_input("직접 입력 실질 세후 수익률(%)", 0.0, 20.0, 5.0, 0.1, key="cov_custom",
+                                      disabled=_cov_choice != "직접 입력")
 
     # ─── 협약·정부 조건 (접힘) ───
     with st.sidebar.expander("협약·정부 조건 (MRG·MCC·재구조화)"):
@@ -1787,6 +1834,12 @@ def main():
         _gov_seek["min_rev"] / _rev_K if _gov_seek.get("min_rev") and _rev_K > 0 else None)
     # 문턱 3번째 기준(협약 평균 수익률)은 KOTI RR-25-10 전재 데이터 파일에서 읽는다(폴백 = 종전 리터럴 동치)
     _cov_rate, _cov_label = _cfg_fin.covenant_return_rate()
+    if _cov_choice == "기획단계 평균(손익공유형)":
+        _kp0 = _cfg_fin.koti_planning_returns()
+        if _kp0:
+            _cov_rate, _cov_label = _kp0["mean"] / 100, f"기획단계 평균 수익률 (실질·세후 {_kp0['mean']:.2f}%, 손익공유형 {_kp0['n']}건)"
+    elif _cov_choice == "직접 입력":
+        _cov_rate, _cov_label = _cov_custom / 100, f"직접 입력 수익률 (실질·세후 {_cov_custom:.2f}%)"
     _surplus_now = _rsv.surplus_years(base_params, build_cashflow)
     # 문턱 수준의 흑자 전환 연차 — "X대를 넘으면 n년차부터 흑자" 메시지용
     _gov_sy = (_rsv.surplus_years(base_params, build_cashflow, _gov_seek["min_rev"])
@@ -1842,7 +1895,7 @@ def main():
     _capex_in_range = (
         capex_reference['capex_low_억'] <= total_capex <= capex_reference['capex_high_억']
     )
-    _capex_check = "✅ 회귀 범위 내" if _capex_in_range else "⚠️ 회귀 범위 밖"
+    _capex_check = "✅ 참고 범위 내" if _capex_in_range else "⚠️ 참고 범위 밖"
     with st.container(border=True):
         st.markdown(
             f"**💡 자동 산출 근거** · OPEX {opex_source}: 평균 {opex_ratio*100:.1f}% "
@@ -2921,7 +2974,7 @@ def main():
                 f"(경량 {100-heavy_ratio}% + 화물 {heavy_ratio}%×할증 {heavy_surcharge:.1f}배) "
                 f"× 365일 ÷ 10⁸ ÷ 1.1(VAT 차감) = **{_rev_K:.5f}억/(대/일)**  \n"
                 f"**2) 문턱 탐색**: 각 기준을 통과하는 최소 연수입을 이분법 60회로 탐색"
-                f"(대상 지표는 수입에 단조증가, 해 유일) 후 K로 나눠 교통량 환산.  \n"
+                f"(대상 지표는 수입에 단조증가, 해 1개) 후 K로 나눠 교통량 환산.  \n"
                 f"가정: 운영비는 {'현 시나리오 산출 시계열 고정(교통량이 줄어도 운영비는 줄지 않는 보수 가정)' if base_params.get('opex_series_억') is not None else '매출비례(수동 비율 모드)'} · "
                 f"MRG 기준수입은 협약 수요와 함께 이동(설계 관점) · 램프업 미반영(보수).  \n"
                 f"이 계산은 예측·학습 모델이 아니라 현금흐름 엔진의 **결정론 역함수**입니다. "

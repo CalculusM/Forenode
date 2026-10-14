@@ -1,0 +1,104 @@
+{
+ "pipeline_version": "v1_2026-10-07",
+ "built": "2026-10-14",
+ "survey_asof": "2026-10-07",
+ "image_asof": "2026-09-30",
+ "git_head": "e04bb3622804e46a7e54505156f970bf6d0d9469",
+ "engine_reflected": false,
+ "script": "research/build_route_pipeline.py",
+ "output": "data/route_pipeline_2026-10.csv",
+ "rows": {
+  "total": 40,
+  "tested": 36,
+  "untested": 4
+ },
+ "inputs_sha256": {
+  "_research_sources/pipeline_2026-10/00_image_routes_2026-09.json": "192b84bee88b1737532370186b518e2f3530f91483ae3cb6495557b2ba9d595c",
+  "_research_sources/pipeline_2026-10/03_five_input_inputs.json": "991ad8ad662e3da58da6b7abba0ac4906b9ca29ec8d216e44886a4dad840e5f6",
+  "_research_sources/pipeline_2026-10/04_five_input_results.json": "e60beeec471246cd66f894b219b9b79cc90652aad0005da0984f0607b97b9549",
+  "_research_sources/pipeline_2026-10/03_forenode_test_inputs_v3.json": "42feb15c1f0d310aa292dc9a496359cd18dd2f64655b1713af4c13acdc76544e",
+  "_research_sources/pipeline_2026-10/08_reality_side.json": "27cf85de9bc9bdb61ebad3cdcc5d5367c8bfb5a91498e6e08e18e9c6c56eaefc",
+  "_research_sources/pipeline_2026-10/07_study_v6_tables.json": "bad34f8fa31f3d36ec0b876d90162a4450f5fdb40b41637be92a1790bb861748"
+ },
+ "inputs_sha256_koti": {
+  "data/koti_rr2510_return_rates.csv": "f9f4c082686a3e4799a110e635ef3bea41eafe7b02a0a1de2fef89e8a18c5ae2"
+ },
+ "source_copy_manifest": {
+  "00_image_routes_2026-09.json": {
+   "original_sha256": "192b84bee88b1737532370186b518e2f3530f91483ae3cb6495557b2ba9d595c",
+   "copy_sha256": "192b84bee88b1737532370186b518e2f3530f91483ae3cb6495557b2ba9d595c",
+   "redacted": false,
+   "replacements": 0,
+   "note": "바이트 동일 사본"
+  },
+  "03_five_input_inputs.json": {
+   "original_sha256": "991ad8ad662e3da58da6b7abba0ac4906b9ca29ec8d216e44886a4dad840e5f6",
+   "copy_sha256": "991ad8ad662e3da58da6b7abba0ac4906b9ca29ec8d216e44886a4dad840e5f6",
+   "redacted": false,
+   "replacements": 0,
+   "note": "바이트 동일 사본"
+  },
+  "04_five_input_results.json": {
+   "original_sha256": "e60beeec471246cd66f894b219b9b79cc90652aad0005da0984f0607b97b9549",
+   "copy_sha256": "e60beeec471246cd66f894b219b9b79cc90652aad0005da0984f0607b97b9549",
+   "redacted": false,
+   "replacements": 0,
+   "note": "바이트 동일 사본"
+  },
+  "04_five_input_aux.json": {
+   "original_sha256": "ce91a4bd32715043eea1ba1dd81ca85d9a30cd5cf45a968942c6fc4a9a6697b5",
+   "copy_sha256": "ce91a4bd32715043eea1ba1dd81ca85d9a30cd5cf45a968942c6fc4a9a6697b5",
+   "redacted": false,
+   "replacements": 0,
+   "note": "바이트 동일 사본"
+  },
+  "08_reality_side.json": {
+   "original_sha256": "7c3782e1ffa8d7a72112687f30cfa21326ec0bb3fcb5a2ded0e183d643b2119b",
+   "copy_sha256": "27cf85de9bc9bdb61ebad3cdcc5d5367c8bfb5a91498e6e08e18e9c6c56eaefc",
+   "redacted": true,
+   "replacements": 6,
+   "note": "서면 응답사명 비식별 사본"
+  },
+  "03_forenode_test_inputs_v3.json": {
+   "original_sha256": "42feb15c1f0d310aa292dc9a496359cd18dd2f64655b1713af4c13acdc76544e",
+   "copy_sha256": "42feb15c1f0d310aa292dc9a496359cd18dd2f64655b1713af4c13acdc76544e",
+   "redacted": false,
+   "replacements": 0,
+   "note": "바이트 동일 사본"
+  }
+ },
+ "engine": {
+  "helper": "tests/_helpers.app_default_case(**5개 입력) + threshold_traffic(case, 'gov'), 나머지 입력은 앱 기본값",
+  "five_input_keys": [
+   "business_type",
+   "road_length",
+   "total_capex",
+   "toll_per_km",
+   "operation_years"
+  ],
+  "anchor_ratio": 0.814,
+  "golden_sha256": "5036e6322832369d0177cd79fc6920827d60ca777853353e18b41839edacf0ba",
+  "finance_params_sha256": "e53e60919aef730e6d2224a03da5430018e1756e20c4f07884fcfdf359a7865f"
+ },
+ "columns_added": {
+  "D4": [
+   "민간투자비_KOTI보조율",
+   "KOTI_출처표",
+   "보조율적용_주의",
+   "문턱_KOTI보조율",
+   "민간투자비_0.70",
+   "문턱_0.70"
+  ],
+  "note": "민간투자비_KOTI보조율 = KOTI 투자비계×(1-건설보조금비율/100), 보상비 포함 여부 미규명 플래그 동반. 민간투자비_0.70 = 총사업비×대안 비율. 두 문턱은 5개 입력 중 민간투자비만 교체해 재계산. pipeline_version 유지",
+  "private_share_alt": 0.7
+ },
+ "rules": {
+  "결측": "값 미확인은 빈칸. 03 입력의 건설보조금·보상비 0은 미확인 가정값이라 빈칸(차감 산술은 0으로 취급)",
+  "조사단계": "7절 표 7 실제 결과 문장에서 단계어 우선순위(재정전환>부적격>건설>실시협약>협상>재조사중>우협>통과>조사중>의향서>미접수>접수)",
+  "결과상태": "모형범위 신설 외는 범위밖, 부적격·재정 전환은 탈락, 통과·우협·실시협약은 통과이상, 그 외 통과전, 시험 없음은 미시험",
+  "터널비율": "구조 근거 문장의 실제 비율(상한 70% 문구 제외), 없으면 보강 입력값. 엔진 투입 시 로더가 상한 적용",
+  "사업비_상충값": "근거 문장 중 상충·범위·병기·증액·원안 문장 + KOTI 투자비계가 총사업비와 5% 넘게 다른 경우",
+  "출처등급": "08 출처 중 go.kr·korea.kr·pimac·KOTI 보고서 번호는 1차, 나머지 2차(자체 분류)",
+  "제안자": "6판 3절 순위표 공개 보도 기준 회사명. 서면 응답사·미확인은 빈칸"
+ }
+}

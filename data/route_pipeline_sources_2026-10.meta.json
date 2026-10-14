@@ -1,0 +1,119 @@
+{
+ "source_version": "v1_2026-10-07",
+ "built": "2026-10-14",
+ "collected": "2026-10-07",
+ "git_head": "e04bb3622804e46a7e54505156f970bf6d0d9469",
+ "engine_reflected": false,
+ "script": "research/build_pipeline_sources.py",
+ "output": "data/route_pipeline_sources_2026-10.csv",
+ "rows": {
+  "total": 1574,
+  "adopted_Y": 310,
+  "null_fact_rows": 169,
+  "routes": 38
+ },
+ "inputs_sha256": {
+  "_research_sources/pipeline_2026-10/08_reality_side.json": "27cf85de9bc9bdb61ebad3cdcc5d5367c8bfb5a91498e6e08e18e9c6c56eaefc",
+  "_research_sources/pipeline_2026-10/03_five_input_inputs.json": "991ad8ad662e3da58da6b7abba0ac4906b9ca29ec8d216e44886a4dad840e5f6",
+  "_research_sources/pipeline_2026-10/03_forenode_test_inputs_v3.json": "42feb15c1f0d310aa292dc9a496359cd18dd2f64655b1713af4c13acdc76544e",
+  "_research_sources/pipeline_2026-10/04_five_input_aux.json": "ce91a4bd32715043eea1ba1dd81ca85d9a30cd5cf45a968942c6fc4a9a6697b5",
+  "data/koti_rr2510_return_rates.csv": "f9f4c082686a3e4799a110e635ef3bea41eafe7b02a0a1de2fef89e8a18c5ae2",
+  "data/route_pipeline_2026-10.csv": "12c4248203be3afd129ddae11369849a91ce665bef6d712eedd76b7bc6cc26c0"
+ },
+ "conflict_groups": {
+  "CF-의왕~광주-총사업비": [
+   13000.0,
+   21800.0,
+   21865.0
+  ],
+  "CF-하남~남양주~포천-총사업비": [
+   8698.0,
+   13000.0,
+   14813.0
+  ],
+  "CF-서울~양주-총사업비": [
+   8607.0,
+   10622.0
+  ],
+  "CF-양재~고양-총사업비": [
+   25205.0,
+   30400.0,
+   30421.0
+  ],
+  "CF-평택~시흥-총사업비": [
+   5936.0,
+   6908.0,
+   13019.0
+  ],
+  "CF-광명~서울-총사업비": [
+   19462.0,
+   25108.0
+  ],
+  "CF-사상~해운대-총사업비": [
+   22236.0,
+   33627.0
+  ],
+  "CF-당진~광명-총사업비": [
+   29692.0,
+   33000.0,
+   36000.0
+  ],
+  "CF-오산~용인-총사업비": [
+   9013.0,
+   12574.0
+  ],
+  "CF-공주~천안-총사업비": [
+   13467.0,
+   15341.0
+  ],
+  "CF-시흥~송파-총사업비": [
+   20000.0,
+   24602.0
+  ],
+  "CF-서창~김포-총사업비": [
+   7572.0,
+   9886.0,
+   10110.0
+  ],
+  "CF-양재~올림픽대로-민간투자비": [
+   5589.0,
+   6565.0
+  ],
+  "CF-당진~화성-민간투자비": [
+   7722.0,
+   13000.0
+  ],
+  "CF-제4경인-통행료": [
+   230.0,
+   265.0,
+   321.0
+  ],
+  "CF-양재~올림픽대로-통행료": [
+   261.0,
+   261.4,
+   305.0
+  ],
+  "CF-팔공산-통행료": [
+   81.3,
+   96.0
+  ]
+ },
+ "guard_replacements": {
+  "replaced_with": "하나뿐",
+  "count": 1,
+  "note": "금지 표현(앱반영방안 §5-13 첫 항) 치환 건수"
+ },
+ "rules": {
+  "채택여부": "D1 route_pipeline_2026-10.csv의 수치 셀마다 Y 행 1개(출처 열에 근거 코드), 나머지 N",
+  "출처등급": "자체 키워드 규칙(추정·가정·기본값=추정, 1차·공고·협약·확인·요약=1차, 2차·보도·제안·KOTI=2차), 08 null 사실 항목은 null",
+  "asof구분": "적격성결과·진행결과·사업비변동만 사후, 나머지는 빈칸(수동 분류 대기)",
+  "상충그룹": "항목군(총사업비+투자비계_KOTI+사업비_대안값 / 민간투자비 / 통행료_원km)의 최대÷최소가 1+0.05 초과 시",
+  "출처 행": "08 sources 목록은 항목 '출처'로 1건 1행(매체=도메인 또는 문서 첫 토큰, 보도일=괄호 날짜)"
+ },
+ "manual_todo": [
+  "R_cand.md·R_env.md·R_design.md·R_koti_local.md·E_candidates.md·A_proposal.md의 '* 출처.' 줄과 표 A·B·요약표는 미파싱(2026-10-14 집계 출처 줄 14·16·2·5·15·11, 표 행 0·30·14·73·21·23). JSON 파싱 행으로 충분, 수동 보완은 append만",
+  "원문 노트 사본은 서면 응답사·노선 연결 문장을 포함해 _research_sources에 미보존(비식별 후 보존 여부는 대표 결정)",
+  "asof구분 사전·안전 분류, 기준연월(불변가 기준) 보강",
+  "위키 external-docs-registry.md §1·forenode-data-sources.md 행 추가(위키는 이 스크립트 범위 밖)"
+ ]
+}
