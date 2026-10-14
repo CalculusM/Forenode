@@ -15,29 +15,30 @@ warnings.filterwarnings("ignore")
 UNDERGROUND = dict(business_type="BTO", road_length=5.4, total_capex=7366, operation_years=40, toll_per_km=463)
 
 
-def _via_business_default(**kw):
-    """사업 유형 기본 요금을 일시 교체해 호출(스터디 raw/threshold_run.py 정정본과 같은 방식)."""
+def _via_default_path(**kw):
+    """자동값 함수가 그 요금을 돌려주게 해 '요금 미지정' 경로로 호출. 오버라이드 경로와 같은 결과여야 요금이 앵커·운영비까지 같은 순서로 반영된 것."""
     import config_loader
     kw = dict(kw)
     toll = kw.pop("toll_per_km")
-    bd = config_loader.business_defaults()[kw["business_type"]]
-    old = bd["toll"]
-    bd["toll"] = float(toll)
+    orig = config_loader.default_toll_per_km
+    config_loader.default_toll_per_km = lambda bt, length: toll
     try:
         return H.app_default_case(**kw)
     finally:
-        bd["toll"] = old
+        config_loader.default_toll_per_km = orig
 
 
 class FiveInputParity(unittest.TestCase):
-    def test_default_toll_unchanged(self):
+    def test_default_toll_follows_config_mode(self):
         import config_loader
         case = H.app_default_case()
-        self.assertEqual(case["toll_per_km"], config_loader.business_defaults()["BTO-a"]["toll"])
+        self.assertEqual(case["toll_per_km"], config_loader.default_toll_per_km("BTO-a", 45))
+        self.assertEqual(config_loader.load_finance_params()["toll_default"]["mode"], "fiscal_structure")
+        self.assertEqual(config_loader.default_toll_per_km("BTL", 45), 80)   # 요금 없는 유형은 종전 폴백
 
     def test_toll_override_reaches_bootstrap_and_opex(self):
         a = H.app_default_case(**UNDERGROUND)
-        b = _via_business_default(**UNDERGROUND)
+        b = _via_default_path(**UNDERGROUND)
         self.assertEqual(a["toll_per_km"], 463)
         self.assertEqual(a["daily_traffic"], b["daily_traffic"])
         self.assertEqual(a["rev_K"], b["rev_K"])

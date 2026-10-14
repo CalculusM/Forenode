@@ -49,6 +49,12 @@
   "dispersion": "48~94%",
   "note": "사이드바 '총사업비에서 환산' 보조 입력의 추정 비율. 확인 사례 비율 분산 48~94%(대심도·지자체 분담형 편차), 추정 라벨 필수('26-10-07 추진현황 스터디)"
  },
+ "toll_default": {
+  "mode": "fiscal_structure",
+  "adopted": "2026-10-14",
+  "basis": "VP 게이트 가안 B 채택(research/vp_gate_defaults_result_2026-10.md, 기준 봉인 후 평가): 보도·공고 요금 9건 대비 고속도로형 6건 MAE 12.9에서 5.1원/km, 지하·소형차 3건 259에서 166(여전히 과소, 노선 요금 입력 필수). 대표 지시 2026-10-14('요금구조 산식 변경이 필요하다고 판단되는 경우 진행')",
+  "note": "자동값 = fiscal_toll_structure(기본요금 + 1종 주행요금×연장) × toll_benchmark.policy_cap_mult ÷ 연장, 정수 반올림. 프리셋 요금이 있으면 프리셋 우선, 사업 유형 toll이 0(임대형)이면 종전 폴백 80. mode를 'constant'로 두면 business_type_defaults.toll(85) 고정으로 복귀"
+ },
  "fiscal_toll_structure": {
   "base_won": 900,
   "per_km_won_class1": 44.3,

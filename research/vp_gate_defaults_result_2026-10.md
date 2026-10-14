@@ -3,7 +3,8 @@
 - 작성일: 2026. 10. 14.(화).
 - 판정 기준: research/vp_gate_defaults_criteria_2026-10.md(계산 전 봉인). 기준 변경 0건.
 - 평가 스크립트: research/vp_gate_defaults_eval_2026_10.py(실행 약 2분). 산출: research/vp_gate_defaults_eval_2026-10.json(엔진 커밋 e04bb36, 골든·finance_params·스터디 raw 6종 sha256 기록).
-- 기본값 변경 없음. 엔진·config·골든 변경 0건. 아래 판정 라벨은 대표 결정과 VP 게이트(골든 재생성 단독 커밋, 2027. 1. 8. 이후)의 입력 자료.
+- 평가 시점 기본값 변경 없음. 엔진·config·골든 변경 0건. 아래 판정 라벨은 대표 결정과 VP 게이트(골든 재생성 단독 커밋)의 입력 자료.
+- 반영 기록(2026. 10. 14.): 가안 B(통행료 자동값 = 재정요금 구조 실효 요금) 채택·구현. 대표 지시 "요금구조 산식 변경이 필요하다고 판단되는 경우 진행"에 따라 봉인 기준 통과를 근거로 채택. config toll_default.mode = fiscal_structure, 골든 재생성 단독 커밋, 위키 ADR 2026-10-14-decision-toll-default-fiscal-structure. 나·라·마·P3-01은 보류 유지.
 
 ## 0. 요약
 

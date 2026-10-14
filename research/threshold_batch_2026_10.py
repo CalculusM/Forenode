@@ -58,10 +58,15 @@ def resolve_capex(r: dict):
 
 
 def scenario_case(r: dict, scenario: str) -> dict:
-    """시나리오별 요금 결정. flat = 기본 요금(None), reported = toll_reported, fiscal = 재정 구조 환산(보도 요금 있으면 reported)."""
+    """시나리오별 요금 결정. flat = 사업 유형 고정 요금(business_type_defaults.toll, 85원/km 고정 민감도),
+    reported = toll_reported, fiscal = 재정 구조 환산(보도 요금 있으면 reported)."""
     rr = dict(r)
     rr.pop("toll_per_km", None)
     if scenario == "flat":
+        # 2026-10-14 앱 자동값이 재정요금 구조(연장 함수)로 바뀌었으므로 '85원 고정'은 명시적으로 넘긴다
+        import config_loader
+        _bd_toll = float(config_loader.business_defaults()[rr.get("business_type", "BTO-a")]["toll"])
+        rr["toll_per_km"] = _bd_toll if _bd_toll > 0 else None
         rr["toll_scenario"] = "flat"
     elif scenario == "reported" or rr.get("toll_reported"):
         if not rr.get("toll_reported"):

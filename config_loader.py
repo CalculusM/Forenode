@@ -71,6 +71,22 @@ def capacity_gate(fallback: dict | None = None) -> dict:
     return load_finance_params().get("capacity_gate") or (fallback or {})
 
 
+def default_toll_per_km(business_type: str, road_length_km: float) -> int:
+    """사이드바 통행료 자동값(원/km, 정수). toll_default.mode가 fiscal_structure면 재정요금 구조 실효 요금(연장 함수),
+    아니면 business_type_defaults.toll 고정값. 요금 없는 유형(임대형, toll 0)은 종전 폴백 80. 앱과 tests/_helpers가 공용."""
+    fp = load_finance_params()
+    bd = (fp.get("business_type_defaults") or {}).get(business_type) or {}
+    base_toll = float(bd.get("toll", 85))
+    if base_toll <= 0:
+        return 80
+    fts = fp.get("fiscal_toll_structure") or {}
+    if (fp.get("toll_default") or {}).get("mode") == "fiscal_structure" and fts and road_length_km > 0:
+        from threshold_display import fiscal_toll_per_km
+        mult = float((fp.get("toll_benchmark") or {}).get("policy_cap_mult", 1.1))
+        return int(round(fiscal_toll_per_km(float(road_length_km), float(fts["base_won"]), float(fts["per_km_won_class1"]), mult)))
+    return int(base_toll)
+
+
 def demand_anchor(fallback: dict | None = None) -> dict:
     """권장 협약 수요 앵커 {traffic_realization_mean, n_routes, below_mean_routes, source, as_of}. 변경은 VP 게이트."""
     return load_finance_params().get("demand_anchor") or (fallback or {})

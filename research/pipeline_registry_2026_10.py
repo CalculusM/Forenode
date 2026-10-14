@@ -143,7 +143,9 @@ def build(inputs_path, sealed_at):
         crit = dict(base_crit)
         for c, t in (r.get("extra_criteria") or []):
             crit["노선별수익률"] = (c, t)
-        tolls = {"기본": (None, "사업 유형 기본값"),
+        # '기본' = 사업 유형 고정값(85원/km). 2026-10-14 앱 자동값이 재정요금 구조로 바뀐 뒤에도 봉인 스냅샷과 같은 값을 재현하도록 명시
+        _bd_toll = float(config_loader.business_defaults()[r["business_type"]]["toll"])
+        tolls = {"기본": (_bd_toll if _bd_toll > 0 else None, "사업 유형 고정값"),
                  "재정구조": (td.fiscal_toll_per_km(r["road_length"], fs["base_won"], fs["per_km_won_class1"], tb["policy_cap_mult"]),
                              "재정요금 구조(기본요금+1종 주행요금×연장)×정책 배수÷연장"),
                  "보도값": (r.get("toll_reported"), b.get("toll", ""))}

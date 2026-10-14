@@ -33,7 +33,9 @@ class GrowthPathOptions(unittest.TestCase):
 
 class FixPoint(unittest.TestCase):
     def test_default_case_converges_below_anchor_threshold(self):
-        fp = ev.fixpoint({})
+        import config_loader
+        # 평가 봉인 조건(2026-10-14 자동값 변경 전, 85원/km 고정)으로 재현
+        fp = ev.fixpoint({"toll_per_km": config_loader.business_defaults()["BTO-a"]["toll"]})
         self.assertTrue(fp["converged"])
         # 기본 사례는 권장 수요 앵커(한계 캡)가 문턱보다 높아 운영비가 과대, 고정점은 앵커 기준값 이하
         self.assertLessEqual(fp["T_fixpoint"], fp["T_anchor"] + 1)

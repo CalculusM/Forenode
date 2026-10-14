@@ -75,7 +75,8 @@ def app_default_case(**overrides) -> dict:
     bt = p["business_type"]
     bd = config_loader.business_defaults()[bt]
     # 요금은 앱과 같은 순서로 부트스트랩 앵커·운영비 시계열까지 반영(수입 계수만 바꾸면 문턱이 어긋남, 2026-10-07)
-    toll_per_km = p["toll_per_km"] if p.get("toll_per_km") else (bd["toll"] if bd["toll"] > 0 else 80)
+    toll_per_km = (p["toll_per_km"] if p.get("toll_per_km")
+                   else config_loader.default_toll_per_km(bt, float(p["road_length"])))   # 앱 자동값과 같은 함수
     equity_ratio = bd["equity"] / 100
     mrg_ratio = bd["mrg"] / 100
     mcc_ratio = bd["mcc"] / 100

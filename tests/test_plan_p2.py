@@ -71,8 +71,12 @@ class AppPipelinePresetAndCovenantChoice(unittest.TestCase):
             at.run()
             at.run()   # 프리셋·사업 유형 변경에 따른 요금 재시드 반영
             self.assertEqual(_exceptions(at), [], "추진 중 프리셋 선택 실행 예외")
+            import config_loader
+            e = pl.engine_inputs(row)
+            if row["통행료_근거"] == "기본값":   # 참고 입력의 '기본값'은 앱 자동값(재정요금 구조)으로 대체
+                e["toll_per_km"] = config_loader.default_toll_per_km(e["business_type"], float(e["road_length"]))
             assert_params_equal(self, at.session_state["fn_base_params"],
-                                H.app_default_case(**pl.engine_inputs(row))["base_params"], "추진 중 프리셋")
+                                H.app_default_case(**e)["base_params"], "추진 중 프리셋")
             self.assertTrue(any("프리셋 근거" in c.value for c in at.caption))
         finally:
             os.chdir(cwd)
@@ -89,6 +93,30 @@ class AppPipelinePresetAndCovenantChoice(unittest.TestCase):
             frames = [d.value for d in at.dataframe]
             self.assertTrue(any("기획단계 평균 수익률" in str(f.get("기준", "")) for f in frames if hasattr(f, "get")),
                             "문턱 표 3번째 행 라벨")
+        finally:
+            os.chdir(cwd)
+
+
+class AppTollAutoValue(unittest.TestCase):
+    """통행료 자동값이 연장을 따라가고(재정요금 구조), 직접 입력값은 연장 변경 뒤에도 유지(2026-10-14 채택)."""
+
+    def test_auto_toll_tracks_length_and_keeps_override(self):
+        import config_loader
+        from test_app_smoke import _exceptions, _run_app, _set_slider
+        cwd = os.getcwd()
+        os.chdir(H.ROOT)
+        try:
+            at = _run_app()
+            self.assertEqual(at.session_state["_lk_toll_per_km"], config_loader.default_toll_per_km("BTO-a", 45))
+            _set_slider(at, "연장(km)", 10.7)
+            at.run()
+            self.assertEqual(at.session_state["_lk_toll_per_km"], config_loader.default_toll_per_km("BTO-a", 10.7))
+            _set_slider(at, "통행료 km단가(원)", 200)
+            at.run()
+            _set_slider(at, "연장(km)", 20.0)
+            at.run()
+            self.assertEqual(_exceptions(at), [])
+            self.assertEqual(at.session_state["_lk_toll_per_km"], 200, "직접 입력값은 연장 변경 뒤에도 유지")
         finally:
             os.chdir(cwd)
 

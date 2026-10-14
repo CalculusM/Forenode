@@ -38,7 +38,10 @@ class ThresholdGolden(GoldenCase):
         self._check("thresholds_bridge_tunnel_0")
 
     def test_bridge_tunnel_zero_matches_published_figures(self):
-        case = self.cases["thresholds_bridge_tunnel_0"]
+        # 공개 수치(2026-09 첨부·신청서)는 통행료 85원/km 고정 조건에서 산출. 2026-10-14 자동값 변경 뒤에도 그 조건으로 재현
+        import config_loader
+        case = H.app_default_case(bridge_ratio=0.0, tunnel_ratio=0.0,
+                                  toll_per_km=config_loader.business_defaults()["BTO-a"]["toll"])
         for key, published in PUBLISHED_BT0.items():
             crit, th = self.crit[key]
             t, _seek = H.threshold_traffic(case, crit, th)

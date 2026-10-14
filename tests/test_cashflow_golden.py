@@ -55,7 +55,8 @@ class CashflowGolden(GoldenCase):
         self.assertEqual(bp["capex_억"], 13000)
         self.assertEqual(bp["business_type"], "BTO-a")
         self.assertEqual(bp["operation_years"], 30)
-        self.assertEqual(self.cases["case_default"]["toll_per_km"], 85)
+        import config_loader
+        self.assertEqual(self.cases["case_default"]["toll_per_km"], config_loader.default_toll_per_km("BTO-a", 45))   # 2026-10-14 재정요금 구조 자동값
 
 
 class MrgMccDefaultZero(unittest.TestCase):

@@ -1301,28 +1301,21 @@ def main():
     _tb = _cfg_fin.load_finance_params().get("toll_benchmark", {})
     _fts = _cfg_fin.load_finance_params().get("fiscal_toll_structure") or {}
     _toll_max = int(_tb.get("input_max_won_per_km", 300))
-    _toll_default = int(_preset.get("toll_per_km", _bd["toll"] if _bd["toll"] > 0 else 80))
-    if st.session_state.get("_toll_auto_for") != (preset_choice, business_type):
-        # 프리셋·사업 유형이 바뀌면 요금을 자동값으로 다시 시드(종전 슬라이더 기본값 동작 유지)
-        st.session_state["_lk_toll_per_km"] = _toll_default
-        st.session_state["_toll_auto_for"] = (preset_choice, business_type)
+    # 자동값 = 재정요금 구조 실효 요금(연장 함수, 2026-10-14 채택) 또는 프리셋 요금. 연장·유형·프리셋이 바뀌면
+    # 사용자가 손대지 않은 경우(현재값 == 직전 자동값)에만 다시 시드, 직접 입력값은 유지
+    _toll_default = int(_preset.get("toll_per_km", _cfg_fin.default_toll_per_km(business_type, float(road_length))))
+    _toll_key = (preset_choice, business_type, round(float(road_length), 1))
+    if st.session_state.get("_toll_auto_for") != _toll_key:
+        if st.session_state.get("_lk_toll_per_km") in (None, st.session_state.get("_toll_auto_value")):
+            st.session_state["_lk_toll_per_km"] = _toll_default
+        st.session_state["_toll_auto_for"] = _toll_key
+        st.session_state["_toll_auto_value"] = _toll_default
     toll_per_km = linked_slider_input(
         "통행료 km단가(원)", 20, _toll_max, _toll_default, 1, "toll_per_km",
-        help=f"자동값 {_toll_default}원/km. 출처: 사업유형별 기본값(config/finance_params.json, "
-             "실측 협약 프리셋 우선). 도공 60원/km 대비 1.1배 비교선은 자체 가정(공식 출처 미확보). "
-             "지하·소형차 전용 노선은 공개 제안 요금 직접 입력.")
-    _fiscal_toll = None
-    if _fts:
-        _fiscal_toll = _thd.fiscal_toll_per_km(
-            road_length, float(_fts["base_won"]), float(_fts["per_km_won_class1"]),
-            float(_tb.get("policy_cap_mult", 1.1)))
-        if st.sidebar.button(
-                "재정요금 구조 환산값 적용", key="apply_fiscal_toll",
-                help=f"(기본요금 {_fts['base_won']:,}원 + 1종 주행요금 {_fts['per_km_won_class1']}원/km × 연장) "
-                     f"× 배수 {float(_tb.get('policy_cap_mult', 1.1))} ÷ 연장. 연장 {road_length:g}km 기준 "
-                     f"{_fiscal_toll}원/km. 배수 근거 2차 출처. 지하·소형차 전용 노선에는 과소."):
-            st.session_state["_lk_toll_per_km"] = min(max(int(round(_fiscal_toll)), 20), _toll_max)
-            st.rerun()
+        help=f"자동값 {_toll_default}원/km. 출처: 재정고속도로 요금 구조(기본요금 {_fts.get('base_won', '')}원 + "
+             f"1종 주행요금 {_fts.get('per_km_won_class1', '')}원/km × 연장) × {float(_tb.get('policy_cap_mult', 1.1))}을 "
+             "연장으로 나눈 실효 요금(2026. 10. 14. 채택, 배수 근거 2차 출처 2건). 실측 협약 프리셋은 프리셋 요금 우선. "
+             "도공 60원/km 대비 1.1배 비교선은 자체 가정(공식 출처 미확보). 지하·소형차 전용 노선은 공개 제안 요금 직접 입력.")
     operation_years = st.sidebar.slider(
         "운영기간(년)", 15, 50, _preset.get("operation_years", 30),
         help="자동값 30년. 출처: 국내 민자도로 실시협약 표준 운영기간(BTO 30년 관행).")
@@ -1373,17 +1366,14 @@ def main():
                  "대형 비중이 높거나 해상 특수교량 등 예외 노선만 상향."
         )
 
-    # 단거리·소형차 전용 노선에서 요금 자동값 방치 경고('26-10 추진현황 스터디: 통행료 입력이 단거리·지하 노선 판정을 좌우)
+    # 소형차 전용 노선에서 요금 자동값 방치 경고('26-10 추진현황 스터디: 통행료 입력이 지하 노선 판정을 좌우)
     # shortcut: 공개 제안 요금 범위를 config 상수로 둠, 파이프라인 노선 CSV(D1) 반입 시 그 파일에서 집계
     _obs = _tb.get("observed_proposal_toll_won_per_km") or {}
-    if (_fiscal_toll is not None and toll_per_km == _toll_default
-            and (road_length <= float(_fts.get("short_route_warn_km", 0)) or _small_car)):
+    if _small_car and toll_per_km == _toll_default:
         st.sidebar.warning(
-            f"단거리 또는 소형차 전용 노선. 자동값 {toll_per_km}원/km는 재정요금 구조 환산값 "
-            f"{_fiscal_toll}원/km 대비 과소 가능."
-            + (f" 지하·소형차 전용 노선 공개 제안 요금 {_obs['min']}~{_obs['max']}원/km"
-               f"({_obs['n']}건, {_obs['as_of']})." if _obs else "")
-            + " 노선 요금 입력 필수.")
+            f"소형차 전용 노선. 자동값 {toll_per_km}원/km(재정요금 구조 환산)는 지하·소형차 전용 노선 공개 제안 요금"
+            + (f" {_obs['min']}~{_obs['max']}원/km({_obs['n']}건, {_obs['as_of']})" if _obs else "")
+            + " 대비 과소 가능. 노선 요금 입력 필수.")
 
     # ─── 문턱 3번째 기준 수익률 선택(기본 = 운영 중 협약 평균, 계산 기본 경로 불변) ───
     with st.sidebar.expander("문턱 기준 수익률 (3번째 기준)"):
@@ -2822,9 +2812,7 @@ def main():
             _pt_toll_ok = "🟢" if _pt_mult <= _pt_cap else "🔴"
             _pt_capex_ok = "🟢" if _capex_in_range else "🟡"
             _pt_trg_ok = "🔴" if _pt_p70 >= 0.50 else ("🟡" if _pt_p70 >= 0.25 else "🟢")
-            _pt_basis = ("자동값" if toll_per_km == _toll_default else
-                         "재정요금 구조 환산값" if (_fiscal_toll is not None and toll_per_km == int(round(_fiscal_toll)))
-                         else "직접 입력")
+            _pt_basis = "자동값(재정요금 구조 환산)" if toll_per_km == _toll_default else "직접 입력"
             st.markdown("**✅ 제안 전 체크 요약: 이대로 제안하면 어떤 항목에 걸리는가**")
             st.markdown(
                 f"1. 수익성 간이판정: **{_pt_scr['judgment']}** (자체 규약, 정식 민자 적격성조사 판정 아님)\n\n"

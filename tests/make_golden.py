@@ -126,9 +126,10 @@ def main():
     bt0 = H.app_default_case(bridge_ratio=0.0, tunnel_ratio=0.0)
     golden = {
         "_meta": {
-            "created": "2026-10-05",
+            "created": "2026-10-14",
             "generator": "tests/make_golden.py",
-            "basis": "feat/revenue-band-gate 분기 시점 코드(5e15fde 기준). 수입 실현율 범위 표시 변경 전 계산값",
+            "basis": "2026-10-14 통행료 기본값을 재정요금 구조 실효 요금으로 채택(VP 게이트 가안 B, config toll_default.mode) 후 재생성. "
+                     "기본 사례 45km 요금 85에서 71원/km. 2026-10-05 판(5e15fde 기준, 요금 85)은 git 이력 ca0b7e1 참조",
             "panel_version": "v1_2026-07-31",
         },
         "_tolerance": {
