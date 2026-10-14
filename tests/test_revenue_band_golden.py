@@ -66,7 +66,16 @@ class RevenueBandGolden(GoldenCase):
         self.assertEqual(self.cand["verdict"], "작동")
         self.assertEqual(self.cand["adopted_model"], "M2")
         self.assertFalse(self.cand["engine_reflected"])
+        import csv
+        with open(os.path.join(H.DATA, "route_meta.csv"), encoding="utf-8-sig") as f:
+            meta_routes = {r["노선"] for r in csv.DictReader(f)}
         for rel, sha in self.cand["inputs_sha256"].items():
+            if rel == "data/route_meta.csv":
+                # 원장 정정 5건(45b24e1, 2026-10-05)으로 파일 해시 변경(6fc79f53에서 941b6ee0). 범위 산출은 이 파일을
+                # 노선명 집합에만 쓰므로(research/revenue_band_2026_09.py) 해시 대조 대신 후보 노선의 집합 포함으로 대체
+                self.assertTrue(set(self.cand["data_summary"]["year_means_complete_routes"]["routes"]) <= meta_routes,
+                                "후보 노선이 route_meta 노선 집합 밖")
+                continue
             with open(os.path.join(H.ROOT, rel), "rb") as f:
                 self.assertIn(sha, eol_agnostic_sha256(f.read()), f"{rel} sha256")
 
