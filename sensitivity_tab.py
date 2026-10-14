@@ -92,10 +92,10 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("기준 NPV(억)", f"{base_res['npv']:,.0f}")
     c2.metric("기준 자기자본IRR", f"{base_res['equity_irr']*100:,.1f}%"
-              if not np.isnan(base_res['equity_irr']) else "—")
+              if not np.isnan(base_res['equity_irr']) else "산출 불가")
     c3.metric("기준 DSCR_min", f"{base_res['dscr_min']:.2f}")
     c4.metric("기준 LLCR_min", f"{base_res['llcr_min']:.2f}"
-              if not np.isnan(base_res['llcr_min']) else "—")
+              if not np.isnan(base_res['llcr_min']) else "산출 불가")
     st.caption(f"DSCR covenant(텀시트 입력): base {cov_base:.2f} / lock-up {cov_lockup:.2f} / default {cov_default:.2f}")
 
     with st.expander("ⓘ 이 탭의 LLCR이 현금흐름표 LLCR과 소수점 차이가 나는 이유"):
@@ -165,9 +165,9 @@ def render_sensitivity_tab(base_params: dict, daily_traffic: float = 0.0,
         for col in ("npv",):
             show[col] = show[col].map(lambda x: f"{x:,.0f}")
         for col in ("nominal_irr",):
-            show[col] = show[col].map(lambda x: f"{x*100:.1f}%" if not np.isnan(x) else "—")
+            show[col] = show[col].map(lambda x: f"{x*100:.1f}%" if not np.isnan(x) else "산출 불가")
         for col in ("dscr_min", "llcr_min", "ebitda_avg"):
-            show[col] = show[col].map(lambda x: f"{x:.2f}" if not np.isnan(x) else "—")
+            show[col] = show[col].map(lambda x: f"{x:.2f}" if not np.isnan(x) else "산출 불가")
         show = show.rename(columns={"npv": "NPV(억)", "nominal_irr": "명목IRR",
                                     "dscr_min": "DSCR_min", "llcr_min": "LLCR_min",
                                     "ebitda_avg": "EBITDA평균(억)"})

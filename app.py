@@ -1301,7 +1301,7 @@ def main():
         ancillary_revenue = st.number_input(
             "부대사업(임대) 수입(억/년)", min_value=0.0, max_value=500.0, value=0.0, step=5.0,
             help="휴게소·주유소 임대 등 통행료 외 정액 수입. 실측: 상주영천 140억(통행료의 18%)·"
-                 "천안논산 85억(8.5%, '19~'25 정액 성향). 자동값 0(보수 — 협약 확정 전 미가산). "
+                 "천안논산 85억(8.5%, '19~'25 정액 성향). 자동값 0(보수 가정, 협약 확정 전 미가산). "
                  "MRG 보전 산정에는 포함되지 않습니다.")
 
     # ─── 금융 구조 (접힘) ───
@@ -1338,7 +1338,7 @@ def main():
         ) / 10000
         sub_spread = st.slider(
             "후순위 가산금리(bp)", 200, 1500, 700, 10,
-            help="자동값 700bp — 실측 정합('26-08 감사보고서 4건): 운영 중 SPC 후순위 절대금리 "
+            help="자동값 700bp. 실측 정합('26-08 감사보고서 4건): 운영 중 SPC 후순위 절대금리 "
                  "10.0~14.0%(상주영천 12.5%·화성광주 11.5%·구리포천 14.0%·부산신항 10.0%). "
                  "정상시장 300~600bp, 부실·주주차입은 1000bp 이상."
         ) / 10000
@@ -1413,7 +1413,7 @@ def main():
             index=0,
             help=(
                 "• 자동: 학습데이터(도로공사 4,380건) 매출비례 시계열 (기본)\n"
-                "• 물량기반 LCC: 물량×표준품셈 단가×열화 상향식 → 현금흐름 직결(C1). "
+                "• 물량기반 LCC: 물량×표준품셈 단가×열화 상향식 산정, 현금흐름 직결(C1). "
                 "일상 O&M(매출비례 가정) + 자본적 유지보수(LCC) 합산. 실험적·연장기반 추정물량.\n"
                 "• 수동: 사용자가 OPEX 비율 직접 입력"
             ),
@@ -1436,7 +1436,7 @@ def main():
             # BIM(IFC) 업로드 → 형상 물량 자동추출 (없으면 연장 기반 추정)
             _ifc_up = st.file_uploader(
                 "BIM(IFC) 업로드 · 물량 자동추출 (선택)", type=["ifc", "IFC"], key="bim_ifc",
-                help="업로드하면 형상→물량을 추출해 OPEX를 산정합니다(Qto 없으면 geom 역산). "
+                help="업로드하면 형상에서 물량을 추출해 OPEX를 산정합니다(Qto 없으면 geom 역산). "
                      "미업로드 시 연장 기반 추정물량 사용.",
             )
             st.caption(
@@ -1490,12 +1490,12 @@ def main():
     if _overrides:
         st.sidebar.markdown("---")
         _ov_lines = " · ".join(
-            f"{lb} {a:g}→{n:g}" if not isinstance(a, str) else f"{lb} {a}→{n}"
+            f"{lb} 자동 {a:g}, 회사 {n:g}" if not isinstance(a, str) else f"{lb} {n}"
             for lb, a, n in _overrides
         )
         st.sidebar.caption(
             f"✎ **자동값 수정 {len(_overrides)}건**: {_ov_lines}  \n"
-            "(자동값→회사값 병기. 이후 계산은 회사값 기준, 심의 자료에 수정 이력으로 남습니다)"
+            "(자동값·회사값 병기. 이후 계산은 회사값 기준, 심의 자료에 수정 이력으로 남습니다)"
         )
 
     # ECOS 연동
@@ -1769,8 +1769,8 @@ def main():
     with st.container(border=True):
         st.markdown(
             f"**💡 자동 산출 근거** · OPEX {opex_source}: 평균 {opex_ratio*100:.1f}% "
-            f"(1년차 {opex_estimation['opex_series_억'][0]:.0f}억 → 정점 "
-            f"{opex_estimation['peak_year']}년차 {opex_estimation['peak_amount_억']:.0f}억) · "
+            f"(1년차 {opex_estimation['opex_series_억'][0]:,.0f}억, 정점 "
+            f"{opex_estimation['peak_year']}년차 {opex_estimation['peak_amount_억']:,.0f}억) · "
             f"CAPEX 단가참고 {capex_reference['capex_estimate_억']:,}억"
             f"(±20% 범위 {capex_reference['capex_low_억']:,}∼{capex_reference['capex_high_억']:,}) "
             f"{_capex_check} · 자동 입력 30여 항목 전부 출처 표기 · 수선 주기(별표5) "
@@ -1845,7 +1845,7 @@ def main():
             unsafe_allow_html=True)
     with col2:
         eirr_color = "green" if (_eirr_ok and _eirr > 0) else "red"
-        eirr_txt = f"{_eirr*100:.1f}%" if _eirr_ok else "—"
+        eirr_txt = f"{_eirr*100:.1f}%" if _eirr_ok else "산출 불가"
         st.markdown(f"""<div class="metric-card {eirr_color}">
             <h4>자기자본IRR</h4><h2>{eirr_txt}</h2></div>""",
             unsafe_allow_html=True)
@@ -1920,9 +1920,9 @@ def main():
             "default": "디폴트 위험 영역입니다. 사업구조 재설계가 필요합니다",
         }.get(_b_ir["level"], "산출할 수 없습니다")
         _b_rirr = metrics.get('real_irr', float('nan'))
-        _b_rirr_txt = f"{_b_rirr*100:.1f}%" if _b_rirr == _b_rirr else "—"
+        _b_rirr_txt = f"{_b_rirr*100:.1f}%" if _b_rirr == _b_rirr else "산출 불가"
         _b_dmin = metrics.get('dscr_min', float('nan'))
-        _b_dmin_txt = f"{_b_dmin:.2f}" if _b_dmin == _b_dmin else "—"
+        _b_dmin_txt = f"{_b_dmin:.2f}" if _b_dmin == _b_dmin else "산출 불가"
         # 가정 점검 — KPI 바로 아래 지표행(전문은 각 ⓘ 도움말·상세는 오버레이)
         _gc1, _gc2, _gc3, _gc4 = st.columns(4)
         _gc1.metric(
@@ -1938,10 +1938,10 @@ def main():
             help="실질·세후 프로젝트 IRR. 시장 비교(KOTI 54건, 세후)와 동일 기준. "
                  "협약수익률(실질·세전)은 PDF 병기.")
         _gc4_short = {"ig": "투자등급", "edge": "등급 경계", "spec": "투기등급",
-                      "default": "디폴트 위험"}.get(_b_ir.get("level"), "—")
+                      "default": "디폴트 위험"}.get(_b_ir.get("level"), "산출 불가")
         _gc4.metric(
             "예비 신용등급", f"{_ir_icon} {_gc4_short}",
-            help=f"{_b_ir.get('implied_band', '—')}. 최소 DSCR {_b_dmin_txt} 기준 {_ir_msg}.")
+            help=f"{_b_ir.get('implied_band', '산출 불가')}. 최소 DSCR {_b_dmin_txt} 기준 {_ir_msg}.")
         st.caption(
             "ⓘ에 판정 전문이 있습니다. 수요 실현·트리거 배지는 전국 실측 분포 통계, 입력 노선과 무관. "
             "근거·벤치마크는 아래 '🔎 가정 점검 오버레이'에서 확인하세요.")
@@ -2048,7 +2048,7 @@ def main():
                   if _gov_min_traffic > _cap_limit else ""))
     else:
         _l1 = f"{_p3_name}: 교통량 축만으로는 재무 성립선 미달(수입 3배 탐색 상한). 통행료·기간 조정 검토 필요"
-    _l2 = (f"자동 채움 값 전 항목 출처 표기 · 자동값 수정 {len(_overrides)}건 병기(자동값→회사값)"
+    _l2 = (f"자동 채움 값 전 항목 출처 표기 · 자동값 수정 {len(_overrides)}건 병기(자동값·회사값)"
            if _overrides else "자동 채움 값 전 항목 출처 표기 · 자동값 수정 없음")
     _l3 = ("검증: 국내 22개 사업 협약 대 실적 대사(채점 가능 21개). 관측 98건 중 70건 적중, "
            "80% 설계 목표 대비 71.4%. 최근 3개년 관측 40건 중 32건(80.0%). 이전 연도 관측은 소급 검정")
@@ -2081,7 +2081,7 @@ def main():
                             (f"운영 {_tp_sy['payback_op_year']}년차"
                              if _tp_sy.get('payback_op_year') else "기간 내 미회수")])
                     else:
-                        _tp_rows.append([_tp_label, "교통량 축만으로 미달", "—", "—"])
+                        _tp_rows.append([_tp_label, "교통량 축만으로 미달", "해당 없음", "해당 없음"])
                 try:
                     _1p_means = (_realization_panel_df()
                         .query("지표 == '교통량'").groupby("노선")["실현율_pct"].mean())
@@ -2112,7 +2112,7 @@ def main():
                     "threshold_rows": _tp_rows,
                     "likely": _lk_txt,
                     "kpi": [["NPV(억)", f"{metrics['npv']:,.0f}"],
-                            ["자기자본IRR", f"{_1p_eir*100:.1f}%" if _1p_eir == _1p_eir else "—"],
+                            ["자기자본IRR", f"{_1p_eir*100:.1f}%" if _1p_eir == _1p_eir else "산출 불가"],
                             ["DSCR 최소", f"{metrics['dscr_min']:.2f}"],
                             ["수입/비용 현가비율", f"{metrics['bc_ratio']:.2f}배"]],
                     "sources": [
@@ -2185,10 +2185,10 @@ def main():
     _sdscr = metrics.get('senior_dscr_min', float('nan'))
     rc1, rc2, rc3, rc4, rc5 = st.columns(5)
     rc1.metric("DSCR 최소/평균", f"{_dmin:.2f} / {metrics['dscr_avg']:.2f}")
-    rc2.metric("선순위 DSCR 최소", f"{_sdscr:.2f}" if _sdscr == _sdscr and _sdscr > 0 else "—",
+    rc2.metric("선순위 DSCR 최소", f"{_sdscr:.2f}" if _sdscr == _sdscr and _sdscr > 0 else "산출 불가",
                help="선순위 트랜치 단독 상환 기준 커버리지(우선권 관점). 블렌디드 DSCR보다 높음.")
-    rc3.metric("LLCR 최소", f"{_llcr:.2f}" if _llcr == _llcr else "—")
-    rc4.metric("EBITDA 평균(억)", f"{_ebitda:,.0f}" if _ebitda == _ebitda else "—")
+    rc3.metric("LLCR 최소", f"{_llcr:.2f}" if _llcr == _llcr else "산출 불가")
+    rc4.metric("EBITDA 평균(억)", f"{_ebitda:,.0f}" if _ebitda == _ebitda else "산출 불가")
     rc5.metric("NPV 적자 여부", "적자" if _npv < 0 else "흑자")
     st.caption(
         "토네이도·몬테카를로·낙관편향·부채 스컬프팅·리스크 등록부는 "
@@ -2344,7 +2344,7 @@ def main():
     # (🔭 관점별 보기는 2026-07 UI 개편으로 KPI 직후로 이동 — 아래 _render_role_router 호출부 참조)
     _rl_eirr = metrics.get('equity_irr', float('nan'))
     _rl_eirr_ok = _rl_eirr == _rl_eirr
-    _rl_eirr_txt = f"{_rl_eirr*100:.1f}%" if _rl_eirr_ok else "—"
+    _rl_eirr_txt = f"{_rl_eirr*100:.1f}%" if _rl_eirr_ok else "산출 불가"
     _rl_sdscr = metrics.get('senior_dscr_min', float('nan'))
     _rl_llcr = metrics.get('llcr_min', float('nan'))
     _rl_ebitda = metrics.get('ebitda_avg', float('nan'))
@@ -2356,7 +2356,7 @@ def main():
             st.markdown("**🏦 FI 선순위 대주단(은행·보험): 부채 회수 안정성**")
             d1, d2, d3, d4 = st.columns(4)
             d1.metric("DSCR 최소/평균", f"{_rl_dmin:.2f} / {metrics['dscr_avg']:.2f}")
-            d2.metric("선순위 DSCR 최소", f"{_rl_sdscr:.2f}" if _rl_sdscr == _rl_sdscr and _rl_sdscr > 0 else "—")
+            d2.metric("선순위 DSCR 최소", f"{_rl_sdscr:.2f}" if _rl_sdscr == _rl_sdscr and _rl_sdscr > 0 else "산출 불가")
             # 누적 DSCR — 실무 커버넌트(운영기 누적 CFADS ÷ 누적 원리금)
             try:
                 _op_rows = cf_df[(cf_df['Interest'] + cf_df['Principal']) < 0]
@@ -2366,7 +2366,7 @@ def main():
                 d3.metric("누적 DSCR 최소", f"{_cum_dscr_min:.2f}",
                           help="운영기 누적 CFADS ÷ 누적 원리금. 실무 커버넌트(통상 1.2~1.5, PIMAC·건산연)")
             except Exception:
-                d3.metric("누적 DSCR 최소", "—")
+                d3.metric("누적 DSCR 최소", "산출 불가")
             d4.metric("커버넌트(텀시트)", f"base {cov_base:.2f} / lock {cov_lockup:.2f}")
             if _rl_dmin < cov_default:
                 st.error(f"DSCR_min {_rl_dmin:.2f} < default {cov_default:.2f}. 커버넌트 미달로 부채 상환이 불안정합니다.")
@@ -2395,7 +2395,7 @@ def main():
                           help=f"판정 전문: {_ci_scr['judgment']}. 자체 간이규약(B/C+DSCR). "
                                "정식 민자 적격성조사(KDI PIMAC·AHP) 판정 아님")
             except Exception:
-                c1.metric("수익성 간이판정", "—")
+                c1.metric("수익성 간이판정", "산출 불가")
             c2.metric("공사비 위치", _capex_check.replace("✅ ", "").replace("⚠️ ", ""),
                       help=f"참고범위(±20%, 단가 휴리스틱): {capex_reference['capex_low_억']:,}~{capex_reference['capex_high_억']:,}억. 범위 밖이면 제안 시 근거 보강 필요")
             try:
@@ -2404,7 +2404,7 @@ def main():
                 c3.metric("재협상 트리거 사전 확률", f"{_ci_p70*100:.0f}%",
                           help="prior 기준 실측이 협약 대비 70% 미달에 머물 확률(유료도로법 §23의5)")
             except Exception:
-                c3.metric("재협상 트리거 사전 확률", "—")
+                c3.metric("재협상 트리거 사전 확률", "산출 불가")
             try:
                 import config_loader as _ci_cfg
                 _tb = _ci_cfg.load_finance_params().get("toll_benchmark", {})
@@ -2414,7 +2414,7 @@ def main():
                           delta="기준(1.1배) 이내" if _toll_mult <= _cap else "기준 초과",
                           delta_color="normal" if _toll_mult <= _cap else "inverse")
             except Exception:
-                c4.metric("통행료 배수(도공 대비)", "—")
+                c4.metric("통행료 배수(도공 대비)", "산출 불가")
             st.caption("기준선 60원/km는 자체 가정(공식 출처 미확보).")
             if _gov_min_traffic:
                 _ci_rs_ratio = _gov_min_traffic / daily_traffic if daily_traffic else float('nan')
@@ -2438,7 +2438,7 @@ def main():
                     "🎯 사업성 문턱: 교통량 축만으로는 재무 성립선 미달(수입 3배 탐색 상한). "
                     "통행료·기간 조정 ▸ ⏱ 적격성 사전 시뮬 ▸ 요구수익률 솔버.")
             st.caption(
-                "💸 **제안비 매몰 리스크**: 제안→실시협약 실측 6~10년(사상해운대·오산용인), 우선협상 탈락 시 제안서·설계비는 "
+                "💸 **제안비 매몰 리스크**: 제안에서 실시협약까지 실측 6~10년(사상해운대·오산용인), 우선협상 탈락 시 제안서·설계비는 "
                 "사실상 전액 매몰(차상위만 일부 보상). 제안 전 시나리오 반복 검토가 이 리스크를 줄입니다."
             )
             st.caption(
@@ -2457,13 +2457,13 @@ def main():
             f1, f2, f3, f4 = st.columns(4)
             f1.metric("자기자본IRR", _rl_eirr_txt)
             _emirr = metrics.get('equity_mirr', float('nan'))
-            f2.metric("자기자본 MIRR", f"{_emirr*100:.1f}%" if _emirr == _emirr else "—",
+            f2.metric("자기자본 MIRR", f"{_emirr*100:.1f}%" if _emirr == _emirr else "산출 불가",
                       help="재투자율=할인율로 보정한 수정 IRR. IRR의 재투자 가정 결함 교정")
             try:
                 f3.metric("최초 배당가능", f"운영 {_first_div}년차" if _first_div else "전 기간 제한",
                           help="lock-up DSCR 충족 첫 해. FI 회수(배당) 개시 시점")
             except NameError:
-                f3.metric("최초 배당가능", "—")
+                f3.metric("최초 배당가능", "산출 불가")
             f4.metric("DSCR 최소", f"{_rl_dmin:.2f}")
             _fi_k1, _fi_k2 = st.columns(2)
             _fi_tirr = _fi_k1.number_input("운용 기준선: 목표 Equity IRR(%)", 0.0, 30.0, 10.0, 0.5,
@@ -2479,11 +2479,11 @@ def main():
             _fi_entry_note = {
                 "건설기 동반 출자": "건설 리스크 부담·단계 인출. 2010년대 이후 신규 사업의 일반형(예: MKIF 동부간선 약정).",
                 "준공 후 인수(세컨더리)": "CI 매각분 인수. 실측 창구는 개통 1~3년차(일산대교 1년차·거가대교 3년차). 인수가 상한은 🔄 재구조화 ▸ 잔여 NPV로.",
-                "재구조화 진입": "수익률 인하 ↔ 기간 연장 교환. 시장 앵커: 재구조화 국채5년+1.3∼2.3%p·자금재조달 +3.4∼5.3%p(국토연구 89권).",
+                "재구조화 진입": "수익률 인하와 기간 연장 교환. 시장 앵커: 재구조화 국채5년+1.3∼2.3%p·자금재조달 +3.4∼5.3%p(국토연구 89권).",
             }.get(_fi_entry, "")
             st.caption(f"진입 유형 시사점: {_fi_entry_note}")
             st.caption(
-                "현금 순서(waterfall): 후순위이자 → 후순위원금 → 배당. FI 수익은 **후순위 이자 선회수**가 실무 구조"
+                "현금 순서(waterfall): 후순위이자, 후순위원금, 배당 순. FI 수익은 **후순위 이자 선회수**가 실무 구조"
                 "(MKIF 포트폴리오: 후순위 69%·지분 30%). 배당은 후행(운영 중반 개시가 전형)."
             )
             st.caption(
@@ -2509,10 +2509,10 @@ def main():
         elif _role == "회계·자문":
             st.markdown("**🧮 회계법인·자문사: 현금흐름 재현성**")
             a1, a2, a3, a4 = st.columns(4)
-            a1.metric("EBITDA 평균(억)", f"{_rl_ebitda:,.0f}" if _rl_ebitda == _rl_ebitda else "—")
+            a1.metric("EBITDA 평균(억)", f"{_rl_ebitda:,.0f}" if _rl_ebitda == _rl_ebitda else "산출 불가")
             a2.metric("NPV(프로젝트·@WACC)", f"{metrics['npv']:,.0f}억")
             a3.metric("DSCR 최소/평균", f"{_rl_dmin:.2f} / {metrics['dscr_avg']:.2f}")
-            a4.metric("선순위 DSCR 최소", f"{_rl_sdscr:.2f}" if _rl_sdscr == _rl_sdscr and _rl_sdscr > 0 else "—")
+            a4.metric("선순위 DSCR 최소", f"{_rl_sdscr:.2f}" if _rl_sdscr == _rl_sdscr and _rl_sdscr > 0 else "산출 불가")
             st.info("재현 규약: EBITDA=매출−운영비, CFADS=매출−운영비−세금, 세금은 정액 감가상각 반영. 연도별 추적은 현금흐름표에서.")
             st.download_button(
                 "⬇️ KDI PIMAC 표준재무모델 양식 CSV (표준양식 정합 산출물)",
@@ -2562,16 +2562,16 @@ def main():
                     _db = demand_optimism_band(daily_traffic, prior=_prior)
                     _icon = {"high": "🔴", "mid": "🟡", "low": "🟢"}.get(_db["level"], "⚪")
                     st.markdown(
-                        f"입력(예측) **{daily_traffic:,}대/일** → 과거 실적 보정 시 "
+                        f"입력(예측) **{daily_traffic:,}대/일**, 과거 실적 보정 시 "
                         f"**실제 가능 중앙값 {_db['p50']:,.0f}대/일** (예측의 {_db['median_ratio']*100:.0f}%) · "
                         f"P10∼P90 **{_db['p10']:,.0f}∼{_db['p90']:,.0f}**")
                     st.markdown(f"{_icon} **{_db['flag']}**: 예측 대비 평균 미달폭 약 **{_db['haircut_pct']:.0f}%**")
                     _rb = revenue_haircut_band(ann_rev, prior=_prior)
                     st.caption(
-                        f"수입 환산(교통량 선형 가정): 연매출 {ann_rev:,.0f}억 → 보정 P10∼P90 ≈ "
+                        f"수입 환산(교통량 선형 가정): 연매출 {ann_rev:,.0f}억, 보정 P10∼P90 ≈ "
                         f"**{_rb['p10_revenue']:,.0f}∼{_rb['p90_revenue']:,.0f}억** "
                         f"(중앙 {_rb['p50_revenue']:,.0f}억). 근거: {_db['source']}")
-                    st.caption("reference-class 추정 밴드. 노선별 예측↔실측 매칭 시 정밀화.")
+                    st.caption("reference-class 추정 밴드. 노선별 예측·실측 매칭 시 정밀화.")
                     st.caption(
                         "ⓘ prior는 '교통량' 기준. '수입' 기준은 체계적으로 더 낮음(협약 대비 통행료 수입 "
                         "10년 평균 62.3% vs 교통량 81.4%, KOTI RR-25-10 p.45·p.140). 수입 기준 점검 시 별도 보정.")
@@ -2579,17 +2579,17 @@ def main():
                 st.markdown("**🏅 예비 신용등급 (근사)**")
                 _dmin = metrics.get('dscr_min', float('nan'))
                 _ir = implied_rating(_dmin)
-                st.metric("최소 DSCR", f"{_dmin:.2f}" if _dmin == _dmin else "—")
-                st.markdown(f"→ **{_ir['implied_band']}**")
-                st.caption(f"📍 시장 위치: {_ir.get('market_position', '—')}")
+                st.metric("최소 DSCR", f"{_dmin:.2f}" if _dmin == _dmin else "산출 불가")
+                st.markdown(f"예비 등급: **{_ir['implied_band']}**")
+                st.caption(f"📍 시장 위치: {_ir.get('market_position', '산출 불가')}")
                 st.caption(_ir['note'])
                 st.markdown("**📐 수익률 시장 위치 (양방향)**")
                 _rirr = metrics.get('real_irr', float('nan'))
                 _ap = agreed_return_position(_rirr)
                 _ap_icon = {"over": "🔴", "under": "🔴", "above": "🟡",
                             "low": "🟡", "recent": "🟢", "btoa": "🟢"}.get(_ap["level"], "⚪")
-                _rirr_txt = f"{_rirr*100:.1f}%" if _rirr == _rirr else "—"
-                st.markdown(f"{_ap_icon} 실질 IRR(세후) **{_rirr_txt}** → {_ap['position']}")
+                _rirr_txt = f"{_rirr*100:.1f}%" if _rirr == _rirr else "산출 불가"
+                st.markdown(f"{_ap_icon} 실질 IRR(세후) **{_rirr_txt}**: {_ap['position']}")
                 st.caption(_ap['note'])
 
             # ⚖️ 재협상 트리거 모니터 — 법정 임계값 대비 점검
@@ -2666,7 +2666,7 @@ def main():
                 f"3. {_pt_toll_ok} 통행료: 도공 대비 **{_pt_mult:.2f}배** (활성화 방안 기준 {_pt_cap:.1f}배, 기준단가 자체 가정) · 가격부문 200점 직결\n\n"
                 f"4. {_pt_trg_ok} 재협상 트리거 사전 확률: **{_pt_p70*100:.0f}%** (협약 대비 70% 미달 확률·§23의5)")
             st.caption(
-                "💸 제안비 매몰 리스크: 제안→실시협약 실측 6~10년, 우선협상 탈락 시 제안서·설계비 사실상 전액 매몰. "
+                "💸 제안비 매몰 리스크: 제안에서 실시협약까지 실측 6~10년, 우선협상 탈락 시 제안서·설계비 사실상 전액 매몰. "
                 "아래 심화 도구로 조건을 바꿔 반복 비교하세요. 심사 배점: 기술 450·수요 150·가격 400(통행료율 200·재정지원율 200).")
             st.markdown("---")
         except Exception:
@@ -2693,7 +2693,7 @@ def main():
                     "기준": _th_label,
                     "문턱 교통량(대/일)": f"{_th_tr:,.0f}",
                     "입력 대비": (f"{_th_tr/daily_traffic*100:.0f}%"
-                              if (traffic_is_forecast and daily_traffic) else "—"),
+                              if (traffic_is_forecast and daily_traffic) else "예측치 미입력"),
                     "회계 흑자 전환": (f"운영 {_th_sy['first_profit_op_year']}년차"
                                   if _th_sy['first_profit_op_year'] else "전 기간 적자"),
                     "누적 회수(프로젝트)": (f"운영 {_th_sy['payback_op_year']}년차"
@@ -2702,8 +2702,8 @@ def main():
                 })
             else:
                 _th_rows.append({"기준": _th_label, "문턱 교통량(대/일)": "교통량 축만으로 미달",
-                                 "입력 대비": "—", "회계 흑자 전환": "—",
-                                 "누적 회수(프로젝트)": "—", "_traffic": None})
+                                 "입력 대비": "해당 없음", "회계 흑자 전환": "해당 없음",
+                                 "누적 회수(프로젝트)": "해당 없음", "_traffic": None})
         _th_gov = _th_rows[0]
         if _th_gov["_traffic"]:
             _th_vs = (f" 입력하신 예측치({daily_traffic:,}대/일)의 {_th_gov['입력 대비']} 수준입니다."
@@ -2791,12 +2791,12 @@ def main():
         with st.expander("▸ 이 숫자는 이렇게 나왔습니다 (계산 경로)"):
             _rv_mix = (1 - heavy_ratio / 100) + (heavy_ratio / 100) * heavy_surcharge
             st.markdown(
-                f"**1) 수입↔교통량 선형 환산**: 연수입(억) = 일교통량 × K  \n"
+                f"**1) 수입·교통량 선형 환산**: 연수입(억) = 일교통량 × K  \n"
                 f"K = 통행료 {toll_per_km}원/km × 연장 {road_length}km × 혼합계수 {_rv_mix:.3f}"
                 f"(경량 {100-heavy_ratio}% + 화물 {heavy_ratio}%×할증 {heavy_surcharge:.1f}배) "
                 f"× 365일 ÷ 10⁸ ÷ 1.1(VAT 차감) = **{_rev_K:.5f}억/(대/일)**  \n"
                 f"**2) 문턱 탐색**: 각 기준을 통과하는 최소 연수입을 이분법 60회로 탐색"
-                f"(대상 지표는 수입에 단조증가 → 유일해) 후 K로 나눠 교통량 환산.  \n"
+                f"(대상 지표는 수입에 단조증가, 해 유일) 후 K로 나눠 교통량 환산.  \n"
                 f"가정: 운영비는 {'현 시나리오 산출 시계열 고정(교통량이 줄어도 운영비는 줄지 않는 보수 가정)' if base_params.get('opex_series_억') is not None else '매출비례(수동 비율 모드)'} · "
                 f"MRG 기준수입은 협약 수요와 함께 이동(설계 관점) · 램프업 미반영(보수).  \n"
                 f"이 계산은 예측·학습 모델이 아니라 현금흐름 엔진의 **결정론 역함수**입니다. "
@@ -2857,9 +2857,9 @@ def main():
                 "실현율": f"{_rz['ratio']*100:.0f}%" + (
                     " (교통량 실측 평균)" if abs(_rz['ratio'] - 0.814) < 1e-6
                     else (" (수입 실측 평균)" if abs(_rz['ratio'] - 0.623) < 1e-6 else "")),
-                "실측에서 이 이하 비율": (f"{_rz_prb(_rz['ratio'])*100:.0f}%" if _rz_prb else "—"),
+                "실측에서 이 이하 비율": (f"{_rz_prb(_rz['ratio'])*100:.0f}%" if _rz_prb else "산출 불가"),
                 "NPV(억)": f"{_rz_m['npv']:,.0f}",
-                "자기자본IRR": f"{_rz_eirr*100:.1f}%" if _rz_eirr == _rz_eirr else "—",
+                "자기자본IRR": f"{_rz_eirr*100:.1f}%" if _rz_eirr == _rz_eirr else "산출 불가",
                 "DSCR최소": f"{_rz_m['dscr_min']:.2f}",
                 "흑자 전환": (f"운영 {_rz['first_profit_op_year']}년차"
                           if _rz['first_profit_op_year'] else "전 기간 적자"),
@@ -2957,9 +2957,9 @@ def main():
     with phase_tabs_ui[1]:
         render_phase_construction(phase_context)
         st.caption(
-            "🏦 **대주단 실무 규약(실증)**: 자본 투입 순서는 자본금 → 후순위 → 선순위(자기자본 전액 선투입이 인출 선행조건) · "
+            "🏦 **대주단 실무 규약(실증)**: 자본 투입 순서: 자본금, 후순위, 선순위 순(자기자본 전액 선투입이 인출 선행조건) · "
             "DSRA 3~6개월치 적립 · 산업기반신용보증 건당 3,000억 한도. "
-            "📋 **일정 규약**: 사업신청 시 조건부 대출확약서(FI 내부 투심위 승인 전제) → 실시계획 승인 전까지 대출약정서로 교체. "
+            "📋 **일정 규약**: 사업신청 시 조건부 대출확약서(FI 내부 투심위 승인 전제), 실시계획 승인 전까지 대출약정서로 교체. "
             "CI 우발부채: 책임준공·자금보충약정(CDS)."
         )
         st.markdown("---")
@@ -2975,7 +2975,7 @@ def main():
     with phase_tabs_ui[2]:
         render_phase_operation(phase_context)
         st.caption(
-            "💧 **운영기 현금 순서(waterfall)**: 후순위이자 → 후순위원금 → 배당. 배당·후순위이자 지급은 DSCR 트리거에 묶임"
+            "💧 **운영기 현금 순서(waterfall)**: 후순위이자, 후순위원금, 배당 순. 배당·후순위이자 지급은 DSCR 트리거에 묶임"
             "(실무 커버넌트: 단순 1.0∼1.2·누적 1.2∼1.5·부채비율 300%). 누적 DSCR은 관점별 보기 ▸ FI 선순위 대주단에서."
         )
         st.markdown("---")
@@ -3006,7 +3006,7 @@ def main():
             _rs1, _rs2 = st.columns(2)
             with _rs1:
                 st.markdown("**⚖️ 자금재조달 이익공유 자동 판정**")
-                st.markdown(f"이 사업 조건({_rs_why}) → 주무관청 **{_rs_ratio[0]}** : 사업시행자 **{_rs_ratio[1]}**")
+                st.markdown(f"이 사업 조건({_rs_why}) 기준 주무관청 **{_rs_ratio[0]}** : 사업시행자 **{_rs_ratio[1]}**")
                 st.caption(
                     f"대상 요건: 총사업비 {_rs_ps.get('threshold_capex_eok', 500):,}억↑ · "
                     f"{_rs_ps.get('equity_change_pct', 5)}%↑ 지분 변경 등(§28). 공유분은 통행료 인하·기간 단축에 우선 사용.")
@@ -3527,9 +3527,9 @@ def main():
             if len(_units) > 0:
                 st.caption(
                     f"실측 현금 OPEX 원단위 {len(_units)}개 노선: "
-                    f"{_units.min():.1f}~{_units.max():.1f}억/km/년 · 중앙값 {_units.median():.1f} "
+                    f"{_units.min():.1f}∼{_units.max():.1f}억/km/년 · 중앙값 {_units.median():.1f} "
                     f"(해상 특수구조물 포함 시 13배 편차, 시설유형별 비교 필수). "
-                    f"빈칸 = 미확보(추정치 미기재 원칙). 출처: 백테스트 원장 V-001~021."
+                    f"빈칸 = 미확보(추정치 미기재 원칙). 출처: 백테스트 원장 V-001∼021."
                 )
 
         st.dataframe(bm_df.style.format({

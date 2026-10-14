@@ -20,7 +20,24 @@ _CSV = os.path.join(_HERE, "..", "data", "verification_ledger.csv")
 st.title("📋 검증 성적표: 저희 계산은 실제와 얼마나 맞았나")
 st.caption("국내 민자도로 22개 사업(채점 가능 21개)에서, 협약 때 약속한 숫자와 실제 숫자를 해마다 맞춰 봤습니다. "
            "맞은 것도 틀린 것도 전부 기록했습니다. 이 기록이 앱이 제시하는 예측 범위의 근거입니다.")
-st.caption("연대별: 최근 3개년 40건 중 32건(80.0%), 이전 연도 58건 중 38건(65.5%, 소급 검정)")
+
+# 연대별 범위 적중: 관측 원장 98건 재채점(interval_scoring.run_full) 결과에서 산출('26-10-05 하드코딩 해소)
+_RECENT_FROM, _RECENT_TO = 2022, 2024   # 실현율 분포 적합 연도(채점 규칙 ①)
+_full, _era = None, None
+try:
+    import interval_scoring as _isc
+    _full = _isc.run_full()
+    _yh = [(int(x["연도"]), int(x["적중"])) for x in _full["rows"]]
+    _rec = [h for y, h in _yh if _RECENT_FROM <= y <= _RECENT_TO]
+    _old = [h for y, h in _yh if y < _RECENT_FROM]
+    if _rec and _old:
+        _era = {"rec": (sum(_rec), len(_rec)), "old": (sum(_old), len(_old))}
+except Exception:
+    _full, _era = None, None
+if _era:
+    (_rh, _rn), (_oh, _on) = _era["rec"], _era["old"]
+    st.caption(f"연대별: 최근 3개년 {_rn}건 중 {_rh}건({_rh/_rn*100:.1f}%), "
+               f"이전 연도 {_on}건 중 {_oh}건({_oh/_on*100:.1f}%, 소급 검정)")
 
 # ── 채점 규칙 3원칙 — 훈련/검증(train/test) 분리 명세 ──
 with st.container(border=True):
@@ -38,28 +55,36 @@ if not os.path.exists(_CSV):
     st.stop()
 
 df = pd.read_csv(_CSV)
-# 표시 정리: 원장 텍스트 셀의 문장 연결용 줄표만 쉼표로(값 없음 표시 "—"는 유지, 원본 CSV 불변)
+# 표시 정리: 원장 텍스트 셀의 문장 연결용 줄표·화살표를 쉼표·'에서 ~로'로(원본 CSV 불변)
 for _c in df.columns:
     if df[_c].dtype == object:
-        df[_c] = df[_c].str.replace(" — ", ", ", regex=False)
+        df[_c] = (df[_c].str.replace(" — ", ", ", regex=False)
+                  .str.replace(" → ", ", ", regex=False)
+                  .str.replace(r"(\d+)→(\d+)%", r"\1%에서 \2%로", regex=True))
 
 # ── ① 스코어보드 ──
-scored = df[df["우위"].isin(["A", "B"])]
+# '26-10-05: 협약 예측 대비 노선 수 비교는 헤드라인 카드에서 제외.
+#   성적표 안 '자주 나오는 질문' 3번에서만 채점 규칙, 한정, 사후 채점 한계, 봉인 순서로 서술.
 band_hit = int(pd.to_numeric(df["밴드적중"], errors="coerce").sum())
 band_tot = int(pd.to_numeric(df["밴드전체"], errors="coerce").sum())
-c1, c2, c3, c4 = st.columns(4)
+n_na = int((df["우위"] == "채점불가").sum())
+c1, c2, c3 = st.columns(3)
 c1.metric("채점한 사업", f"{len(df)} / 57개",
-          help="국내 민자도로 57개 중 지금까지 채점을 마친 사업 수입니다.")
-c2.metric("예측 범위 적중", f"{band_hit}/{band_tot} = {band_hit/band_tot*100:.1f}%",
-          help="저희는 교통량을 한 점이 아니라 범위(밴드)로 제시합니다. 실제 값이 그 범위 안에 "
-               "들어온 비율입니다. 80% 확률 범위로 설계했으므로 80%에 가까울수록 정상입니다.")
-c3.metric("Forenode가 더 정확", f"{int((scored['우위']=='B').sum())}개 노선",
-          help="같은 노선에서 협약 예측과 저희 예측의 교통량 평균 오차율(MAE, 연도별 일평균 "
-               "교통량이 실제와 빗나간 정도의 평균)을 비교한 결과입니다.")
-c4.metric("협약이 더 정확 · 채점 불가", f"{int((scored['우위']=='A').sum())}개 · {int((df['우위']=='채점불가').sum())}개",
-          help="진 기록도 지우지 않습니다. 협약이 더 정확했던 노선은 다음 모델이 배워야 할 목록입니다.")
+          help=f"국내 민자도로 57개 중 채점 완료 사업 수. 채점 가능 {len(df) - n_na}개, "
+               f"채점 불가 {n_na}개.")
+c2.metric("80% 범위 적중(전 기간)", f"{band_hit}/{band_tot} = {band_hit/band_tot*100:.1f}%",
+          help="교통량 단일 값 대신 80% 확률 범위(밴드) 제시. 실측 교통량의 범위 안 진입 비율. "
+               "80%에 가까울수록 적정. 최근 3개년 이전 연도 관측은 소급 검정 포함.")
+if _era:
+    c3.metric("80% 범위 적중(최근 3개년)", f"{_rh}/{_rn} = {_rh/_rn*100:.1f}%",
+              help="실현율 분포 적합 연도(2022~2024) 관측 기준. 채점 노선은 실현율 학습에서 제외"
+                   "(노선 분리).")
+else:
+    c3.metric("80% 범위 적중(최근 3개년)", "산출 불가",
+              help="관측 원장 재채점 결과 미확보.")
 
 # ── 통계 검정 상시 표시 — 검증 프로토콜 v2 조건 5(보정)·6(짝지은 검정) ──
+_cmp = None   # 협약 예측 대비 노선별 비교 통계(질문 3에서만 표시)
 try:
     import numpy as _np
     from scipy import stats as _st
@@ -81,14 +106,14 @@ try:
     _w, _l = int((_d > 0).sum()), int((_d < 0).sum())
     _sp = _st.binomtest(_w, _w + _l, 0.5, alternative="greater").pvalue
     _wp = _st.wilcoxon(_a[_pm].to_numpy(), _b[_pm].to_numpy(), alternative="greater").pvalue
+    _cmp = {"n": _w + _l, "w": _w, "l": _l, "sp": _sp, "wp": _wp}
     st.caption(
-        f"**범위가 적정한지 검증했습니다.** 목표 80% 대비 실제 {_cov*100:.1f}%. "
-        f"같은 노선의 해들은 서로 닮아 있어 노선 단위로 다시 계산하면 이 차이는 우연 범위 "
-        f"안입니다(95% 신뢰구간 [{_lo*100:.0f}%, {_hi*100:.0f}%]). 범위를 좁게 잡았다고 볼 "
-        f"근거는 없지만, 낮은 쪽이므로 계속 지켜봅니다. · "
-        f"**협약 예측과 1:1 비교**: {_w+_l}개 노선 중 {_w}개에서 저희가 더 정확했습니다. "
-        f"'더 자주 정확하다'는 통계적으로 유의하고(p={_sp:.3f}), '얼마나 더 정확한가'는 "
-        f"표본이 적어 아직 단정하지 않습니다(p={_wp:.3f}).")
+        f"**범위 적정성 점검.** 목표 80% 대비 실제 {_cov*100:.1f}%. "
+        f"노선 단위 재계산(같은 노선 연도 간 유사성 반영) 결과 차이는 우연 범위 안"
+        f"(95% 신뢰구간 {_lo*100:.0f}~{_hi*100:.0f}%). 범위 과소 설정 근거 없음. "
+        f"목표 하회 상태 지속 관찰 중. · "
+        f"**협약 예측 대비 노선별 비교**: 아래 '자주 나오는 질문' 3번 참조(채점 규칙, 한정, "
+        f"사후 채점 한계, 봉인 예측 병기).")
 except Exception:
     pass
 
@@ -96,7 +121,7 @@ except Exception:
 with st.expander("📐 자주 나오는 질문 네 가지: 통계 점검 기록", expanded=False):
     try:
         import interval_scoring as _isc
-        _f = _isc.run_full()
+        _f = _full if _full is not None else _isc.run_full()
         _c62 = _isc.run()
         _fa = _f["all"]
         _loo_cov = _f["by_regime"]["LOO"]["coverage"]
@@ -115,11 +140,25 @@ with st.expander("📐 자주 나오는 질문 네 가지: 통계 점검 기록"
             f"함께 씁니다. 현재 기준선은 평균 폭 {_fa['mean_width']*100:.1f}%p, "
             f"벌점 {_fa['mean_IS']:.3f}입니다(낮을수록 좋음). 앞으로 모델을 고치면 이 숫자로 "
             f"채점받습니다.")
+        # 서술 순서 고정('26-10-05): 채점 규칙, 한정(채점 가능 노선·연도별 평균 오차 비교), 사후 채점 한계, 봉인
+        if _cmp:
+            _sig = "5% 기준 유의" if _cmp["sp"] < 0.05 else "5% 기준 유의성 미확인"
+            _mag = "5% 기준 유의" if _cmp["wp"] < 0.05 else "5% 기준 미확정, 표본 수 부족"
+            _q3_limited = (
+                f"- 한정: 채점 가능 {_cmp['n']}개 노선 기준. 노선별 연도별 일평균 교통량 평균 "
+                f"오차율(MAE) 비교. 협약 예측 대비 오차가 더 작은 노선 {_cmp['w']}개, 더 큰 노선 "
+                f"{_cmp['l']}개. 오차가 더 작은 노선 수 우세: 부호 검정 p={_cmp['sp']:.3f}, {_sig}. "
+                f"오차 축소 폭: 부호 순위 검정 p={_cmp['wp']:.3f}, {_mag}.\n")
+        else:
+            _q3_limited = "- 한정: 노선별 비교 통계 일시 산출 불가. 노선별 수치는 아래 차트와 채점 원장 참조.\n"
         st.markdown(
-            "**질문 3. 기존 방식(협약 예측)보다 낫습니까?**  \n"
-            "같은 노선끼리 1:1로 비교하면 21개 중 15개(채점 가능 21개 기준)에서 더 정확했습니다. '더 자주 "
-            "정확하다'는 통계적으로 확인됐고, '얼마나 더 정확한가'는 표본이 적어 아직 "
-            "단정하지 않습니다. 그래서 '이겼다'는 표현 대신 숫자를 그대로 보여드립니다.")
+            "**질문 3. 기존 방식(협약 예측)보다 낫습니까?**\n\n"
+            "- 채점 규칙: 채점받는 노선의 자료는 실현율 학습에서 제외(노선 분리).\n"
+            + _q3_limited +
+            "- 사후 채점 한계: 실측 공표 이후 채점. 비교 모형의 실현율 분포는 협약 작성 이후 "
+            "공표된 실측 자료로 설정. 협약 예측과 같은 정보 조건의 비교 아님.\n"
+            "- 봉인: 실측 미공표 노선의 예측 9건·예약 5건 사전 봉인(REG-2026-001). "
+            "2027년 상반기 채점 예정.")
         st.markdown(
             "**질문 4. 자기가 낸 문제를 자기가 맞히는 것 아닙니까?**  \n"
             "채점받는 노선은 학습에서 뺍니다. 요금 인하·재구조화 날짜는 결과를 보기 전에 미리 "
@@ -138,6 +177,7 @@ st.markdown("---")
 st.markdown("##### 📈 협약 예측 vs Forenode: 노선별 교통량 평균 오차율 비교")
 st.caption("MAE(평균 오차율) = **연도별 일평균 교통량** 예측이 실제 교통량과 빗나간 정도의 평균(%). "
            "**막대가 짧을수록 그 노선의 교통량을 잘 맞힌 것**입니다.")
+st.caption("사후 채점 결과(채점 노선 학습 제외 기준). 해석 한계·봉인 예측: 위 '자주 나오는 질문' 3번 참조.")
 plot_df = df[pd.to_numeric(df["협약_MAE_pct"], errors="coerce").notna()].copy()
 fig = go.Figure()
 fig.add_trace(go.Bar(y=plot_df["노선"], x=plot_df["협약_MAE_pct"], name="협약 예측(A)",

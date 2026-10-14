@@ -169,7 +169,7 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
     st.markdown("#### 🎯 요구수익률 솔버: 이대로 제안하면 부족한 만큼, 무엇을 바꾸면 되는가")
     st.caption(
         "**활용 주체**: FI·CI 제안 설계 · 대주단 협의 | "
-        "**분석 업무**: 목표 지표 입력 → 변수 조정 시나리오 자동 도출(연속 역산 병기)"
+        "**분석 업무**: 목표 지표 입력, 변수 조정 시나리오 자동 도출(연속 역산 병기)"
     )
 
     st.markdown("---")
@@ -428,8 +428,8 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
                     scenarios.append({
                         "시나리오": "B. MRG 협상",
                         "변경": _chg,
-                        "영향": "수요 위험 분담 → 매출 안정성 ↑",
-                        "위험": "정부 협상 필요, 사업유형 변경 (BTO → BTO-rs/BTO-a)",
+                        "영향": "수요 위험 분담, 매출 안정성 ↑",
+                        "위험": "정부 협상 필요, 사업유형 변경 (BTO에서 BTO-rs/BTO-a로)",
                     })
                     break
     
@@ -447,7 +447,7 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
                     scenarios.append({
                         "시나리오": "C. 운영기간 연장",
                         "변경": f"+{new_op - curr_op}년 ({new_op}년)",
-                        "영향": "장기 매출 누적 → ROE·NPV 개선",
+                        "영향": "장기 매출 누적, ROE·NPV 개선",
                         "위험": "정부 협상 필요 (관리운영권 연장)",
                     })
                     break
@@ -486,7 +486,7 @@ def render_solver_tab(base_params: dict, metrics: dict, build_fn: Callable, ctx:
             현재 통계 솔버 모드는 1변수 또는 단순 다변수 조합 분석을 제공합니다. 
             Stage 2에서는 다음 기능이 추가됩니다. 예시:
             
-            - **자연어 입력**: "DSCR 1.2 안 되는데 어떻게 해야 하나" → 자동 분석
+            - **자연어 입력**: "DSCR 1.2 안 되는데 어떻게 해야 하나" 입력 시 자동 분석
             - **다변수 최적화**: scipy.optimize.minimize 기반 다목적 최적화
             - **AI 권고 생성**: GPT-4o-mini 활용 한글 권고문 자동 생성
             - **실무 사례 기반**: 853건 민자사업 + 16개 법령 RAG 결합

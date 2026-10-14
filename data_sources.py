@@ -159,7 +159,7 @@ def render_data_flow_diagram():
     """데이터 흐름도 (탭 내부에서 호출 가능)"""
     _T = ui_theme.theme()
 
-    st.markdown("#### 📊 데이터 → 분석 모듈 매핑")
+    st.markdown("#### 📊 데이터·분석 모듈 매핑")
 
     # 표 형태로 4기관 → 모듈 매핑
     cols = st.columns(4)
@@ -211,5 +211,5 @@ def render_data_flow_diagram():
     # 통합 메시지
     st.info(
         "🎯 **융합**: 교통량(도로공사·KOTI) × 차량 특성(KOTSA) × 재무(DART·HUG·ECOS) "
-        "→ 수익성·열화·리스크 통합 예측"
+        "결합, 수익성·열화·리스크 통합 예측"
     )

@@ -428,10 +428,10 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     m = ctx['metrics']
 
     def _pct(v):
-        return f'{v*100:.1f}%' if isinstance(v, (int, float)) and v == v else '—'
+        return f'{v*100:.1f}%' if isinstance(v, (int, float)) and v == v else '산출 불가'
 
     def _num(v):
-        return f'{v:.2f}' if isinstance(v, (int, float)) and v == v else '—'
+        return f'{v:.2f}' if isinstance(v, (int, float)) and v == v else '산출 불가'
 
     npv = m.get('npv', 0)
     dscr_min = m.get('dscr_min', 0) or 0
@@ -576,7 +576,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     op = ctx['opex_estimation']
     story.append(Paragraph(
         f"평균 OPEX 비율 {op['opex_ratio_avg']*100:.1f}% | "
-        f"1년차 {op['opex_series_억'][0]:.0f}억 → 정점 {op['peak_year']}년차 {op['peak_amount_억']:.0f}억",
+        f"1년차 {op['opex_series_억'][0]:,.0f}억, 정점 {op['peak_year']}년차 {op['peak_amount_억']:,.0f}억",
         caption_style,
     ))
     story.append(Paragraph(

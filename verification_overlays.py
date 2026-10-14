@@ -22,8 +22,8 @@ MARKET_DSCR = {"정상권_천안논산": 1.29, "부실_제이영동": 0.31, "bas
 def implied_rating(dscr_min, opba="중(3~5)"):
     """최소 DSCR → 예비 신용프로파일 밴드(근사) + 민자도로 시장 대비 위치."""
     if dscr_min is None or dscr_min != dscr_min:  # NaN guard
-        return {"dscr_min": None, "implied_band": "—", "level": "na",
-                "investment_grade": None, "market_position": "—",
+        return {"dscr_min": None, "implied_band": "산출 불가", "level": "na",
+                "investment_grade": None, "market_position": "산출 불가",
                 "note": "DSCR 산출 불가"}
     d = float(dscr_min)
     # 투자등급(BBB- 이상)/투기등급(BB+ 이하) '영역' 근사
@@ -86,7 +86,7 @@ def renegotiation_triggers(actual_ratios=None, demand_revision_cut=None,
         checks.append({
             "name": f"실시협약 변경 요구 (교통량·수입 {thr*100:.0f}% / {n_need}년 연속)",
             "status": status,
-            "detail": "최근 실측/협약 = " + " → ".join(f"{x*100:.0f}%" for x in r),
+            "detail": "최근 실측/협약 = " + ", ".join(f"{x*100:.0f}%" for x in r),
         })
     if demand_revision_cut is not None and demand_revision_cut == demand_revision_cut:
         d = float(demand_revision_cut)

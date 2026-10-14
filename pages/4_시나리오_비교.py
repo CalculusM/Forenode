@@ -38,10 +38,10 @@ _metric_cols = ["NPV(억)", "IRR(%)", "EquityIRR(%)", "EquityMIRR(%)", "DSCR최�
 _input_cols = ["사업유형", "연장(km)", "민간투자비(억)", "일교통량(대)", "통행료(원/km)", "MRG(%)"]
 def _fmt(v):
     if v is None:
-        return "—"
+        return "산출 불가"
     if isinstance(v, float):
         if v != v:
-            return "—"
+            return "산출 불가"
         return f"{v:,.2f}".rstrip("0").rstrip(".")
     return str(v)
 
@@ -69,7 +69,7 @@ def _likelihood_row(saved: list) -> list:
         try:
             ratio = float(s["일교통량(대)"]) / float(base["일교통량(대)"])
         except Exception:
-            out.append("—")
+            out.append("산출 불가")
             continue
         others = any(s.get(c) != base.get(c) for c in _other_cols)
         if abs(ratio - 1.0) < 1e-9:
@@ -131,19 +131,20 @@ with _x1:
         "CSV 다운로드", df.to_csv(index=False).encode("utf-8-sig"),
         file_name="forenode_시나리오비교.csv", mime="text/csv", use_container_width=True)
 with _x2:
+    # 한글 폰트: 본 보고서(report_generator)와 동일 후보·순서로 OS별 탐색·등록
+    # (리포 fonts/ 우선, Windows 맑은 고딕, macOS AppleGothic, Linux packages.txt fonts-nanum)
+    try:
+        from report_generator import _KOR_FONT as _pdf_font
+    except Exception:
+        _pdf_font = "Helvetica"
+
     def _build_pdf() -> bytes:
         from reportlab.lib.pagesizes import A4, landscape
         from reportlab.lib.units import mm
         from reportlab.lib import colors as _c
-        from reportlab.pdfbase import pdfmetrics
-        from reportlab.pdfbase.ttfonts import TTFont
         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
         from reportlab.lib.styles import ParagraphStyle
-        try:
-            pdfmetrics.registerFont(TTFont("Malgun", "C:/Windows/Fonts/malgun.ttf"))
-            _font = "Malgun"
-        except Exception:
-            _font = "Helvetica"
+        _font = _pdf_font
         buf = io.BytesIO()
         doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
                                 leftMargin=12 * mm, rightMargin=12 * mm,
@@ -154,10 +155,7 @@ with _x2:
         rows = [["구분"] + list(df["이름"])]
         rows.append(["유력도(실측)"] + _lk)
         for col in _input_cols + _metric_cols:
-            vals = []
-            for v in df[col]:
-                vals.append(f"{v:,.2f}".rstrip("0").rstrip(".") if isinstance(v, float) else str(v))
-            rows.append([col] + vals)
+            rows.append([col] + [_fmt(v) for v in df[col]])
         t = Table(rows, colWidths=[45 * mm] + [None] * len(df))
         t.setStyle(TableStyle([
             ("FONTNAME", (0, 0), (-1, -1), _font), ("FONTSIZE", (0, 0), (-1, -1), 8.5),
@@ -179,6 +177,8 @@ with _x2:
             file_name="forenode_시나리오비교.pdf", mime="application/pdf", use_container_width=True)
     except Exception as _pe:
         st.caption(f"PDF 생성 불가: {_pe}")
+    if _pdf_font == "Helvetica":
+        st.caption("한글 폰트 미탑재 환경. PDF 한글 표시 불가, CSV 사용 권장")
 
 # ── ④ 관리 ──
 st.markdown("##### 🗑 관리")

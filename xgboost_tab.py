@@ -359,11 +359,18 @@ def render_shap_explanation(model_obj, X_pred, feature_vec, predicted_grade):
         # 예측된 등급의 SHAP 값
         grade_idx = model_obj["grade_map"].get(predicted_grade, 0)
         
-        # 멀티클래스 처리
+        # 반환 형태 분기 (shap 버전·클래스 수별)
+        #   list        : 구버전 멀티클래스, 클래스별 (n, f) 배열 목록
+        #   3차원 배열  : 신버전 멀티클래스, (n, f, 클래스)
+        #   2차원 배열  : 이진 분류, (n, f) = 클래스 1 log-odds 기여, 클래스 0은 부호 반전
         if isinstance(shap_values, list):
-            sv = shap_values[grade_idx][0]
+            sv = np.asarray(shap_values[grade_idx])[0]
         else:
-            sv = shap_values[0, :, grade_idx]
+            sv_arr = np.asarray(shap_values)
+            if sv_arr.ndim == 3:
+                sv = sv_arr[0, :, grade_idx]
+            else:
+                sv = sv_arr[0] if grade_idx == 1 else -sv_arr[0]
         
         feature_cols = model_obj["feature_cols"]
         
@@ -543,7 +550,7 @@ def render_xgboost_tab():
     st.info(
         "💡 **학습 데이터 구성 원칙**: "
         "한국 신용평가 관행 + 민자 BTO 사업의 실제 운영 패턴을 반영한 룰 기반 라벨링. "
-        "벤치마크: 천안논산고속도로 DSCR 1.29 → B등급, 제이영동고속도로 DSCR 0.31 → C등급."
+        "벤치마크: 천안논산고속도로 DSCR 1.29는 B등급, 제이영동고속도로 DSCR 0.31은 C등급."
     )
     
     # ── 3. 입력 + 예측 ──

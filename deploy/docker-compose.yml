@@ -1,0 +1,34 @@
+# ------------------------------------------------------------------
+# Forenode 운영 compose 정의 (국내 서버 이전용, 2026-09-28 작성)
+#
+# 사용 위치: deploy/ 폴더
+#   cp .env.example .env && chmod 600 .env   (키 값은 서버에서만 기입)
+#   docker compose up -d --build
+#
+# 네트워크 구성
+#   - 컨테이너 8501 은 호스트 127.0.0.1:8501 에만 게시 = 외부 직접 접근 차단
+#   - 외부 공개는 호스트 nginx(80/443) 가 127.0.0.1:8501 로 프록시 (deploy/nginx/forenode.conf)
+# ------------------------------------------------------------------
+name: forenode
+
+services:
+  app:
+    build:
+      context: ..                   # 저장소 루트
+      dockerfile: deploy/Dockerfile # 제외 규칙 = deploy/Dockerfile.dockerignore 자동 적용
+    image: forenode-app:latest      # 롤백 시 forenode-app:prev 를 latest 로 재지정 (RUNBOOK 13장)
+    container_name: forenode-app
+    restart: unless-stopped         # 서버 재부팅·프로세스 비정상 종료 시 자동 재기동, 수동 stop 은 유지
+    env_file:
+      - .env                        # OPENAI_API_KEY 등. 저장소 미추적(.gitignore 의 .env 규칙 적용)
+    ports:
+      - "127.0.0.1:8501:8501"
+    mem_limit: 3g                   # 4GB 서버 기준 OS·nginx·sshd 여유 확보 목적(로컬 실측 1세션 약 0.3GB, RAG 비활성 조건)
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"             # 로그 파일 1개 상한
+        max-file: "5"               # 보관 개수 상한(최대 약 50MB)
+    # 헬스체크는 Dockerfile HEALTHCHECK(/_stcore/health) 상속
