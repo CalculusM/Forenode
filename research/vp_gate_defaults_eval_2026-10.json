@@ -1,0 +1,1240 @@
+{
+ "_meta": {
+  "as_of": "2026-10-14",
+  "criteria": "research/vp_gate_defaults_criteria_2026-10.md",
+  "engine_commit": "e04bb36",
+  "no_default_changed": true,
+  "golden_sha256": "25e0e61947d7d8b8bf312b0dcc2020ec842f0c78642ac9b5660d899866cbcb84",
+  "finance_params_sha256": "2c9f0269bb1db04db942e393db29acc2b7b4c8df05f6b2e93dcdbd1034154c34",
+  "inputs_sha256": {
+   "03_five_input_inputs.json": "4b877e8e69bb6432b7e58d9006adc324d5477a121bb29ade1457a42977d29594",
+   "03_forenode_test_inputs_v3.json": "67757e821f01e3fcabecf246361c39820f60bafa697016f9c00cf28b91ca7b42",
+   "04_forenode_test_results_v3.json": "b6060b3925fb23e1a961acc061b3ada700ab7a43b09300bb5c26047e347b7d71",
+   "04_five_input_results.json": "5657497759f0715d887eee4bd1b4820dd5f22349a1ba93430767125972962674",
+   "11_capex_sensitivity.json": "aecc1e25b87b2aaadc790bc2a066c1770f65a1f3bae0108d86b09cdf334d2e66",
+   "R_koti_local.md": "b303458c42821f703b40e9247dcfc6e66236ae9895c9c3525b18a877fa16852d"
+  }
+ },
+ "a_toll_default": {
+  "rows": [
+   {
+    "name": "[후보] 팔공산 관통 고속도로",
+    "group": "고속도로형",
+    "length_km": 25.3,
+    "toll_reported": 96,
+    "toll_basis": "",
+    "v3_toll_reported": null,
+    "toll_A": 85.0,
+    "toll_B": 87.9,
+    "toll_C": 79.9,
+    "err_A": -11.0,
+    "err_B": -8.1,
+    "err_C": -16.1
+   },
+   {
+    "name": "영동~오창",
+    "group": "고속도로형",
+    "length_km": 70.3,
+    "toll_reported": 57,
+    "toll_basis": "보도 통행료 4,000원대 ÷ 70.3km ≈ 57원/km(재정 대비 1.1배 보도)",
+    "v3_toll_reported": 57,
+    "toll_A": 85.0,
+    "toll_B": 62.8,
+    "toll_C": 57.1,
+    "err_A": 28.0,
+    "err_B": 5.8,
+    "err_C": 0.1
+   },
+   {
+    "name": "서평택~봉담",
+    "group": "고속도로형",
+    "length_km": 25.9,
+    "toll_reported": 85,
+    "toll_basis": "제안 통행료 2,200원 ÷ 25.9km = 85원/km(MTN 2024. 5.)",
+    "v3_toll_reported": 85,
+    "toll_A": 85.0,
+    "toll_B": 87.0,
+    "toll_C": 79.0,
+    "err_A": 0.0,
+    "err_B": 2.0,
+    "err_C": -6.0
+   },
+   {
+    "name": "서울~양주",
+    "group": "고속도로형",
+    "length_km": 21.6,
+    "toll_reported": 90.3,
+    "toll_basis": "제3자 공고 상한 기준통행료 1.05배 적용, 90.3원/km",
+    "v3_toll_reported": 90.3,
+    "toll_A": 85.0,
+    "toll_B": 94.6,
+    "toll_C": 86.0,
+    "err_A": -5.3,
+    "err_B": 4.3,
+    "err_C": -4.3
+   },
+   {
+    "name": "익산~부여(서부내륙 2단계)",
+    "group": "고속도로형",
+    "length_km": 43.4,
+    "toll_reported": 68,
+    "toll_basis": "1단계 6,400원 ÷ 94km = 68원/km",
+    "v3_toll_reported": 68,
+    "toll_A": 85.0,
+    "toll_B": 71.5,
+    "toll_C": 65.0,
+    "err_A": 17.0,
+    "err_B": 3.5,
+    "err_C": -3.0
+   },
+   {
+    "name": "평택~시흥 확장(개량운영형)",
+    "group": "고속도로형",
+    "length_km": 36.4,
+    "toll_reported": 69.0,
+    "toll_basis": "제3자 공고 상한 기준통행료 1.0배 적용, 69.0원/km",
+    "v3_toll_reported": 69.0,
+    "toll_A": 85.0,
+    "toll_B": 75.9,
+    "toll_C": 69.0,
+    "err_A": 16.0,
+    "err_B": 6.9,
+    "err_C": 0.0
+   },
+   {
+    "name": "[후보] 제4경인 고속화도로",
+    "group": "지하·소형차",
+    "length_km": 18.69,
+    "toll_reported": 265,
+    "toll_basis": "보도 통행료 6,000원 ÷ 18.69km = 321원/km",
+    "v3_toll_reported": 265,
+    "toll_A": 85.0,
+    "toll_B": 101.7,
+    "toll_C": 92.5,
+    "err_A": -180.0,
+    "err_B": -163.3,
+    "err_C": -172.5
+   },
+   {
+    "name": "[후보] 양재~올림픽대로 지하도로",
+    "group": "지하·소형차",
+    "length_km": 6.55,
+    "toll_reported": 305,
+    "toll_basis": "",
+    "v3_toll_reported": null,
+    "toll_A": 85.0,
+    "toll_B": 199.9,
+    "toll_C": 181.7,
+    "err_A": -220.0,
+    "err_B": -105.1,
+    "err_C": -123.3
+   },
+   {
+    "name": "[후보] 우면~용산 지하도로",
+    "group": "지하·소형차",
+    "length_km": 5.4,
+    "toll_reported": 463,
+    "toll_basis": "제안 통행료 2,500원 ÷ 5.4km = 463원/km(보도)",
+    "v3_toll_reported": null,
+    "toll_A": 85.0,
+    "toll_B": 232.1,
+    "toll_C": 211.0,
+    "err_A": -378.0,
+    "err_B": -230.9,
+    "err_C": -252.0
+   }
+  ],
+  "stats": {
+   "고속도로형": {
+    "A": {
+     "n": 6,
+     "mae": 12.9,
+     "max_abs": 28.0
+    },
+    "B": {
+     "n": 6,
+     "mae": 5.1,
+     "max_abs": 8.1
+    },
+    "C": {
+     "n": 6,
+     "mae": 4.9,
+     "max_abs": 16.1
+    }
+   },
+   "지하·소형차": {
+    "A": {
+     "n": 3,
+     "mae": 259.3,
+     "max_abs": 378.0
+    },
+    "B": {
+     "n": 3,
+     "mae": 166.4,
+     "max_abs": 230.9
+    },
+    "C": {
+     "n": 3,
+     "mae": 182.6,
+     "max_abs": 252.0
+    }
+   }
+  },
+  "mult_B": 1.1,
+  "passing": [
+   "B",
+   "C"
+  ],
+  "chosen": "B",
+  "verdict": "채택 권고(대표 결정 대기): B안",
+  "v3_mismatch": []
+ },
+ "b_op_years": {
+  "rows": [
+   {
+    "name": "의왕~광주",
+    "operation_years": 40,
+    "basis": "운영 40년(보도)",
+    "grade": "보도"
+   },
+   {
+    "name": "용인~성남",
+    "operation_years": 40,
+    "basis": "운영 40년 가정(미보도)",
+    "grade": "가정"
+   },
+   {
+    "name": "하남~남양주~포천",
+    "operation_years": 40,
+    "basis": "운영 40년(보도)",
+    "grade": "보도"
+   },
+   {
+    "name": "태안~안성",
+    "operation_years": 40,
+    "basis": "운영 40년 가정(미보도), 방식 BTO-a 가정(미확인)",
+    "grade": "가정"
+   },
+   {
+    "name": "용인~충주",
+    "operation_years": 50,
+    "basis": "운영 50년(국토부 공고 2026-957호)",
+    "grade": "1차·공고"
+   },
+   {
+    "name": "화성~안성",
+    "operation_years": 40,
+    "basis": "운영 40년(보도)",
+    "grade": "보도"
+   },
+   {
+    "name": "서평택~봉담",
+    "operation_years": 40,
+    "basis": "운영 40년 가정(미보도)",
+    "grade": "가정"
+   },
+   {
+    "name": "양재~고양",
+    "operation_years": 50,
+    "basis": "운영 50년(보도)",
+    "grade": "보도"
+   },
+   {
+    "name": "공주~천안",
+    "operation_years": 40,
+    "basis": "운영 40년·공사 5년(보도)",
+    "grade": "보도"
+   },
+   {
+    "name": "성남~강남",
+    "operation_years": 40,
+    "basis": "운영 40년 가정(미보도), 소형차 전용, 중차량 0%",
+    "grade": "가정"
+   },
+   {
+    "name": "시흥~송파",
+    "operation_years": 40,
+    "basis": "운영 40년 가정(미보도)",
+    "grade": "가정"
+   },
+   {
+    "name": "영동~오창",
+    "operation_years": 40,
+    "basis": "운영 40년(보도)",
+    "grade": "보도"
+   },
+   {
+    "name": "서울~양주",
+    "operation_years": 40,
+    "basis": "운영 40년·공사 5년(보도)",
+    "grade": "보도"
+   },
+   {
+    "name": "사상~해운대",
+    "operation_years": 40,
+    "basis": "운영 40년(요약문, 45년 보도와 상충)",
+    "grade": "1차·공고"
+   },
+   {
+    "name": "서창~김포",
+    "operation_years": 40,
+    "basis": "운영 40년(보도)",
+    "grade": "보도"
+   },
+   {
+    "name": "오산~용인",
+    "operation_years": 40,
+    "basis": "운영 40년(보도)",
+    "grade": "보도"
+   },
+   {
+    "name": "성남~서초",
+    "operation_years": 40,
+    "basis": "운영 40년(민투심 2025. 11., 요약문 30년과 상이)",
+    "grade": "1차·공고"
+   },
+   {
+    "name": "당진~화성(제안)",
+    "operation_years": 40,
+    "basis": "운영 40년 가정(미보도)",
+    "grade": "가정"
+   },
+   {
+    "name": "당진~화성(제안, 1.3조=민간투자비 가정)",
+    "operation_years": 40,
+    "basis": "",
+    "grade": "미기재"
+   },
+   {
+    "name": "고양~남양주(HDC안, 연장 미공개)",
+    "operation_years": 40,
+    "basis": "운영 40년 가정",
+    "grade": "가정"
+   },
+   {
+    "name": "[탈락] 당진~광명(2024. 6. 적격성 부적격)",
+    "operation_years": 40,
+    "basis": "운영 40년 가정",
+    "grade": "가정"
+   },
+   {
+    "name": "[탈락] 구리~성남 지하고속도로(재무성 부족, 재정 전환)",
+    "operation_years": 40,
+    "basis": "운영 40년 가정",
+    "grade": "가정"
+   },
+   {
+    "name": "[후보] 제4경인 고속화도로",
+    "operation_years": 50,
+    "basis": "운영 50년(보도)",
+    "grade": "보도"
+   },
+   {
+    "name": "[후보] 매송~동탄 고속화도로",
+    "operation_years": 50,
+    "basis": "운영 50년·공사 60개월(보도)",
+    "grade": "보도"
+   },
+   {
+    "name": "[후보] 화성~오산 고속화도로",
+    "operation_years": 50,
+    "basis": "운영 50년(보도)",
+    "grade": "보도"
+   },
+   {
+    "name": "[후보] 발안~남양 고속화도로",
+    "operation_years": 40,
+    "basis": "운영 40년(2020 공고)",
+    "grade": "1차·공고"
+   },
+   {
+    "name": "[후보] 용인~광주 고속화도로",
+    "operation_years": 40,
+    "basis": "운영 40년 가정(미보도)",
+    "grade": "가정"
+   },
+   {
+    "name": "[후보] 경기북부 중심 고속화도로",
+    "operation_years": 40,
+    "basis": "운영 40년 가정(미보도)",
+    "grade": "가정"
+   },
+   {
+    "name": "[후보] 시흥~수원 고속화도로",
+    "operation_years": 45,
+    "basis": "운영 45년·공사 5년(보도)",
+    "grade": "보도"
+   },
+   {
+    "name": "[후보] 팔공산 관통 고속도로",
+    "operation_years": 40,
+    "basis": "운영 40년 가정(미보도)",
+    "grade": "가정"
+   }
+  ],
+  "n_bto_a": 30,
+  "n1_primary_ge40": 4,
+  "n_press_ge40": 13,
+  "n_assumed": 12,
+  "koti_standard_lines": [
+   "A 행: BTO, 12.1, 3,480, 11.0, 3.89, '18.1(7년), 35.5%. 표 5-2에서 A 고속도로 개요: 투자비 3,480억(민간 2,290억, 건설보조금 283억, 보상비 907억), BTO, MRG 없음, 운영기간 2018.01~2048.01(30년), 통행료 1,500원/대(1종, 전구간, 도공대비 1.07배), 사업수익률 4.42%(세전 불변). 같은 노선이 표 5-1에서는 불변세후 3.89%로 표기되어 세전·세후 병기 사례가 됨.",
+   "10. 본문(p.113): \"민자도로사업의 진행 기간은 약 35년 이상(공사기간 4~6년, 운영기간 30년 이상)\". 표 3-15(p.120) 표준실시협약 제10조 \"관리운영권 설정기간은 30년으로 한다\"."
+  ],
+  "koti_names_40_standard": false,
+  "verdict": "근거 부족(기본 30년 유지)"
+ },
+ "d_growth_cap": {
+  "growth": 0.025,
+  "cap_limit": 95000.0,
+  "multiple_at_year": {
+   "30": 2.046,
+   "40": 2.62,
+   "50": 3.353
+  },
+  "cases": {
+   "30": {
+    "gov_threshold": 86290.52228582022,
+    "recommended_daily_traffic": 95000,
+    "anchor_capped": true,
+    "first_year_over_cap_threshold_path": 5,
+    "first_year_over_cap_recommended_path": 2,
+    "options": {
+     "y_star_recommended_path": 2,
+     "A": {
+      "status": "ok",
+      "traffic": 86290.52228582022,
+      "parity_vs_engine": 0.0
+     },
+     "B": {
+      "status": "infeasible",
+      "traffic": null,
+      "flat_cap_required_toll": 104.3,
+      "shift_pct": null
+     },
+     "C": {
+      "status": "ok",
+      "traffic": 113867.77179752185,
+      "required_toll_at_capacity": 102,
+      "shift_pct": 31.96
+     }
+    }
+   },
+   "40": {
+    "gov_threshold": 74213.54560200595,
+    "recommended_daily_traffic": 83783,
+    "anchor_capped": false,
+    "first_year_over_cap_threshold_path": 12,
+    "first_year_over_cap_recommended_path": 7,
+    "options": {
+     "y_star_recommended_path": 7,
+     "A": {
+      "status": "ok",
+      "traffic": 74213.54560200595,
+      "parity_vs_engine": 0.0
+     },
+     "B": {
+      "status": "infeasible",
+      "traffic": null,
+      "flat_cap_required_toll": 96.6,
+      "shift_pct": null
+     },
+     "C": {
+      "status": "ok",
+      "traffic": 95395.82103615844,
+      "required_toll_at_capacity": 86,
+      "shift_pct": 28.54
+     }
+    }
+   }
+  },
+  "verdict": "보류(VP 게이트 상정, B안 우선, 2027. 1. 8. 이후 묶음)"
+ },
+ "e_opex_anchor": {
+  "nonmonotonic_within_set": [],
+  "n_sets": 34,
+  "kink_v3": [
+   {
+    "route": "의왕~광주",
+    "gov_by_mult": {
+     "0.8": 88878,
+     "1.0": 102493,
+     "1.2": 116074,
+     "1.4": 129654
+    },
+    "capped_by_mult": {
+     "0.8": true,
+     "1.0": true,
+     "1.2": true,
+     "1.4": true
+    },
+    "slope_ratio_1.2_over_0.8": 0.998
+   },
+   {
+    "route": "용인~성남",
+    "gov_by_mult": {
+     "0.8": 70120,
+     "1.0": 86907,
+     "1.2": 97205,
+     "1.4": 107433
+    },
+    "capped_by_mult": {
+     "0.8": false,
+     "1.0": true,
+     "1.2": true,
+     "1.4": true
+    },
+    "slope_ratio_1.2_over_0.8": 0.613
+   },
+   {
+    "route": "하남~남양주~포천",
+    "gov_by_mult": {
+     "0.8": 58794,
+     "1.0": 73492,
+     "1.2": 86810,
+     "1.4": 95519
+    },
+    "capped_by_mult": {
+     "0.8": false,
+     "1.0": false,
+     "1.2": true,
+     "1.4": true
+    },
+    "slope_ratio_1.2_over_0.8": 0.906
+   },
+   {
+    "route": "태안~안성",
+    "gov_by_mult": {
+     "0.8": 68700,
+     "1.0": 84909,
+     "1.2": 95260,
+     "1.4": 105593
+    },
+    "capped_by_mult": {
+     "0.8": false,
+     "1.0": true,
+     "1.2": true,
+     "1.4": true
+    },
+    "slope_ratio_1.2_over_0.8": 0.639
+   },
+   {
+    "route": "용인~충주",
+    "gov_by_mult": {
+     "0.8": 63541,
+     "1.0": 79421,
+     "1.2": 90474,
+     "1.4": 100082
+    },
+    "capped_by_mult": {
+     "0.8": false,
+     "1.0": true,
+     "1.2": true,
+     "1.4": true
+    },
+    "slope_ratio_1.2_over_0.8": 0.696
+   },
+   {
+    "route": "화성~안성",
+    "gov_by_mult": {
+     "0.8": 67239,
+     "1.0": 84048,
+     "1.2": 94103,
+     "1.4": 104160
+    },
+    "capped_by_mult": {
+     "0.8": false,
+     "1.0": true,
+     "1.2": true,
+     "1.4": true
+    },
+    "slope_ratio_1.2_over_0.8": 0.598
+   },
+   {
+    "route": "서평택~봉담",
+    "gov_by_mult": {
+     "0.8": 53289,
+     "1.0": 66596,
+     "1.2": 79880,
+     "1.4": 89543
+    },
+    "capped_by_mult": {
+     "0.8": false,
+     "1.0": false,
+     "1.2": true,
+     "1.4": true
+    },
+    "slope_ratio_1.2_over_0.8": 0.998
+   },
+   {
+    "route": "양재~고양",
+    "gov_by_mult": {
+     "0.8": 100911,
+     "1.0": 117291,
+     "1.2": 133672,
+     "1.4": 150018
+    },
+    "capped_by_mult": {
+     "0.8": true,
+     "1.0": true,
+     "1.2": true,
+     "1.4": true
+    },
+    "slope_ratio_1.2_over_0.8": 1.0
+   },
+   {
+    "route": "공주~천안",
+    "gov_by_mult": {
+     "0.8": 56794,
+     "1.0": 70956,
+     "1.2": 84839,
+     "1.4": 93306
+    },
+    "capped_by_mult": {
+     "0.8": false,
+     "1.0": false,
+     "1.2": true,
+     "1.4": true
+    },
+    "slope_ratio_1.2_over_0.8": 0.98
+   },
+   {
+    "route": "성남~강남",
+    "gov_by_mult": {
+     "0.8": 90718,
+     "1.0": 104265,
+     "1.2": 117881,
+     "1.4": 131498
+    },
+    "capped_by_mult": {
+     "0.8": true,
+     "1.0": true,
+     "1.2": true,
+     "1.4": true
+    },
+    "slope_ratio_1.2_over_0.8": 1.005
+   },
+   {
+    "route": "시흥~송파",
+    "gov_by_mult": {
+     "0.8": 88364,
+     "1.0": 101254,
+     "1.2": 114144,
+     "1.4": 127034
+    },
+    "capped_by_mult": {
+     "0.8": true,
+     "1.0": true,
+     "1.2": true,
+     "1.4": true
+    },
+    "slope_ratio_1.2_over_0.8": 1.0
+   },
+   {
+    "route": "영동~오창",
+    "gov_by_mult": {
+     "0.8": 41853,
+     "1.0": 52327,
+     "1.2": 62783,
+     "1.4": 73257
+    },
+    "capped_by_mult": {
+     "0.8": false,
+     "1.0": false,
+     "1.2": false,
+     "1.4": false
+    },
+    "slope_ratio_1.2_over_0.8": 0.998
+   },
+   {
+    "route": "서울~양주",
+    "gov_by_mult": {
+     "0.8": 38555,
+     "1.0": 48207,
+     "1.2": 57815,
+     "1.4": 67483
+    },
+    "capped_by_mult": {
+     "0.8": false,
+     "1.0": false,
+     "1.2": false,
+     "1.4": false
+    },
+    "slope_ratio_1.2_over_0.8": 0.995
+   },
+   {
+    "route": "사상~해운대",
+    "gov_by_mult": {
+     "0.8": 103921,
+     "1.0": 120752,
+     "1.2": 137583,
+     "1.4": 154379
+    },
+    "capped_by_mult": {
+     "0.8": true,
+     "1.0": true,
+     "1.2": true,
+     "1.4": true
+    },
+    "slope_ratio_1.2_over_0.8": 1.0
+   },
+   {
+    "route": "서창~김포",
+    "gov_by_mult": {
+     "0.8": 50954,
+     "1.0": 63709,
+     "1.2": 76403,
+     "1.4": 88230
+    },
+    "capped_by_mult": {
+     "0.8": false,
+     "1.0": false,
+     "1.2": false,
+     "1.4": true
+    },
+    "slope_ratio_1.2_over_0.8": 0.995
+   },
+   {
+    "route": "오산~용인",
+    "gov_by_mult": {
+     "0.8": 61645,
+     "1.0": 77011,
+     "1.2": 89747,
+     "1.4": 98732
+    },
+    "capped_by_mult": {
+     "0.8": false,
+     "1.0": false,
+     "1.2": true,
+     "1.4": true
+    },
+    "slope_ratio_1.2_over_0.8": 0.829
+   },
+   {
+    "route": "성남~서초",
+    "gov_by_mult": {
+     "0.8": 39185,
+     "1.0": 48970,
+     "1.2": 58707,
+     "1.4": 68483
+    },
+    "capped_by_mult": {
+     "0.8": false,
+     "1.0": false,
+     "1.2": false,
+     "1.4": false
+    },
+    "slope_ratio_1.2_over_0.8": 0.995
+   },
+   {
+    "route": "익산~부여(서부내륙 2단계)",
+    "gov_by_mult": {
+     "0.8": 45377,
+     "1.0": 56704,
+     "1.2": 68039,
+     "1.4": 79364
+    },
+    "capped_by_mult": {
+     "0.8": false,
+     "1.0": false,
+     "1.2": false,
+     "1.4": true
+    },
+    "slope_ratio_1.2_over_0.8": 1.001
+   },
+   {
+    "route": "광명~서울",
+    "gov_by_mult": {
+     "0.8": 132386,
+     "1.0": 157958,
+     "1.2": 183495,
+     "1.4": 209067
+    },
+    "capped_by_mult": {
+     "0.8": true,
+     "1.0": true,
+     "1.2": true,
+     "1.4": true
+    },
+    "slope_ratio_1.2_over_0.8": 0.999
+   }
+  ],
+  "cited_pairs": {
+   "용인~충주": [
+    {
+     "set": "v3",
+     "mult": 0.8,
+     "toll": 66.7,
+     "capex": 12173,
+     "gov": 63541,
+     "capped": false
+    },
+    {
+     "set": "v3",
+     "mult": 1.0,
+     "toll": 66.7,
+     "capex": 15216,
+     "gov": 79421,
+     "capped": true
+    },
+    {
+     "set": "v3",
+     "mult": 1.2,
+     "toll": 66.7,
+     "capex": 18260,
+     "gov": 90474,
+     "capped": true
+    },
+    {
+     "set": "v3",
+     "mult": 1.4,
+     "toll": 66.7,
+     "capex": 21303,
+     "gov": 100082,
+     "capped": true
+    },
+    {
+     "set": "five",
+     "mult": 1.0,
+     "toll": 85.0,
+     "capex": 15216,
+     "gov": 62328,
+     "capped": false
+    },
+    {
+     "set": "five",
+     "mult": 1.2,
+     "toll": 85.0,
+     "capex": 18260,
+     "gov": 74783,
+     "capped": false
+    }
+   ],
+   "태안~안성": [
+    {
+     "set": "v3",
+     "mult": 0.8,
+     "toll": 59.2,
+     "capex": 17310,
+     "gov": 68700,
+     "capped": false
+    },
+    {
+     "set": "v3",
+     "mult": 1.0,
+     "toll": 59.2,
+     "capex": 21637,
+     "gov": 84909,
+     "capped": true
+    },
+    {
+     "set": "v3",
+     "mult": 1.2,
+     "toll": 59.2,
+     "capex": 25964,
+     "gov": 95260,
+     "capped": true
+    },
+    {
+     "set": "v3",
+     "mult": 1.4,
+     "toll": 59.2,
+     "capex": 30292,
+     "gov": 105593,
+     "capped": true
+    },
+    {
+     "set": "five",
+     "mult": 1.0,
+     "toll": 85.0,
+     "capex": 21637,
+     "gov": 69634,
+     "capped": false
+    },
+    {
+     "set": "five",
+     "mult": 1.2,
+     "toll": 85.0,
+     "capex": 25964,
+     "gov": 83554,
+     "capped": true
+    }
+   ],
+   "서창~김포": [
+    {
+     "set": "v3",
+     "mult": 0.8,
+     "toll": 102.8,
+     "capex": 4246,
+     "gov": 50954,
+     "capped": false
+    },
+    {
+     "set": "v3",
+     "mult": 1.0,
+     "toll": 102.8,
+     "capex": 5307,
+     "gov": 63709,
+     "capped": false
+    },
+    {
+     "set": "v3",
+     "mult": 1.2,
+     "toll": 102.8,
+     "capex": 6368,
+     "gov": 76403,
+     "capped": false
+    },
+    {
+     "set": "v3",
+     "mult": 1.4,
+     "toll": 102.8,
+     "capex": 7430,
+     "gov": 88230,
+     "capped": true
+    },
+    {
+     "set": "five",
+     "mult": 1.0,
+     "toll": 85.0,
+     "capex": 5307,
+     "gov": 74495,
+     "capped": false
+    },
+    {
+     "set": "five",
+     "mult": 1.2,
+     "toll": 85.0,
+     "capex": 6368,
+     "gov": 87261,
+     "capped": true
+    }
+   ]
+  },
+  "yongin_chungju": {
+   "v3_x0.8": {
+    "toll": 66.7,
+    "capex": 12173,
+    "opex_sum_억": 39286.3,
+    "opex_ratio_avg": 0.3692,
+    "anchor_daily_traffic": 72724,
+    "anchor_capped": false,
+    "gov": 63541.420293612886,
+    "gov_recorded": 63541,
+    "fixpoint_B": {
+     "T_anchor": 63541.420293612886,
+     "T_fixpoint": 58719.60884321093,
+     "iterations": 7,
+     "converged": true,
+     "history": [
+      63541,
+      60375,
+      59279,
+      58910,
+      58784,
+      58741,
+      58720,
+      58720
+     ]
+    }
+   },
+   "v3_x1.0": {
+    "toll": 66.7,
+    "capex": 15216,
+    "opex_sum_억": 49104.0,
+    "opex_ratio_avg": 0.3692,
+    "anchor_daily_traffic": 90895,
+    "anchor_capped": false,
+    "gov": 79420.53357720339,
+    "gov_recorded": 79421,
+    "fixpoint_B": {
+     "T_anchor": 79420.53357720339,
+     "T_fixpoint": 73399.51105401365,
+     "iterations": 8,
+     "converged": true,
+     "history": [
+      79421,
+      75463,
+      74119,
+      73636,
+      73475,
+      73425,
+      73401,
+      73400,
+      73400
+     ]
+    }
+   },
+   "v3_x1.2": {
+    "toll": 66.7,
+    "capex": 18260,
+    "opex_sum_억": 51323.0,
+    "opex_ratio_avg": 0.3692,
+    "anchor_daily_traffic": 95000,
+    "anchor_capped": true,
+    "gov": 90474.26540205741,
+    "gov_recorded": 90474,
+    "fixpoint_B": {
+     "T_anchor": 90474.26540205741,
+     "T_fixpoint": 88079.4132648164,
+     "iterations": 7,
+     "converged": true,
+     "history": [
+      90474,
+      88893,
+      88344,
+      88183,
+      88115,
+      88083,
+      88079,
+      88079
+     ]
+    }
+   },
+   "v3_x1.4": {
+    "toll": 66.7,
+    "capex": 21303,
+    "opex_sum_억": 51323.0,
+    "opex_ratio_avg": 0.3692,
+    "anchor_daily_traffic": 95000,
+    "anchor_capped": true,
+    "gov": 100081.61422494717,
+    "gov_recorded": 100082,
+    "fixpoint_B": {
+     "T_anchor": 100081.61422494717,
+     "T_fixpoint": 102723.59795199188,
+     "iterations": 7,
+     "converged": true,
+     "history": [
+      100082,
+      101828,
+      102423,
+      102628,
+      102705,
+      102721,
+      102724,
+      102724
+     ]
+    }
+   },
+   "five_x1.0": {
+    "toll": 85.0,
+    "capex": 15216,
+    "opex_sum_억": 49088.6,
+    "opex_ratio_avg": 0.3692,
+    "anchor_daily_traffic": 71302,
+    "anchor_capped": false,
+    "gov": 62328.105840311124,
+    "gov_recorded": 62328,
+    "fixpoint_B": {
+     "T_anchor": 62328.105840311124,
+     "T_fixpoint": 57597.02808591423,
+     "iterations": 8,
+     "converged": true,
+     "history": [
+      62328,
+      59222,
+      58145,
+      57787,
+      57661,
+      57617,
+      57598,
+      57597,
+      57597
+     ]
+    }
+   },
+   "five_x1.2": {
+    "toll": 85.0,
+    "capex": 18260,
+    "opex_sum_억": 58910.1,
+    "opex_ratio_avg": 0.3692,
+    "anchor_daily_traffic": 85567,
+    "anchor_capped": false,
+    "gov": 74783.06329348484,
+    "gov_recorded": 74783,
+    "fixpoint_B": {
+     "T_anchor": 74783.06329348484,
+     "T_fixpoint": 69105.22260273974,
+     "iterations": 9,
+     "converged": true,
+     "history": [
+      74783,
+      71057,
+      69789,
+      69358,
+      69206,
+      69156,
+      69131,
+      69108,
+      69105,
+      69105
+     ]
+    }
+   },
+   "default": {
+    "fixpoint_B": {
+     "T_anchor": 86290.52228582022,
+     "T_fixpoint": 81557.01806630933,
+     "iterations": 7,
+     "converged": true,
+     "history": [
+      86291,
+      83215,
+      82125,
+      81767,
+      81621,
+      81559,
+      81557,
+      81557
+     ]
+    }
+   }
+  },
+  "slope_ratio_A": 0.696,
+  "slope_ratio_B": 1.0,
+  "B_all_converged": true,
+  "B_meets_criteria": true,
+  "opex_unit_points": 7,
+  "C_evidence": "근거 부족",
+  "verdict": "보류(VP 게이트 상정, B안, 라안과 묶음)"
+ },
+ "p3_01_tunnel_cap": {
+  "rows": [
+   {
+    "name": "제2용인~서울(개량운영형)",
+    "toll_scenario": "fiscal",
+    "toll": 151.9,
+    "tunnel_cap": 0.7,
+    "tunnel_true": 0.75,
+    "gov_recorded": 146429,
+    "gov_cap": 146429,
+    "parity_ok": true,
+    "gov_true": 146706,
+    "delta": 276,
+    "delta_pct": 0.19,
+    "opex_ratio_cap": 0.345,
+    "opex_ratio_true": 0.348
+   },
+   {
+    "name": "제2용인~서울(개량운영형)",
+    "toll_scenario": "flat",
+    "toll": 85,
+    "tunnel_cap": 0.7,
+    "tunnel_true": 0.75,
+    "gov_recorded": 236457,
+    "gov_cap": 236457,
+    "parity_ok": true,
+    "gov_true": 236733,
+    "delta": 276,
+    "delta_pct": 0.12,
+    "opex_ratio_cap": 0.345,
+    "opex_ratio_true": 0.348
+   },
+   {
+    "name": "시흥~송파",
+    "toll_scenario": "fiscal",
+    "toll": 81.4,
+    "tunnel_cap": 0.7,
+    "tunnel_true": 0.79,
+    "gov_recorded": 101254,
+    "gov_cap": 101254,
+    "parity_ok": true,
+    "gov_true": 101807,
+    "delta": 553,
+    "delta_pct": 0.55,
+    "opex_ratio_cap": 0.4007,
+    "opex_ratio_true": 0.407
+   },
+   {
+    "name": "시흥~송파",
+    "toll_scenario": "flat",
+    "toll": 85,
+    "tunnel_cap": 0.7,
+    "tunnel_true": 0.79,
+    "gov_recorded": 98519,
+    "gov_cap": 98519,
+    "parity_ok": true,
+    "gov_true": 99072,
+    "delta": 553,
+    "delta_pct": 0.56,
+    "opex_ratio_cap": 0.4007,
+    "opex_ratio_true": 0.407
+   },
+   {
+    "name": "사상~해운대",
+    "toll_scenario": "fiscal",
+    "toll": 92.2,
+    "tunnel_cap": 0.7,
+    "tunnel_true": 0.94,
+    "gov_recorded": 120752,
+    "gov_cap": 120752,
+    "parity_ok": true,
+    "gov_true": 122273,
+    "delta": 1521,
+    "delta_pct": 1.26,
+    "opex_ratio_cap": 0.3993,
+    "opex_ratio_true": 0.4161
+   },
+   {
+    "name": "사상~해운대",
+    "toll_scenario": "flat",
+    "toll": 85,
+    "tunnel_cap": 0.7,
+    "tunnel_true": 0.94,
+    "gov_recorded": 127856,
+    "gov_cap": 127856,
+    "parity_ok": true,
+    "gov_true": 129411,
+    "delta": 1555,
+    "delta_pct": 1.22,
+    "opex_ratio_cap": 0.3993,
+    "opex_ratio_true": 0.4161
+   },
+   {
+    "name": "[탈락] 구리~성남 지하고속도로(재무성 부족, 재정 전환)",
+    "toll_scenario": "fiscal",
+    "toll": 80.2,
+    "tunnel_cap": 0.7,
+    "tunnel_true": 0.97,
+    "gov_recorded": 204905,
+    "gov_cap": 204905,
+    "parity_ok": true,
+    "gov_true": 206633,
+    "delta": 1728,
+    "delta_pct": 0.84,
+    "opex_ratio_cap": 0.399,
+    "opex_ratio_true": 0.4179
+   },
+   {
+    "name": "[탈락] 구리~성남 지하고속도로(재무성 부족, 재정 전환)",
+    "toll_scenario": "flat",
+    "toll": 85,
+    "tunnel_cap": 0.7,
+    "tunnel_true": 0.97,
+    "gov_recorded": 195421,
+    "gov_cap": 195421,
+    "parity_ok": true,
+    "gov_true": 197148,
+    "delta": 1728,
+    "delta_pct": 0.88,
+    "opex_ratio_cap": 0.399,
+    "opex_ratio_true": 0.4179
+   }
+  ],
+  "tunnel_coefficient": {
+   "value": 0.2,
+   "inline_comment": "터널 100%면 +20%",
+   "docstring": "지형·터널·교량 비율에 따른 OPEX 보정 계수.\n\n기준 1.0 = 평지·터널 0%·교량 0%\n\n- 산악 노선: 제설·낙석 관리비 증가\n- 터널: 조명·환기·안전 설비 추가 운영비\n- 교량: 도장·내진 점검 추가",
+   "citation_in_source": false,
+   "config_key_exists": false,
+   "config_top_keys": [
+    "_meta",
+    "lcc",
+    "materials",
+    "inspection_cycle_years",
+    "env_factor_iso15686"
+   ]
+  },
+  "verdict": "근거 부족(상한 유지, 캡션 고지 P-13)"
+ }
+}
