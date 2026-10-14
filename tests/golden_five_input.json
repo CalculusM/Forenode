@@ -1,0 +1,160 @@
+{
+  "_meta": {
+    "created": "2026-10-14",
+    "generator": "tests/make_golden_five_input.py",
+    "basis": "app 경로 app_default_case(toll_per_km·heavy_ratio_pct 오버라이드 포함). 실행기 결과 복사 아님",
+    "engine_head": "67662ddb7121f09363ac0e63140cd88858b8d4ca",
+    "fixture": "tests/fixtures/five_input_cases_2026-10.json",
+    "fixture_as_of": "2026-10-07",
+    "fixture_version": "v1_2026-10-07",
+    "tolerance": "tests/golden_values.json _tolerance.traffic_대 재사용"
+  },
+  "cases": {
+    "태안~안성": {
+      "inputs": {
+        "business_type": "BTO-a",
+        "road_length": 94.6,
+        "operation_years": 40,
+        "total_capex": 21637
+      },
+      "thresholds": {
+        "gov": {
+          "traffic": 84423.88274626948,
+          "status": "ok"
+        },
+        "dscr_1.30": {
+          "traffic": 111154.30087994844,
+          "status": "ok"
+        },
+        "real_irr_0.056": {
+          "traffic": 118445.9857231369,
+          "status": "ok"
+        }
+      }
+    },
+    "공주~천안": {
+      "inputs": {
+        "business_type": "BTO-a",
+        "road_length": 29.4,
+        "operation_years": 40,
+        "total_capex": 7842
+      },
+      "thresholds": {
+        "gov": {
+          "traffic": 71010.5293711444,
+          "status": "ok"
+        },
+        "dscr_1.30": {
+          "traffic": 93475.01578070752,
+          "status": "ok"
+        },
+        "real_irr_0.056": {
+          "traffic": 99572.51923473181,
+          "status": "ok"
+        }
+      }
+    },
+    "서울~양주": {
+      "inputs": {
+        "business_type": "BTO-a",
+        "road_length": 21.6,
+        "operation_years": 40,
+        "total_capex": 4309,
+        "toll_per_km": 90.3
+      },
+      "thresholds": {
+        "gov": {
+          "traffic": 48246.511650159875,
+          "status": "ok"
+        },
+        "dscr_1.30": {
+          "traffic": 63503.23491626696,
+          "status": "ok"
+        },
+        "real_irr_0.056": {
+          "traffic": 67624.53159074784,
+          "status": "ok"
+        },
+        "real_irr_0.025": {
+          "traffic": 47136.93177626117,
+          "status": "ok"
+        }
+      }
+    },
+    "영동~오창": {
+      "inputs": {
+        "business_type": "BTO-a",
+        "road_length": 70.3,
+        "operation_years": 40,
+        "total_capex": 9603,
+        "toll_per_km": 57.0
+      },
+      "thresholds": {
+        "gov": {
+          "traffic": 52326.96002829231,
+          "status": "ok"
+        },
+        "dscr_1.30": {
+          "traffic": 68852.53086663767,
+          "status": "ok"
+        },
+        "real_irr_0.056": {
+          "traffic": 73343.87586691622,
+          "status": "ok"
+        }
+      }
+    },
+    "제4경인 고속화도로": {
+      "inputs": {
+        "business_type": "BTO-a",
+        "road_length": 18.69,
+        "operation_years": 50,
+        "heavy_ratio_pct": 0,
+        "total_capex": 10701,
+        "toll_per_km": 265.0
+      },
+      "thresholds": {
+        "gov": {
+          "traffic": 47573.631464790014,
+          "status": "ok"
+        },
+        "dscr_1.30": {
+          "traffic": 64151.25982190134,
+          "status": "ok"
+        },
+        "real_irr_0.056": {
+          "traffic": 69855.39000929447,
+          "status": "ok"
+        }
+      }
+    },
+    "우면~용산 지하도로": {
+      "inputs": {
+        "business_type": "BTO",
+        "road_length": 5.4,
+        "operation_years": 40,
+        "heavy_ratio_pct": 0,
+        "total_capex": 7366,
+        "toll_per_km": 463.0
+      },
+      "thresholds": {
+        "gov": {
+          "traffic": 70995.77900634384,
+          "status": "ok"
+        },
+        "dscr_1.30": {
+          "traffic": 83700.08227894848,
+          "status": "ok"
+        },
+        "real_irr_0.056": {
+          "traffic": 99004.33598873734,
+          "status": "ok"
+        },
+        "real_irr_0.0454": {
+          "traffic": 87009.11010809202,
+          "status": "ok"
+        }
+      }
+    }
+  }
+}

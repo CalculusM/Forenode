@@ -1,0 +1,151 @@
+{
+ "_meta": {
+  "as_of": "2026-10-07",
+  "version": "v1_2026-10-07",
+  "purpose": "5개 입력 사례 6건(1차·공고·보도 입력만). 출처: 시장조사_민자고속도로_추진현황_2026-10.md 6판 2절·7절. 리서치 실행기(research/threshold_batch_2026_10.py)·골든 회귀(tests/test_five_input_golden.py) 전용, 앱 프리셋·화면 기능화 금지",
+  "fields": "business_type, road_length(km), total_capex(억 원, 확인값) 또는 total_project_cost+subsidy+land(차감) 또는 total_project_cost(전국 비율 추정), toll_reported(원/km, 없으면 사업 유형 기본 요금), operation_years, heavy_ratio_pct(소형차 전용 0), scenarios(flat=기본 요금, reported=보도·공고·추정 요금), extra_criteria(노선 수익률 기준). 교량·터널 비율, 차로, 증가율, 공사기간은 앱 기본값. 미확인 값은 빈칸",
+  "confidence_levels": "1차 = 공고·의회 보고 등 원문, 2차 = 보도, 추정 = 비율·중간값 환산 또는 가정"
+ },
+ "cases": [
+  {
+   "name": "태안~안성",
+   "as_of": "2026-10-07",
+   "business_type": "BTO-a",
+   "road_length": 94.6,
+   "total_project_cost": 37078,
+   "subsidy": 7212,
+   "land": 8229,
+   "toll_reported": null,
+   "operation_years": 40,
+   "heavy_ratio_pct": null,
+   "scenarios": ["flat"],
+   "extra_criteria": [],
+   "basis": {
+    "cost": "총사업비 37,078억 원에서 건설보조금 7,212억 원·보상비 8,229억 원 차감 = 민간투자비 21,637억 원",
+    "toll": "미확인, 사업 유형 기본 요금 적용",
+    "op": "운영 40년 가정(미보도)",
+    "business_type": "BTO-a 가정(미확인)",
+    "length": "94.6km"
+   },
+   "source": {"cost": "헤럴드경제 2026. 6.", "toll": "", "op": "", "length": "보도"},
+   "confidence": {"cost": "2차", "toll": "", "op": "추정", "business_type": "추정", "length": "2차"}
+  },
+  {
+   "name": "공주~천안",
+   "as_of": "2026-10-07",
+   "business_type": "BTO-a",
+   "road_length": 29.4,
+   "total_project_cost": 13467,
+   "subsidy": 1839,
+   "land": 3786,
+   "toll_reported": null,
+   "operation_years": 40,
+   "heavy_ratio_pct": null,
+   "scenarios": ["flat"],
+   "extra_criteria": [],
+   "basis": {
+    "cost": "총사업비 13,467억 원에서 건설보조금 1,839억 원·보상비 3,786억 원 차감 = 민간투자비 7,842억 원",
+    "toll": "미확인, 사업 유형 기본 요금 적용",
+    "op": "운영 40년·공사 5년(보도)",
+    "business_type": "BTO-a(보도)",
+    "length": "전체 39.4km 중 기존 노선 확장 10km 제외, 신설 29.4km 기준(확장 구간 통행료 귀속 미확인)"
+   },
+   "source": {"cost": "대전일보 2026. 9.", "toll": "", "op": "보도", "length": "보도"},
+   "confidence": {"cost": "2차", "toll": "", "op": "2차", "business_type": "2차", "length": "2차"}
+  },
+  {
+   "name": "서울~양주",
+   "as_of": "2026-10-07",
+   "business_type": "BTO-a",
+   "road_length": 21.6,
+   "total_project_cost": 8607,
+   "subsidy": 1577,
+   "land": 2721,
+   "toll_reported": 90.3,
+   "operation_years": 40,
+   "heavy_ratio_pct": null,
+   "scenarios": ["reported"],
+   "extra_criteria": [["real_irr", 0.025]],
+   "basis": {
+    "cost": "총사업비 8,607억 원에서 보상비 2,721억 원(공고)·건설보조금 1,577억 원(보조율 26.8% 적용, 2차) 차감 = 민간투자비 4,309억 원",
+    "toll": "제3자 제안 공고 상한 기준통행료 1.05배 = 90.3원/km",
+    "op": "운영 40년·공사 5년(보도)",
+    "business_type": "BTO-a(공고)",
+    "length": "21.6km(공고)",
+    "extra_criteria": "기획단계 불변 세후 사업수익률 2.50%(KOTI RR-25-10 표 2-2)"
+   },
+   "source": {"cost": "제3자 제안 공고(보상비)·KOTI RR-25-10(보조율)", "toll": "제3자 제안 공고", "op": "보도", "length": "제3자 제안 공고"},
+   "confidence": {"cost": "1차+2차", "toll": "1차", "op": "2차", "business_type": "1차", "length": "1차"}
+  },
+  {
+   "name": "영동~오창",
+   "as_of": "2026-10-07",
+   "business_type": "BTO-a",
+   "road_length": 70.3,
+   "total_project_cost": 16166,
+   "subsidy": null,
+   "land": null,
+   "toll_reported": 57,
+   "operation_years": 40,
+   "heavy_ratio_pct": null,
+   "scenarios": ["reported"],
+   "extra_criteria": [],
+   "basis": {
+    "cost": "총사업비 16,166억 원×0.594(2023년 전국 민간투자비 비율) 추정 = 민간투자비 9,603억 원. 건설보조금·보상비 미확인",
+    "toll": "보도 통행료 4,000원대 ÷ 70.3km = 57원/km(하한값 적용)",
+    "op": "운영 40년(보도)",
+    "business_type": "BTO-a(보도)",
+    "length": "70.3km(보도)"
+   },
+   "source": {"cost": "보도(총사업비)", "toll": "보도", "op": "보도", "length": "보도"},
+   "confidence": {"cost": "추정", "toll": "2차", "op": "2차", "business_type": "2차", "length": "2차"}
+  },
+  {
+   "name": "제4경인 고속화도로",
+   "as_of": "2026-10-07",
+   "business_type": "BTO-a",
+   "road_length": 18.69,
+   "total_project_cost": 18015,
+   "subsidy": null,
+   "land": null,
+   "toll_reported": 265,
+   "operation_years": 50,
+   "heavy_ratio_pct": 0,
+   "scenarios": ["reported"],
+   "extra_criteria": [],
+   "basis": {
+    "cost": "총사업비 18,015억 원×0.594(2023년 전국 민간투자비 비율) 추정 = 민간투자비 10,701억 원. 건설보조금·보상비 미확인",
+    "toll": "기자 추정 단가 230~300원/km의 중간값 265원/km 적용, 공고 요금 미확정",
+    "op": "운영 50년(보도)",
+    "business_type": "BTO-a(보도)",
+    "length": "18.69km(보도)",
+    "heavy_ratio_pct": "소형차 전용 대심도, 중차량 0%"
+   },
+   "source": {"cost": "보도(총사업비)", "toll": "경기일보 2026. 4.(기자 추정)", "op": "보도", "length": "보도"},
+   "confidence": {"cost": "추정", "toll": "추정", "op": "2차", "business_type": "2차", "length": "2차"}
+  },
+  {
+   "name": "우면~용산 지하도로",
+   "as_of": "2026-10-07",
+   "business_type": "BTO",
+   "road_length": 5.4,
+   "total_capex": 7366,
+   "toll_reported": 463,
+   "operation_years": 40,
+   "heavy_ratio_pct": 0,
+   "scenarios": ["reported"],
+   "extra_criteria": [["real_irr", 0.0454]],
+   "basis": {
+    "cost": "민간투자비 7,366억 원 공개값(총사업비 7,821억 원에서 보상비 455억 원 차감)",
+    "toll": "제안 통행료 2,500원 ÷ 5.4km = 463원/km",
+    "op": "운영 40년(보도)",
+    "business_type": "BTO(보도)",
+    "length": "5.4km(보도)",
+    "heavy_ratio_pct": "소형차 전용 지하도로, 중차량 0%",
+    "extra_criteria": "제안자 수익률 세후 4.54%(보도)"
+   },
+   "source": {"cost": "서울시의회 보고 2025. 2.", "toll": "보도", "op": "보도", "length": "보도"},
+   "confidence": {"cost": "1차", "toll": "2차", "op": "2차", "business_type": "2차", "length": "2차"}
+  }
+ ]
+}

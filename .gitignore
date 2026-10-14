@@ -18,6 +18,9 @@
 __pycache__/
 *.pyc
 
+# 리서치 도구 산출물(노선 문턱표·봉인 미리보기 등, 추정 입력 포함, 공개 금지)
+research/out/
+
 # 백업 파일
 *_backup.py
 app_v1_backup.py

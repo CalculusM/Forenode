@@ -1,0 +1,181 @@
+{
+  "_meta": {
+    "created": "2026-10-14",
+    "generator": "tests/make_golden.py",
+    "basis": "2026-10-14 통행료 기본값을 재정요금 구조 실효 요금으로 채택(VP 게이트 가안 B, config toll_default.mode) 후 재생성. 기본 사례 45km 요금 85에서 71원/km. 2026-10-05 판(5e15fde 기준, 요금 85)은 git 이력 ca0b7e1 참조",
+    "panel_version": "v1_2026-07-31"
+  },
+  "_tolerance": {
+    "money_억": 0.01,
+    "ratio": 1e-07,
+    "irr": 1e-07,
+    "traffic_대": 1.0,
+    "band_fraction": 1e-09,
+    "score_mean": 1e-09,
+    "note": "결정론 계산이라 같은 코드면 차이 0. 허용 오차는 부동소수 연산 순서 차이 흡수용"
+  },
+  "case_default": {
+    "daily_traffic": 95000,
+    "anchor_capped": true,
+    "annual_revenue_억": 1158.2,
+    "opex_ratio": 0.36924999999999997,
+    "opex_series_sum": 19753.04,
+    "discount_rate": 0.047509499999999996,
+    "debt_rate": 0.0565,
+    "npv": -270.2670568128314,
+    "dscr_min": 0.8920790567951127,
+    "bc_ratio": 1.0721831562935895,
+    "equity_irr": 0.015959270873797192,
+    "nominal_irr": 0.04580141826612781,
+    "real_irr": 0.025295508104046682,
+    "total_mrg_subsidy": 0.0,
+    "total_mcc_subsidy": 0.0
+  },
+  "case_bridge_tunnel_0": {
+    "daily_traffic": 95000,
+    "anchor_capped": true,
+    "annual_revenue_억": 1158.2,
+    "opex_ratio": 0.35,
+    "opex_series_sum": 18723.3,
+    "discount_rate": 0.047509499999999996,
+    "debt_rate": 0.0565,
+    "npv": 10.033650140834709,
+    "dscr_min": 0.9211403219654439,
+    "bc_ratio": 1.0937559810626725,
+    "equity_irr": 0.030584743658218866,
+    "nominal_irr": 0.04757207664389513,
+    "real_irr": 0.027031447690093247,
+    "total_mrg_subsidy": 0.0,
+    "total_mcc_subsidy": 0.0
+  },
+  "thresholds_default": {
+    "gov": {
+      "traffic": 96690.89581798337,
+      "status": "ok"
+    },
+    "dscr_1.30": {
+      "traffic": 123092.74570569226,
+      "status": "ok"
+    },
+    "real_irr_0.056": {
+      "traffic": 131040.94658811772,
+      "status": "ok"
+    }
+  },
+  "thresholds_bridge_tunnel_0": {
+    "gov": {
+      "traffic": 94963.02606093435,
+      "status": "ok"
+    },
+    "dscr_1.30": {
+      "traffic": 121192.08897293833,
+      "status": "ok"
+    },
+    "real_irr_0.056": {
+      "traffic": 129382.19162135065,
+      "status": "ok"
+    }
+  },
+  "realization_scenarios_default": [
+    {
+      "ratio": 1.0,
+      "npv": -270.2670568128314,
+      "dscr_min": 0.8920790567951127,
+      "equity_irr": 0.015959270873797192,
+      "first_profit_op_year": 12,
+      "payback_op_year": 16,
+      "mrg_total": 0.0,
+      "trigger": false
+    },
+    {
+      "ratio": 0.9,
+      "npv": -1793.9920756144033,
+      "dscr_min": 0.7465432896939154,
+      "equity_irr": null,
+      "first_profit_op_year": 15,
+      "payback_op_year": 18,
+      "mrg_total": 0.0,
+      "trigger": false
+    },
+    {
+      "ratio": 0.814,
+      "npv": -3104.3955917837557,
+      "dscr_min": 0.5498428722933498,
+      "equity_irr": null,
+      "first_profit_op_year": 21,
+      "payback_op_year": 20,
+      "mrg_total": 0.0,
+      "trigger": false
+    },
+    {
+      "ratio": 0.7,
+      "npv": -4885.532202550416,
+      "dscr_min": 0.27904858938700655,
+      "equity_irr": null,
+      "first_profit_op_year": 24,
+      "payback_op_year": 24,
+      "mrg_total": 0.0,
+      "trigger": false
+    },
+    {
+      "ratio": 0.623,
+      "npv": -6174.7370613187095,
+      "dscr_min": 0.09614367900289775,
+      "equity_irr": null,
+      "first_profit_op_year": null,
+      "payback_op_year": null,
+      "mrg_total": 0.0,
+      "trigger": true
+    }
+  ],
+  "interval_scoring": {
+    "full": {
+      "n": 98,
+      "hits": 70,
+      "coverage": 0.7142857142857143,
+      "mean_width": 0.5104397959183674,
+      "mean_IS": 0.7193969387755103
+    },
+    "recent_2022_2024": {
+      "n": 40,
+      "hits": 32
+    },
+    "traffic_62": {
+      "n": 62,
+      "coverage": 0.7903225806451613,
+      "mean_width": 0.5177532258064517,
+      "mean_IS": 0.7302274193548388
+    }
+  },
+  "revenue_band": {
+    "panel_versions": [
+      "v1_2026-07-31"
+    ],
+    "n_obs": 78,
+    "n_routes": 17,
+    "P10": 0.4896402106444624,
+    "P50": 0.7300913109821938,
+    "P90": 0.9884162837614818,
+    "P10_pct": 49.0,
+    "P50_pct": 73.0,
+    "P90_pct": 98.8,
+    "loo_main": {
+      "M0": {
+        "hits": 0,
+        "n": 78,
+        "coverage": 0.0,
+        "mean_width": 0.0,
+        "mean_IS": 1.7787051282051283,
+        "MAE_center": 0.17787051282051283
+      },
+      "M2": {
+        "hits": 61,
+        "n": 78,
+        "coverage": 0.782051282051282,
+        "mean_width": 0.498598422391438,
+        "mean_IS": 0.8037500585931188,
+        "MAE_center": 0.1724470149256523
+      }
+    }
+  }
+}

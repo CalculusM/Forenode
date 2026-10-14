@@ -47,6 +47,13 @@ from opex_estimator import (estimate_opex_series, estimate_opex_series_bottomup,
                             montecarlo_opex_band, load_weibull_ci)
 from pretest_regressor import estimate_capex_from_route
 
+# 수입 실현율 범위 표시(VP 게이트 B안, 2026-10-05): 표시 전용 모듈, 계산 경로 미사용.
+# 모듈 결손 시 None으로 두고 기존 문구를 그대로 표시한다.
+try:
+    import revenue_band_display as _revband
+except Exception:
+    _revband = None
+
 # ── Plotly (없으면 matplotlib fallback) ──
 try:
     import plotly.graph_objects as go
@@ -1118,7 +1125,7 @@ def linked_slider_input(label, min_v, max_v, default, step, key, fmt=None, help=
 
 
 # 사업 프리셋 — 핵심 입력 자동 채움(대표 예시값, 선택 후 자유 수정 가능)
-PROJECT_PRESETS = {
+_PRESET_FALLBACK = {
     # 태안-안성: 총사업비 37,078억 = 민간투자 21,637 + 건설보조금 7,212 + 보상비 8,229 (PIMAC 적격성조사)
     # → Forenode capex = 민간투자비 21,637억. 통행료/성장률은 현행 민자 실측으로 보정.
     "태안-안성 (94.6km · BTO · 민간투자비)": {
@@ -1151,7 +1158,45 @@ PROJECT_PRESETS = {
         "growth": 2.0, "heavy_ratio": 30,
     },
 }
+import config_loader as _cfg_presets  # noqa: E402  프리셋 단일 출처 = config/project_presets.json(근거·as_of 포함), 폴백은 동치
+PROJECT_PRESETS = dict(_cfg_presets.project_presets(fallback=_PRESET_FALLBACK))   # 사본(아래 update가 config 캐시를 오염시키지 않게)
 _BIZ_OPTIONS = ["BTO", "BTO-rs", "BTO-a", "BTL", "BTO+BTL"]
+
+
+def _pipeline_presets() -> dict:
+    """추진 중 노선 참고 입력(data/route_pipeline_2026-10.csv, 2026년 9월 기준 보도·추정값). 파일 결손 시 빈 dict.
+    계산 미연동 참고 데이터를 사이드바 입력으로 옮겨 주는 역할만 하며, 다노선 일괄 판정 기능은 아니다."""
+    try:
+        import pipeline_loader as _pl
+        df = _pl.load_route_pipeline()
+    except Exception:
+        return {}
+    out = {}
+    for _, r in df.iterrows():
+        if r.get("모형범위") != "신설" or not r.get("연장_km") or not r.get("민간투자비_억") or r.get("사업방식") not in _BIZ_OPTIONS:
+            continue
+        e = _pl.engine_inputs(r)
+        p = {"business_type": e["business_type"], "road_length": float(e["road_length"]),
+             "total_capex": int(round(e["total_capex"]))}
+        for k in ("operation_years", "lanes"):
+            if k in e:
+                p[k] = int(e[k])
+        for k in ("bridge_ratio", "tunnel_ratio"):
+            if k in e:
+                p[k] = int(round(e[k] * 100))
+        if "heavy_ratio_pct" in e:
+            p["heavy_ratio"] = int(e["heavy_ratio_pct"])
+        if r.get("통행료_근거") and r["통행료_근거"] != "기본값" and "toll_per_km" in e:
+            p["toll_per_km"] = int(round(e["toll_per_km"]))
+        est = any(w in r.get("민간투자비_근거", "") for w in ("추정", "단가"))
+        p["basis"] = (f"민간투자비 {r.get('민간투자비_근거', '')} · 통행료 {r.get('통행료_근거', '')} · "
+                      f"운영기간 {r.get('운영기간_근거', '')} · 구조 {r.get('구조비율_근거', '') or '기본값'}")
+        p["as_of"] = r.get("pipeline_version", "")
+        out[f"추진 중 {r['노선']} ({'보도·추정값' if est else '확인값 포함'}, 2026년 9월 기준)"] = p
+    return out
+
+
+PROJECT_PRESETS.update(_pipeline_presets())
 
 
 def main():
@@ -1176,14 +1221,17 @@ def main():
         "📁 사업 프리셋 (자동 채움)",
         ["직접 입력"] + list(PROJECT_PRESETS.keys()), index=0,
         help="대표 사업을 고르면 핵심 입력(연장·사업비·교통량·기간·지형 등)이 자동으로 채워집니다. "
-             "이후 자유롭게 수정 가능. (대표 예시값)",
+             "이후 자유롭게 수정 가능. (대표 예시값) '추진 중' 항목은 2026년 9월 기준 보도·추정값의 참고 입력, "
+             "선택 후 근거 캡션 확인.",
     )
     _preset = PROJECT_PRESETS.get(preset_choice, {})
+    if _preset.get("basis"):
+        st.sidebar.caption(f"프리셋 근거: {_preset['basis']} (기준 {_preset.get('as_of', '')})")
     # 프리셋 변경 시 linked 입력(연장·사업비·교통량)은 세션값으로 시드
     if preset_choice != st.session_state.get("_preset_applied"):
         for _k in ("road_length", "total_capex", "daily_traffic"):
-            if _k in _preset:
-                st.session_state[f"_lk_{_k}"] = _preset[_k]
+            if _k in _preset:   # 연장 입력은 소수 1자리(float) 위젯이라 프리셋 정수를 맞춰 넣는다
+                st.session_state[f"_lk_{_k}"] = float(_preset[_k]) if _k == "road_length" else _preset[_k]
         if "daily_traffic" in _preset:
             # 프리셋은 협약 예시값(예측치 보유 케이스) — 선택 입력을 자동으로 켠다
             st.session_state["have_traffic_forecast"] = True
@@ -1227,19 +1275,52 @@ def main():
         "적혀 있습니다. 일 통행량(수요 예측치)은 필수가 아닙니다. 없으면 필요한 교통량을 "
         "역산해 '사업성 문턱' 기준으로 시작합니다."
     )
-    road_length = linked_slider_input("연장(km)", 5, 200, 45, 1, "road_length")
+    road_length = linked_slider_input("연장(km)", 3.0, 200.0, 45.0, 0.1, "road_length", fmt="%.1f")
+    import threshold_display as _thd
     total_capex = linked_slider_input(
         "민간투자비(억)", 1000, 100000, 13000, 100, "total_capex",
-        help="건설보조금·보상비 제외 금액. 총사업비에서 차감 후 입력. "
-             "참고: 화성-안성 총사업비 20,725억 = 민간투자비 약 13,000억 + 보조금·보상비.")
-    _toll_default = _preset.get("toll_per_km", _bd["toll"] if _bd["toll"] > 0 else 80)
-    toll_per_km = st.sidebar.slider(
-        "통행료 km단가(원)", 20, 300, _toll_default, 5,
-        help=f"자동값 {_toll_default}원/km. 출처: 사업유형별 기본값(config/finance_params.json, "
-             "실측 협약 프리셋 우선). 도공 60원/km 대비 1.1배 비교선은 자체 가정(공식 출처 미확보).")
+        help="건설보조금·보상비 제외 금액. 총사업비만 아는 경우 아래 '총사업비에서 환산' 사용.")
+    _ps = _cfg_fin.load_finance_params().get("private_share_of_total_cost") or {}
+    with st.sidebar.expander("총사업비에서 환산(건설보조금·보상비 차감)"):
+        _cv_total = st.number_input("총사업비(억)", min_value=0, value=0, step=100, key="cv_total")
+        _cv_known = st.checkbox("건설보조금·보상비 확인값 있음", key="cv_known")
+        _cv_sub = st.number_input("건설보조금(억)", min_value=0, value=0, step=100, key="cv_sub", disabled=not _cv_known)
+        _cv_land = st.number_input("보상비(억)", min_value=0, value=0, step=100, key="cv_land", disabled=not _cv_known)
+        if _ps:
+            st.caption(f"미확인 시 총사업비×{_ps['value']} 추정({_ps.get('as_of', '')}년 민자고속도로 전체 민간투자비 비율, "
+                       f"확인 사례 분산 {_ps.get('dispersion', '')}).")
+        if st.button("민간투자비에 적용", key="cv_apply", disabled=_cv_total <= 0):
+            _cv_val, _cv_basis = _thd.resolve_private_capex(
+                _cv_total, _cv_sub if _cv_known else None, _cv_land if _cv_known else None,
+                float(_ps.get("value", 0.594)))   # 0.594 = config 결손 시 폴백(2023년 전체 비율)
+            st.session_state["_lk_total_capex"] = min(max(int(_cv_val), 1000), 100000)
+            st.session_state["capex_basis"] = _cv_basis
+            st.rerun()
+    if st.session_state.get("capex_basis"):
+        st.sidebar.caption(f"민간투자비 근거: {st.session_state['capex_basis']}")
+    _tb = _cfg_fin.load_finance_params().get("toll_benchmark", {})
+    _fts = _cfg_fin.load_finance_params().get("fiscal_toll_structure") or {}
+    _toll_max = int(_tb.get("input_max_won_per_km", 300))
+    # 자동값 = 재정요금 구조 실효 요금(연장 함수, 2026-10-14 채택) 또는 프리셋 요금. 연장·유형·프리셋이 바뀌면
+    # 사용자가 손대지 않은 경우(현재값 == 직전 자동값)에만 다시 시드, 직접 입력값은 유지
+    _toll_default = int(_preset.get("toll_per_km", _cfg_fin.default_toll_per_km(business_type, float(road_length))))
+    _toll_key = (preset_choice, business_type, round(float(road_length), 1))
+    if st.session_state.get("_toll_auto_for") != _toll_key:
+        if st.session_state.get("_lk_toll_per_km") in (None, st.session_state.get("_toll_auto_value")):
+            st.session_state["_lk_toll_per_km"] = _toll_default
+        st.session_state["_toll_auto_for"] = _toll_key
+        st.session_state["_toll_auto_value"] = _toll_default
+    toll_per_km = linked_slider_input(
+        "통행료 km단가(원)", 20, _toll_max, _toll_default, 1, "toll_per_km",
+        help=f"자동값 {_toll_default}원/km. 출처: 재정고속도로 요금 구조(기본요금 {_fts.get('base_won', '')}원 + "
+             f"1종 주행요금 {_fts.get('per_km_won_class1', '')}원/km × 연장) × {float(_tb.get('policy_cap_mult', 1.1))}을 "
+             "연장으로 나눈 실효 요금(2026. 10. 14. 채택, 배수 근거 2차 출처 2건). 실측 협약 프리셋은 프리셋 요금 우선. "
+             "도공 60원/km 대비 1.1배 비교선은 자체 가정(공식 출처 미확보). 지하·소형차 전용 노선은 공개 제안 요금 직접 입력.")
     operation_years = st.sidebar.slider(
         "운영기간(년)", 15, 50, _preset.get("operation_years", 30),
         help="자동값 30년. 출처: 국내 민자도로 실시협약 표준 운영기간(BTO 30년 관행).")
+    if business_type == "BTO-a" and operation_years == 30 and _bd.get("op_years_note"):
+        st.sidebar.caption(_bd["op_years_note"])
     _have_fc = st.sidebar.toggle(
         "일 통행량 예측치 입력(선택)", key="have_traffic_forecast",
         help="회사가 보유한 수요 예측치, 또는 상대방(투자자·용역사)이 제시한 수치를 점검할 "
@@ -1260,7 +1341,10 @@ def main():
             help="지형 난이도에 따라 CAPEX 보정 (평지 1.0 / 구릉 1.3 / 산악 1.8)"
         )
         bridge_ratio = st.slider("교량 비율(%)", 0, 50, _preset.get("bridge_ratio", 15), 1) / 100
-        tunnel_ratio = st.slider("터널 비율(%)", 0, 70, _preset.get("tunnel_ratio", 20), 1) / 100
+        _TUNNEL_MAX = int(_cfg_fin.load_finance_params().get("input_limits", {}).get("tunnel_ratio_max_pct", 70))
+        tunnel_ratio = st.slider("터널 비율(%)", 0, _TUNNEL_MAX, _preset.get("tunnel_ratio", 20), 1) / 100
+        if tunnel_ratio * 100 >= _TUNNEL_MAX:
+            st.caption(f"터널 비율 상한 {_TUNNEL_MAX}% 적용. 실제 비율 초과분은 유지관리비 과소 반영 가능.")
         lanes = st.radio(
             "차로 수", options=[2, 4, 6, 8],
             index=[2, 4, 6, 8].index(_preset.get("lanes", 4)), horizontal=True
@@ -1269,14 +1353,37 @@ def main():
             "교통량 성장률(%)", -2.0, 8.0, float(_preset.get("growth", 2.5)), 0.1,
             help="자동값 2.5%. 출처: 국내 고속도로 교통량 장기 성장률 통상 가정(협약 프리셋 우선). "
                  "실측 실현율 분포는 '가정 점검 오버레이'에서 별도 대조.")
+        _small_car = st.checkbox(
+            "소형차 전용 노선(중차량 0%)", key="small_car_only",
+            help="지하·소형차 전용 노선은 중차량 비중 0. 요금 체계가 재정요금 구조와 달라 노선 요금 직접 입력 필수.")
         heavy_ratio = st.slider(
-            "화물비율(%)", 5, 60, _preset.get("heavy_ratio", 30),
-            help="자동값 30%. 출처: 고속도로 차종 구성 통상 범위(중차량 비중). 수입 혼합계수에 반영.")
+            "화물비율(%)", 0, 60, 0 if _small_car else _preset.get("heavy_ratio", 30),
+            help="자동값 30%. 출처: 고속도로 차종 구성 통상 범위(중차량 비중). 수입 혼합계수에 반영. "
+                 "소형차 전용 노선은 0.")
         heavy_surcharge = st.slider(
             "대형 차량 할증배율", 1.0, 5.0, 1.50, 0.1,
             help="차종 구성 가중 할증. 공식 요금체계상 차종 간 최대 할증 1.68배(5종/1종). "
                  "대형 비중이 높거나 해상 특수교량 등 예외 노선만 상향."
         )
+
+    # 소형차 전용 노선에서 요금 자동값 방치 경고('26-10 추진현황 스터디: 통행료 입력이 지하 노선 판정을 좌우)
+    # shortcut: 공개 제안 요금 범위를 config 상수로 둠, 파이프라인 노선 CSV(D1) 반입 시 그 파일에서 집계
+    _obs = _tb.get("observed_proposal_toll_won_per_km") or {}
+    if _small_car and toll_per_km == _toll_default:
+        st.sidebar.warning(
+            f"소형차 전용 노선. 자동값 {toll_per_km}원/km(재정요금 구조 환산)는 지하·소형차 전용 노선 공개 제안 요금"
+            + (f" {_obs['min']}~{_obs['max']}원/km({_obs['n']}건, {_obs['as_of']})" if _obs else "")
+            + " 대비 과소 가능. 노선 요금 입력 필수.")
+
+    # ─── 문턱 3번째 기준 수익률 선택(기본 = 운영 중 협약 평균, 계산 기본 경로 불변) ───
+    with st.sidebar.expander("문턱 기준 수익률 (3번째 기준)"):
+        _cov_choice = st.radio(
+            "기준", ["협약 평균(운영 중)", "기획단계 평균(손익공유형)", "직접 입력"], index=0, horizontal=True,
+            key="cov_choice", help="사업성 문턱 표의 3번째 행. 협약 평균은 운영 중 민자도로 협약 수익률, "
+                                   "기획단계 평균은 국토부 기획단계 손익공유형 노선 평균(KOTI RR-25-10 표 2-2). "
+                                   "사내 기준이 있으면 직접 입력.")
+        _cov_custom = st.number_input("직접 입력 실질 세후 수익률(%)", 0.0, 20.0, 5.0, 0.1, key="cov_custom",
+                                      disabled=_cov_choice != "직접 입력")
 
     # ─── 협약·정부 조건 (접힘) ───
     with st.sidebar.expander("협약·정부 조건 (MRG·MCC·재구조화)"):
@@ -1543,6 +1650,11 @@ def main():
         _cap_warn = 58000.0 * lanes / 4
         _cap_limit = 95000.0 * lanes / 4
 
+    _da = _cfg_fin.demand_anchor()
+    _ANCHOR = float(_da.get("traffic_realization_mean", 0.814))   # 폴백 = 종전 리터럴 동치
+    _ANCHOR_PCT = f"{_ANCHOR * 100:.1f}%"
+    _ANCHOR_NOTE = (f"권장 수요 앵커: 실측 평균 실현율 {_ANCHOR:.3f}(교통량 축). "
+                    f"{_da.get('n_routes', 22)}개 노선 중 {_da.get('below_mean_routes', 11)}개가 평균 미달. ")
     traffic_is_forecast = daily_traffic is not None
     _anchor_capped = False
     if not traffic_is_forecast:
@@ -1573,7 +1685,7 @@ def main():
             # 기준 수요 = 권장 협약 수요(문턱 ÷ 실측 평균 실현율 0.814) — '26-08-04 대표 확정(b안).
             # 실측 평균이 실현되면 문턱 수준에 착지하는 제안 설계 관점. 대주단 게이트 등
             # 미충족 항목은 그대로 드러난다(분식 아님·라벨 명시).
-            _boot_anchor = _boot_seek["min_rev"] / _boot_K / 0.814
+            _boot_anchor = _boot_seek["min_rev"] / _boot_K / _ANCHOR
             # 용량 게이트: 권장 수요가 물리 한계를 넘으면 한계값으로 캡('26-08-06 —
             # 화면은 배지·문턱 패널에서 "교통량으로 성립 불가" 축 전환으로 답한다)
             if _boot_anchor > _cap_limit:
@@ -1710,6 +1822,14 @@ def main():
         base_params, build_cashflow, _rsv.make_predicate("gov"))
     _gov_min_traffic = (
         _gov_seek["min_rev"] / _rev_K if _gov_seek.get("min_rev") and _rev_K > 0 else None)
+    # 문턱 3번째 기준(협약 평균 수익률)은 KOTI RR-25-10 전재 데이터 파일에서 읽는다(폴백 = 종전 리터럴 동치)
+    _cov_rate, _cov_label = _cfg_fin.covenant_return_rate()
+    if _cov_choice == "기획단계 평균(손익공유형)":
+        _kp0 = _cfg_fin.koti_planning_returns()
+        if _kp0:
+            _cov_rate, _cov_label = _kp0["mean"] / 100, f"기획단계 평균 수익률 (실질·세후 {_kp0['mean']:.2f}%, 손익공유형 {_kp0['n']}건)"
+    elif _cov_choice == "직접 입력":
+        _cov_rate, _cov_label = _cov_custom / 100, f"직접 입력 수익률 (실질·세후 {_cov_custom:.2f}%)"
     _surplus_now = _rsv.surplus_years(base_params, build_cashflow)
     # 문턱 수준의 흑자 전환 연차 — "X대를 넘으면 n년차부터 흑자" 메시지용
     _gov_sy = (_rsv.surplus_years(base_params, build_cashflow, _gov_seek["min_rev"])
@@ -1756,7 +1876,7 @@ def main():
     if project_name:
         st.caption(
             f"**{project_name}** | "
-            f"{business_type} · {road_length}km · {total_capex:,}억원 · "
+            f"{business_type} · {road_length:g}km · {total_capex:,}억원 · "
             f"운영 {operation_years}년"
     )
 
@@ -1765,7 +1885,7 @@ def main():
     _capex_in_range = (
         capex_reference['capex_low_억'] <= total_capex <= capex_reference['capex_high_억']
     )
-    _capex_check = "✅ 회귀 범위 내" if _capex_in_range else "⚠️ 회귀 범위 밖"
+    _capex_check = "✅ 참고 범위 내" if _capex_in_range else "⚠️ 참고 범위 밖"
     with st.container(border=True):
         st.markdown(
             f"**💡 자동 산출 근거** · OPEX {opex_source}: 평균 {opex_ratio*100:.1f}% "
@@ -1815,23 +1935,33 @@ def main():
         'termination_payment': total_capex,
     }
 
+    # 수입 실현율 범위(VP 게이트 B안, 2026-10-05): 화면·한 장 요약 표시 전용.
+    # 실현율 시나리오 계산 앵커(reverse_solver 0.623)는 그대로 둔다. 로드 실패 시 기존 문구.
+    _rv_band = _revband.load_band() if _revband is not None else None
+    _rv_anchor_tail = (
+        f"수입 축 추가 하방: 요금실행률 평균 0.904, {_revband.band_short(_rv_band)}. "
+        "안전 여유 별도 확보 권장."
+        if _rv_band else
+        "수입 축은 요금실행률 평균 0.904, 수입 실현율 패널 평균 71.2%로 추가 하방. 안전 여유 별도 확보 권장.")
+
     # ── 예측치 미입력 배지 — 기준 수요가 '권장 협약 수요'임을 분명히 한다 ──
     if not traffic_is_forecast:
         if _anchor_capped:
+            _bn_toll = (f" 한계 교통량 기준 필요 통행료 최소 "
+                        f"{_thd.required_toll_at_capacity(toll_per_km, _gov_min_traffic, _cap_limit):,}원/km"
+                        "(수입 비례 근사)." if _gov_min_traffic else "")
             st.warning(
                 f"🚧 권장 협약 수요, 왕복 {lanes}차로 현실 한계(일 {_cap_limit:,.0f}대) 초과. "
-                "화면 계산은 한계 교통량 기준. 통행료 인상 또는 건설보조금 확대 필요. "
-                "최소 통행료·보조금: '⏱ 적격성 사전 시뮬' ▸ '사업성 문턱'.")
+                f"화면 계산은 한계 교통량 기준.{_bn_toll} 통행료 인상 또는 건설보조금 확대 필요. "
+                "보조금 대안: '⏱ 적격성 사전 시뮬' ▸ '사업성 문턱'.")
         else:
             st.info(
                 "🎯 일 통행량 예측치 입력은 선택 사항. 통과에 필요한 교통량은 앱이 역산"
                 "(기준별 상세: '⏱ 적격성 사전 시뮬' ▸ '사업성 문턱'). "
                 f"현재 화면 기준: 권장 협약 수요 일 {daily_traffic:,}대"
-                "(문턱 교통량 ÷ 실측 평균 실현율 81.4%). "
+                f"(문턱 교통량 ÷ 실측 평균 실현율 {_ANCHOR_PCT}). "
                 "회사 예측치·상대방 제시 수치 보유 시 사이드바 '일 통행량 예측치 입력' 사용.")
-        st.caption(
-            "권장 수요 앵커: 실측 평균 실현율 0.814(교통량 축). 22개 노선 중 11개가 평균 미달. "
-            "수입 축은 요금실행률 평균 0.904, 수입 실현율 패널 평균 71.2%로 추가 하방. 안전 여유 별도 확보 권장.")
+        st.caption(_ANCHOR_NOTE + _rv_anchor_tail)
 
     # KPI 카드 — 핵심 4종 (나머지 3종은 '전체 지표 보기'로 이동, 2026-07 UI 개편)
     _eirr = metrics.get('equity_irr', float('nan'))
@@ -2042,10 +2172,12 @@ def main():
                   if _gov_sy['first_profit_op_year'] else "회계 흑자는 그 수준에서도 기간 내 미달")
         _p3_vs = (f"(입력의 {_gov_min_traffic/daily_traffic*100:.0f}%)"
                   if traffic_is_forecast else "(예측치 없이 역산)")
-        _l1 = (f"{_p3_name}: 일 통행량 {_gov_min_traffic:,.0f}대{_p3_vs} 이상 시 "
-               f"재무 성립선(자체 기준) 충족 · {_p3_sp}"
-               + (f" · 왕복 {lanes}차로 한계(일 {_cap_limit:,.0f}대) 초과로 요금·보조금 설계 필요"
-                  if _gov_min_traffic > _cap_limit else ""))
+        _l1 = (f"{_p3_name}: 성립 조건(재무 성립선, 자체 기준) 일 통행량 {_gov_min_traffic:,.0f}대{_p3_vs} 이상 · "
+               f"왕복 {lanes}차로 한계 대비 여유 {_thd.headroom(_cap_limit, _gov_min_traffic):.2f}배 · {_p3_sp}"
+               + (f" · 한계 초과, 한계 교통량 기준 필요 통행료 최소 "
+                  f"{_thd.required_toll_at_capacity(toll_per_km, _gov_min_traffic, _cap_limit):,}원/km 또는 보조금 설계"
+                  if _gov_min_traffic > _cap_limit else "")
+               + " · 적격성 통과 여부와 무관")
     else:
         _l1 = f"{_p3_name}: 교통량 축만으로는 재무 성립선 미달(수입 3배 탐색 상한). 통행료·기간 조정 검토 필요"
     _l2 = (f"자동 채움 값 전 항목 출처 표기 · 자동값 수정 {len(_overrides)}건 병기(자동값·회사값)"
@@ -2068,9 +2200,9 @@ def main():
                         (f"대주단 (DSCR≥{cov_base:.2f})",
                          _rsv.min_revenue_for(base_params, build_cashflow,
                                               _rsv.make_predicate("dscr", cov_base))),
-                        ("협약 평균 수익률 (실질·세후 5.60%, 운영 중 23개)",
+                        (_cov_label,
                          _rsv.min_revenue_for(base_params, build_cashflow,
-                                              _rsv.make_predicate("real_irr", 0.056)))]:
+                                              _rsv.make_predicate("real_irr", _cov_rate)))]:
                     if _tp_seek.get("min_rev") and _rev_K > 0:
                         _tp_tr = _tp_seek["min_rev"] / _rev_K
                         _tp_sy = _rsv.surplus_years(base_params, build_cashflow, _tp_seek["min_rev"])
@@ -2082,13 +2214,25 @@ def main():
                              if _tp_sy.get('payback_op_year') else "기간 내 미회수")])
                     else:
                         _tp_rows.append([_tp_label, "교통량 축만으로 미달", "해당 없음", "해당 없음"])
+                if _gov_min_traffic and _gov_min_traffic > _cap_limit:
+                    # 용량 초과 시 성립 조건의 핵심 수치(필요 통행료·보조금 대안)를 문턱 표에 함께 싣는다
+                    try:
+                        _1p_sub = _rsv.max_capex_for(base_params, build_cashflow, _rsv.make_predicate("gov"),
+                                                     ann_rev=_rev_K * _cap_limit).get("subsidy_억")
+                    except Exception:
+                        _1p_sub = None
+                    _tp_rows.append([
+                        "용량 내 성립 필요 통행료(수입 비례 근사)",
+                        f"{_thd.required_toll_at_capacity(toll_per_km, _gov_min_traffic, _cap_limit):,}원/km",
+                        f"왕복 {lanes}차로 한계 일 {_cap_limit:,.0f}대",
+                        f"보조금 대안 약 {_1p_sub:,.0f}억" if _1p_sub else "보조금 대안 산출 불가"])
                 try:
                     _1p_means = (_realization_panel_df()
                         .query("지표 == '교통량'").groupby("노선")["실현율_pct"].mean())
                     _1p_n = int(((_1p_means >= 70) & (_1p_means < 90)).sum())
                     _1p_t = int(_1p_means.shape[0])
                     _1p_row = next((r for r in _rsv.realization_scenarios(base_params, build_cashflow)
-                                    if abs(r["ratio"] - 0.814) < 1e-6), None)
+                                    if abs(r["ratio"] - _ANCHOR) < 1e-6), None)
                     if _1p_row:
                         _1p_m = _1p_row["metrics"]
                         _1p_mrg = (f", MRG 보전 누적 {_1p_row['mrg_total']:,.0f}억"
@@ -2103,11 +2247,11 @@ def main():
                     _lk_txt = "실측 패널 로드 실패로 이번 생성에서는 생략했습니다."
                 _1p_eir = metrics.get('equity_irr', float('nan'))
                 _one = {
-                    "business_type": business_type, "road_length": road_length,
+                    "business_type": business_type, "road_length": f"{road_length:g}",
                     "operation_years": operation_years, "total_capex": total_capex,
                     "anchor_label": (
                         f"입력 예측치 일 {daily_traffic:,}대" if traffic_is_forecast
-                        else f"권장 협약 수요 일 {daily_traffic:,}대(문턱을 실측 평균 실현율 81.4%로 나눈 값)"),
+                        else f"권장 협약 수요 일 {daily_traffic:,}대(문턱을 실측 평균 실현율 {_ANCHOR_PCT}로 나눈 값)"),
                     "verdict": _l1,
                     "threshold_rows": _tp_rows,
                     "likely": _lk_txt,
@@ -2118,11 +2262,15 @@ def main():
                     "sources": [
                         f"OPEX {opex_source}: 평균 {opex_ratio*100:.1f}%(실측 데이터 기반 자동 산출)",
                         f"CAPEX 참고 {capex_reference['capex_estimate_억']:,}억(±20%, 단가 휴리스틱: 350억/km x 보정, 통상 가정)",
-                        "실현율 앵커: 교통량 81.4%(국토부 민자도로 현황 보고서 2025, 22개 노선) · "
-                        "수입 62.3%(KOTI RR-25-10)",
+                        f"민간투자비 근거: {st.session_state.get('capex_basis', '직접 입력')}",
+                        f"실현율 앵커: 교통량 {_ANCHOR_PCT}(국토부 민자도로 현황 보고서 2025, {_da.get('n_routes', 22)}개 노선) · "
+                        + (f"수입 {_revband.reference_text(_rv_band)}" if _rv_band
+                           else "수입 62.3%(KOTI RR-25-10)"),
+                    ] + ([_revband.band_detail(_rv_band)] if _rv_band else []) + [
                         "예측 검증: 국내 22개 사업 협약 대 실적 대사(채점 가능 21개). "
                         "관측 98건 중 70건 적중, 80% 설계 목표 대비 71.4%. "
                         "최근 3개년 관측 40건 중 32건(80.0%). 이전 연도 관측은 소급 검정",
+                        _thd.NOTICE,
                     ],
                 }
                 st.session_state['onepager_bytes'] = _gen1p(_one, project_name or "민자도로 검토 사업")
@@ -2420,17 +2568,18 @@ def main():
                 _ci_rs_ratio = _gov_min_traffic / daily_traffic if daily_traffic else float('nan')
                 _ci_rs_sp = (f"회계 흑자 전환 운영 {_gov_sy['first_profit_op_year']}년차부터"
                              if _gov_sy['first_profit_op_year'] else "회계 흑자 기간 내 미달")
-                _ci_vs = (f"(입력의 {_ci_rs_ratio*100:.0f}%)"
-                          if (traffic_is_forecast and daily_traffic) else "(예측치 없이 역산)")
-                _ci_gate = (f"단, 왕복 {lanes}차로 한계(일 {_cap_limit:,.0f}대) 초과. "
-                            "요금·보조금 설계 병행 필요. "
+                _ci_vs = (f"입력 예측치의 {_ci_rs_ratio*100:.0f}% 수준"
+                          if (traffic_is_forecast and daily_traffic) else "예측치 없이 역산")
+                _ci_gate = (f"단, 한계 초과. 한계 교통량 기준 필요 통행료 최소 "
+                            f"{_thd.required_toll_at_capacity(toll_per_km, _gov_min_traffic, _cap_limit):,}원/km"
+                            "(수입 비례 근사) 또는 보조금 설계 병행. "
                             if _gov_min_traffic > _cap_limit else "")
                 st.info(
-                    f"🎯 **사업성 문턱**: 일 통행량 **{_gov_min_traffic:,.0f}대**{_ci_vs} 이상 시 "
-                    f"재무 성립선(자체 기준) 충족. {_ci_rs_sp}. {_ci_gate}"
+                    f"🎯 {_thd.condition_core(_gov_min_traffic, _cap_limit, lanes)} {_ci_vs}. "
+                    f"{_ci_rs_sp}. {_ci_gate}"
                     f"기준별 문턱·실현율 시나리오 ▸ **⏱ 적격성 사전 시뮬**.")
                 st.caption(
-                    "상대방(투자자·용역사)이 제시한 수요 수치를 다시 점검하실 때는 사이드바 "
+                    _thd.NOTICE + " 상대방(투자자·용역사)이 제시한 수요 수치를 다시 점검하실 때는 사이드바 "
                     "'일 통행량 예측치 입력(선택)'에 그 값을 넣으세요. 문턱 대비 비율과 "
                     "낙관도 보정이 함께 열립니다.")
             else:
@@ -2572,9 +2721,15 @@ def main():
                         f"**{_rb['p10_revenue']:,.0f}∼{_rb['p90_revenue']:,.0f}억** "
                         f"(중앙 {_rb['p50_revenue']:,.0f}억). 근거: {_db['source']}")
                     st.caption("reference-class 추정 밴드. 노선별 예측·실측 매칭 시 정밀화.")
-                    st.caption(
-                        "ⓘ prior는 '교통량' 기준. '수입' 기준은 체계적으로 더 낮음(협약 대비 통행료 수입 "
-                        "10년 평균 62.3% vs 교통량 81.4%, KOTI RR-25-10 p.45·p.140). 수입 기준 점검 시 별도 보정.")
+                    if _rv_band:
+                        st.caption(
+                            f"ⓘ prior는 '교통량' 기준(교통량 실현율 평균 {_ANCHOR_PCT}). 수입 실현율은 중앙값 기준 더 낮음. "
+                            f"{_revband.band_short(_rv_band)}. "
+                            f"비교값: 수입 {_revband.reference_text(_rv_band)}. 수입 기준 점검 시 별도 보정.")
+                    else:
+                        st.caption(
+                            "ⓘ prior는 '교통량' 기준. '수입' 기준은 체계적으로 더 낮음(협약 대비 통행료 수입 "
+                            f"10년 평균 62.3% vs 교통량 {_ANCHOR_PCT}, KOTI RR-25-10 p.45·p.140). 수입 기준 점검 시 별도 보정.")
             with _vc2:
                 st.markdown("**🏅 예비 신용등급 (근사)**")
                 _dmin = metrics.get('dscr_min', float('nan'))
@@ -2657,13 +2812,14 @@ def main():
             _pt_toll_ok = "🟢" if _pt_mult <= _pt_cap else "🔴"
             _pt_capex_ok = "🟢" if _capex_in_range else "🟡"
             _pt_trg_ok = "🔴" if _pt_p70 >= 0.50 else ("🟡" if _pt_p70 >= 0.25 else "🟢")
+            _pt_basis = "자동값(재정요금 구조 환산)" if toll_per_km == _toll_default else "직접 입력"
             st.markdown("**✅ 제안 전 체크 요약: 이대로 제안하면 어떤 항목에 걸리는가**")
             st.markdown(
                 f"1. 수익성 간이판정: **{_pt_scr['judgment']}** (자체 규약, 정식 민자 적격성조사 판정 아님)\n\n"
                 f"2. {_pt_capex_ok} 공사비: 단가 휴리스틱 참고범위 "
                 f"{capex_reference['capex_low_억']:,}~{capex_reference['capex_high_억']:,}억 대비 "
                 f"{'범위 내' if _capex_in_range else '범위 밖(제안 시 근거 보강 필요)'}\n\n"
-                f"3. {_pt_toll_ok} 통행료: 도공 대비 **{_pt_mult:.2f}배** (활성화 방안 기준 {_pt_cap:.1f}배, 기준단가 자체 가정) · 가격부문 200점 직결\n\n"
+                f"3. {_pt_toll_ok} 통행료: 도공 대비 **{_pt_mult:.2f}배** (활성화 방안 기준 {_pt_cap:.1f}배, 기준단가 자체 가정) · 입력 근거 {_pt_basis} · 가격부문 200점 직결\n\n"
                 f"4. {_pt_trg_ok} 재협상 트리거 사전 확률: **{_pt_p70*100:.0f}%** (협약 대비 70% 미달 확률·§23의5)")
             st.caption(
                 "💸 제안비 매몰 리스크: 제안에서 실시협약까지 실측 6~10년, 우선협상 탈락 시 제안서·설계비 사실상 전액 매몰. "
@@ -2680,9 +2836,9 @@ def main():
             (f"대주단 (DSCR≥{cov_base:.2f})",
              _rsv.min_revenue_for(base_params, build_cashflow,
                                   _rsv.make_predicate("dscr", cov_base))),
-            ("협약 평균 수익률 (실질·세후 5.60%, 운영 중 23개)",
+            (_cov_label,
              _rsv.min_revenue_for(base_params, build_cashflow,
-                                  _rsv.make_predicate("real_irr", 0.056))),
+                                  _rsv.make_predicate("real_irr", _cov_rate))),
         ]
         for _th_label, _th_seek in _th_defs:
             if _th_seek["status"] in ("ok", "below_range") and _rev_K > 0:
@@ -2709,9 +2865,9 @@ def main():
             _th_vs = (f" 입력하신 예측치({daily_traffic:,}대/일)의 {_th_gov['입력 대비']} 수준입니다."
                       if traffic_is_forecast else "")
             st.success(
-                f"일 통행량 **{_th_gov['_traffic']:,.0f}대** 이상 시 재무 성립선(현가비≥1·NPV≥0, 자체 기준) "
-                f"충족. 회계 흑자 전환 **{_th_gov['회계 흑자 전환']}**부터."
-                f"{_th_vs}")
+                f"{_thd.condition_core(_th_gov['_traffic'], _cap_limit, lanes)} "
+                f"회계 흑자 전환 **{_th_gov['회계 흑자 전환']}**부터.{_th_vs}")
+            st.caption(_thd.NOTICE)
             # P0-2 현금 3축 캡션 — 회계 순손실은 설계 산물인 경우가 많다(실측 근거 병기)
             try:
                 _ms = _rsv.cash_milestones(cf_df, construction_years)
@@ -2737,7 +2893,7 @@ def main():
             except Exception:
                 _cap_prec_txt = ""
             if _th_t > _cap_limit:
-                _min_toll = math.ceil(toll_per_km * _th_t / _cap_limit)
+                _min_toll = _thd.required_toll_at_capacity(toll_per_km, _th_t, _cap_limit)
                 _sub_txt = ""
                 try:
                     _sub = _rsv.max_capex_for(base_params, build_cashflow,
@@ -2756,15 +2912,13 @@ def main():
                 st.warning(
                     f"⚠️ 문턱 {_th_t:,.0f}대, 왕복 {lanes}차로 경고 수준"
                     f"(일 {_cap_warn:,.0f}대) 초과.{_cap_prec_txt}")
-            _rec_line = f"📝 협약(제안) 수요 권장선: **일 {_th_t/0.814:,.0f}대 이상**"
+            _rec_line = f"📝 협약(제안) 수요 권장선: **일 {_th_t/_ANCHOR:,.0f}대 이상**"
             _rec_tail = (f". 단, {lanes}차로 한계(일 {_cap_limit:,.0f}대) 초과. "
                          "요금 인상 또는 건설보조금 확대 병행 필요."
-                         if _th_t / 0.814 > _cap_limit else
-                         " (협약 대비 평균 실현율 81.4% 반영. 국토부 2025, 22개 노선).")
+                         if _th_t / _ANCHOR > _cap_limit else
+                         f" (협약 대비 평균 실현율 {_ANCHOR_PCT} 반영. 국토부 2025, {_da.get('n_routes', 22)}개 노선).")
             st.info(_rec_line + _rec_tail)
-            st.caption(
-                "권장선 앵커: 실측 평균 실현율 0.814(교통량 축). 22개 노선 중 11개가 평균 미달. "
-                "수입 축은 요금실행률 평균 0.904, 수입 실현율 패널 평균 71.2%로 추가 하방. 안전 여유 별도 확보 권장.")
+            st.caption(_ANCHOR_NOTE + _rv_anchor_tail)
             st.caption(
                 f"용량 기준(왕복 {lanes}차로): 경고 {_cap_warn:,.0f} · 한계 {_cap_limit:,.0f}대/일. "
                 "근거: 도로용량편람(KHCM 2013) 산식(서비스수준 D·지방부 K·D 계수), 국내 실측 최대"
@@ -2777,6 +2931,18 @@ def main():
         _th_df = pd.DataFrame([{k: v for k, v in r.items() if k != "_traffic"}
                                for r in _th_rows])
         st.dataframe(_th_df, use_container_width=True, hide_index=True)
+        _cap_year = next((int(_r["Year"]) for _, _r in toll_df.iterrows() if _r["DailyTraffic"] > _cap_limit), None)
+        st.caption(
+            f"성장률 {growth:g}% 적용 시 운영 {_cap_year}년차 차로 한계 도달, 이후 수입은 한계 초과 가정(문턱 하향 방향)."
+            if _cap_year else f"성장률 {growth:g}% 적용 시 운영 기간 내 차로 한계 미도달.")
+        _kp = _cfg_fin.koti_planning_returns()
+        _real_wacc = (1 + wacc_info["wacc"]) / (1 + infl / 100) - 1
+        st.caption(
+            f"재무 성립선 통과 조건: 프로젝트 명목 수익률 WACC {wacc_info['wacc'] * 100:.2f}% 이상, "
+            f"실질 환산 {_real_wacc * 100:.2f}%(현 금융 입력 기준). "
+            + (f"비교: 국토부 기획단계 {_kp['n']}건 불변 세후 사업수익률 평균 {_kp['mean']:.2f}%, "
+               f"범위 {_kp['min']:.2f}~{_kp['max']:.2f}%({_kp['source']}). " if _kp else "")
+            + "기준 수준은 금리·β·자본구조 입력에 따라 이동, 외부 정합 증거 아님.")
         try:
             from demand_bias import prob_ratio_below as _rv_prb
             if _th_gov["_traffic"] and daily_traffic and traffic_is_forecast:
@@ -2792,11 +2958,11 @@ def main():
             _rv_mix = (1 - heavy_ratio / 100) + (heavy_ratio / 100) * heavy_surcharge
             st.markdown(
                 f"**1) 수입·교통량 선형 환산**: 연수입(억) = 일교통량 × K  \n"
-                f"K = 통행료 {toll_per_km}원/km × 연장 {road_length}km × 혼합계수 {_rv_mix:.3f}"
+                f"K = 통행료 {toll_per_km}원/km × 연장 {road_length:g}km × 혼합계수 {_rv_mix:.3f}"
                 f"(경량 {100-heavy_ratio}% + 화물 {heavy_ratio}%×할증 {heavy_surcharge:.1f}배) "
                 f"× 365일 ÷ 10⁸ ÷ 1.1(VAT 차감) = **{_rev_K:.5f}억/(대/일)**  \n"
                 f"**2) 문턱 탐색**: 각 기준을 통과하는 최소 연수입을 이분법 60회로 탐색"
-                f"(대상 지표는 수입에 단조증가, 해 유일) 후 K로 나눠 교통량 환산.  \n"
+                f"(대상 지표는 수입에 단조증가, 해 1개) 후 K로 나눠 교통량 환산.  \n"
                 f"가정: 운영비는 {'현 시나리오 산출 시계열 고정(교통량이 줄어도 운영비는 줄지 않는 보수 가정)' if base_params.get('opex_series_억') is not None else '매출비례(수동 비율 모드)'} · "
                 f"MRG 기준수입은 협약 수요와 함께 이동(설계 관점) · 램프업 미반영(보수).  \n"
                 f"이 계산은 예측·학습 모델이 아니라 현금흐름 엔진의 **결정론 역함수**입니다. "
@@ -2808,18 +2974,24 @@ def main():
         st.markdown("**📉 실현율 시나리오: 예측 대비 실제가 X%라면**")
         if not traffic_is_forecast:
             st.caption(
-                "기준 수요 = **권장 협약 수요**(문턱을 실측 평균 실현율 81.4%로 나눈 값, "
+                f"기준 수요 = **권장 협약 수요**(문턱을 실측 평균 실현율 {_ANCHOR_PCT}로 나눈 값, "
                 "예측치 미입력)입니다. 실측 평균만큼 실현되면 문턱 수준에 착지하는 하방 "
                 "전개를 보여 드립니다.")
+            st.caption(_ANCHOR_NOTE + _rv_anchor_tail)
+        if _rv_band:
             st.caption(
-                "권장선 앵커: 실측 평균 실현율 0.814(교통량 축). 22개 노선 중 11개가 평균 미달. "
-                "수입 축은 요금실행률 평균 0.904, 수입 실현율 패널 평균 71.2%로 추가 하방. 안전 여유 별도 확보 권장.")
-        st.caption(
-            "협약(입력) 교통량은 그대로 두고 **실제 실현만 낮춘** 시나리오입니다. "
-            "MRG 보전은 협약 기준수입으로 정확히 발동합니다. 앵커 2종(실측): "
-            "81.4% = 교통량 실현율 평균(22개 노선) · 62.3% = 통행료 **수입** 실현율 10년 평균"
-            "(KOTI RR-25-10, 수입은 교통량보다 체계적으로 낮게 실현). "
-            "'실측에서 이 이하 비율' 열은 교통량 기준 분포이며, 수입 기준 분포 학습은 다음 데이터 작업(✚).")
+                "협약(입력) 교통량 고정, **실제 실현만 낮춘** 시나리오. "
+                f"MRG 보전은 협약 기준수입으로 발동. 계산 앵커 2종: 교통량 실현율 평균 {_ANCHOR_PCT}({_da.get('n_routes', 22)}개 노선), "
+                f"통행료 **수입** 실현율 {_revband.reference_text(_rv_band)}. "
+                "'실측에서 이 이하 비율' 열은 교통량 기준 분포.")
+            st.caption(_revband.band_detail(_rv_band))
+        else:
+            st.caption(
+                "협약(입력) 교통량은 그대로 두고 **실제 실현만 낮춘** 시나리오입니다. "
+                "MRG 보전은 협약 기준수입으로 정확히 발동합니다. 앵커 2종(실측): "
+                f"{_ANCHOR_PCT} = 교통량 실현율 평균({_da.get('n_routes', 22)}개 노선) · 62.3% = 통행료 **수입** 실현율 10년 평균"
+                "(KOTI RR-25-10, 수입은 교통량보다 체계적으로 낮게 실현). "
+                "'실측에서 이 이하 비율' 열은 교통량 기준 분포이며, 수입 기준 분포 학습은 다음 데이터 작업(✚).")
         _rz_rows = _rsv.realization_scenarios(base_params, build_cashflow)
 
         # 유력 시나리오 판정문 — 나열 대신 판단부터('26-08-04 개선 4, GS "Case 순위" 실무 요구).
@@ -2829,7 +3001,7 @@ def main():
                          .groupby("노선")["실현율_pct"].mean())
             _lk_n = int(((_lk_means >= 70) & (_lk_means < 90)).sum())
             _lk_total = int(_lk_means.shape[0])
-            _lk_row = next((r for r in _rz_rows if abs(r["ratio"] - 0.814) < 1e-6), None)
+            _lk_row = next((r for r in _rz_rows if abs(r["ratio"] - _ANCHOR) < 1e-6), None)
             if _lk_row is not None:
                 _lk_m = _lk_row["metrics"]
                 _lk_sp = (f"흑자 전환 운영 {_lk_row['first_profit_op_year']}년차부터"
@@ -2849,14 +3021,16 @@ def main():
         except Exception:
             _rz_prb = None
         _rz_has_mrg = any(float(_r.get("mrg_total", 0) or 0) > 0 for _r in _rz_rows)
+        _rz_rev_label = (_revband.reference_row_label(_rv_band) if _rv_band
+                         else " (수입 실측 평균)")
         _rz_disp = []
         for _rz in _rz_rows:
             _rz_m = _rz["metrics"]
             _rz_eirr = _rz_m.get("equity_irr", float("nan"))
             _rz_row = {
                 "실현율": f"{_rz['ratio']*100:.0f}%" + (
-                    " (교통량 실측 평균)" if abs(_rz['ratio'] - 0.814) < 1e-6
-                    else (" (수입 실측 평균)" if abs(_rz['ratio'] - 0.623) < 1e-6 else "")),
+                    " (교통량 실측 평균)" if abs(_rz['ratio'] - _ANCHOR) < 1e-6
+                    else (_rz_rev_label if abs(_rz['ratio'] - 0.623) < 1e-6 else "")),
                 "실측에서 이 이하 비율": (f"{_rz_prb(_rz['ratio'])*100:.0f}%" if _rz_prb else "산출 불가"),
                 "NPV(억)": f"{_rz_m['npv']:,.0f}",
                 "자기자본IRR": f"{_rz_eirr*100:.1f}%" if _rz_eirr == _rz_eirr else "산출 불가",

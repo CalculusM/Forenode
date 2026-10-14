@@ -14,7 +14,7 @@ ui_theme.inject_css()
 ui_theme.apply_plotly_template()
 
 st.title("📊 데이터 출처: 4기관 융합")
-st.caption("총 16종 데이터셋 · 7개 분석 모듈")
+st.caption(f"총 {sum(len(s['datasets']) for s in DATA_SOURCES)}종 데이터셋 · 7개 분석 모듈")
 
 render_data_flow_diagram()
 
@@ -31,9 +31,9 @@ for src in DATA_SOURCES:
     with c2:
         st.markdown("**활용 모듈**")
         st.markdown(" · ".join(f"`{m}`" for m in src["modules"]))
-        _roadmap = [d.split(" · ")[0] for d in src["datasets"] if "로드맵(계산 미연동)" in d]
+        _roadmap = [d.split(" · ")[0] for d in src["datasets"] if "(계산 미연동)" in d]
         if _roadmap:
-            st.caption("로드맵(미연동): " + ", ".join(_roadmap) + ". 현재 계산 경로 미연동. 상기 활용 모듈 표기 비적용.")
+            st.caption("계산 미연동(로드맵·참고): " + ", ".join(_roadmap) + ". 현재 계산 경로 미연동. 상기 활용 모듈 표기 비적용.")
     st.markdown("")
 
 st.markdown("---")

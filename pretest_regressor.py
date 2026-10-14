@@ -183,7 +183,7 @@ _SCREEN_BANDS_FALLBACK = [
     {"min_bc": 1.3, "min_dscr": 1.20, "judgment": "수익성 매우 양호", "color": "#1D9E75",
      "recommendation": "정부 보전금 없이도 민간 사업주가 수익을 낼 수 있는 구조입니다. BTO 또는 BTO-rs 사업유형 검토 권장."},
     {"min_bc": 1.0, "min_dscr": 1.05, "judgment": "수익성 확보", "color": "#1F3864",
-     "recommendation": "현재 조건으로 사업 추진 가능. 민감도 분석에서 핵심 리스크 변수 확인 권장."},
+     "recommendation": "현재 조건에서 수입·비용 현가비율과 최소 DSCR 기준 충족(자체 규약, 적격성 통과 여부와 무관). 민감도 분석에서 핵심 리스크 변수 확인 권장."},
     {"min_bc": 0.85, "min_dscr": None, "judgment": "경계선(재구조화 검토)", "color": "#EF9F27",
      "recommendation": "사업 조건 보완 필요. 건설보조금 확대, 운영기간 연장, 통행료 조정 등 시나리오 비교 권장."},
     {"min_bc": None, "min_dscr": None, "judgment": "수익성 미달", "color": "#D45F5F",
