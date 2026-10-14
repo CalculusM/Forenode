@@ -1125,7 +1125,7 @@ def linked_slider_input(label, min_v, max_v, default, step, key, fmt=None, help=
 
 
 # 사업 프리셋 — 핵심 입력 자동 채움(대표 예시값, 선택 후 자유 수정 가능)
-PROJECT_PRESETS = {
+_PRESET_FALLBACK = {
     # 태안-안성: 총사업비 37,078억 = 민간투자 21,637 + 건설보조금 7,212 + 보상비 8,229 (PIMAC 적격성조사)
     # → Forenode capex = 민간투자비 21,637억. 통행료/성장률은 현행 민자 실측으로 보정.
     "태안-안성 (94.6km · BTO · 민간투자비)": {
@@ -1158,6 +1158,8 @@ PROJECT_PRESETS = {
         "growth": 2.0, "heavy_ratio": 30,
     },
 }
+import config_loader as _cfg_presets  # noqa: E402  프리셋 단일 출처 = config/project_presets.json(근거·as_of 포함), 폴백은 동치
+PROJECT_PRESETS = _cfg_presets.project_presets(fallback=_PRESET_FALLBACK)
 _BIZ_OPTIONS = ["BTO", "BTO-rs", "BTO-a", "BTL", "BTO+BTL"]
 
 
@@ -1186,6 +1188,8 @@ def main():
              "이후 자유롭게 수정 가능. (대표 예시값)",
     )
     _preset = PROJECT_PRESETS.get(preset_choice, {})
+    if _preset.get("basis"):
+        st.sidebar.caption(f"프리셋 근거: {_preset['basis']} (기준 {_preset.get('as_of', '')})")
     # 프리셋 변경 시 linked 입력(연장·사업비·교통량)은 세션값으로 시드
     if preset_choice != st.session_state.get("_preset_applied"):
         for _k in ("road_length", "total_capex", "daily_traffic"):
@@ -1235,11 +1239,28 @@ def main():
         "역산해 '사업성 문턱' 기준으로 시작합니다."
     )
     road_length = linked_slider_input("연장(km)", 3.0, 200.0, 45.0, 0.1, "road_length", fmt="%.1f")
+    import threshold_display as _thd
     total_capex = linked_slider_input(
         "민간투자비(억)", 1000, 100000, 13000, 100, "total_capex",
-        help="건설보조금·보상비 제외 금액. 총사업비에서 차감 후 입력. "
-             "참고: 화성-안성 총사업비 20,725억 = 민간투자비 약 13,000억 + 보조금·보상비.")
-    import threshold_display as _thd
+        help="건설보조금·보상비 제외 금액. 총사업비만 아는 경우 아래 '총사업비에서 환산' 사용.")
+    _ps = _cfg_fin.load_finance_params().get("private_share_of_total_cost") or {}
+    with st.sidebar.expander("총사업비에서 환산(건설보조금·보상비 차감)"):
+        _cv_total = st.number_input("총사업비(억)", min_value=0, value=0, step=100, key="cv_total")
+        _cv_known = st.checkbox("건설보조금·보상비 확인값 있음", key="cv_known")
+        _cv_sub = st.number_input("건설보조금(억)", min_value=0, value=0, step=100, key="cv_sub", disabled=not _cv_known)
+        _cv_land = st.number_input("보상비(억)", min_value=0, value=0, step=100, key="cv_land", disabled=not _cv_known)
+        if _ps:
+            st.caption(f"미확인 시 총사업비×{_ps['value']} 추정({_ps.get('as_of', '')}년 민자고속도로 전체 민간투자비 비율, "
+                       f"확인 사례 분산 {_ps.get('dispersion', '')}).")
+        if st.button("민간투자비에 적용", key="cv_apply", disabled=_cv_total <= 0):
+            _cv_val, _cv_basis = _thd.resolve_private_capex(
+                _cv_total, _cv_sub if _cv_known else None, _cv_land if _cv_known else None,
+                float(_ps.get("value", 0.594)))   # 0.594 = config 결손 시 폴백(2023년 전체 비율)
+            st.session_state["_lk_total_capex"] = min(max(int(_cv_val), 1000), 100000)
+            st.session_state["capex_basis"] = _cv_basis
+            st.rerun()
+    if st.session_state.get("capex_basis"):
+        st.sidebar.caption(f"민간투자비 근거: {st.session_state['capex_basis']}")
     _tb = _cfg_fin.load_finance_params().get("toll_benchmark", {})
     _fts = _cfg_fin.load_finance_params().get("fiscal_toll_structure") or {}
     _toll_max = int(_tb.get("input_max_won_per_km", 300))
@@ -1268,6 +1289,8 @@ def main():
     operation_years = st.sidebar.slider(
         "운영기간(년)", 15, 50, _preset.get("operation_years", 30),
         help="자동값 30년. 출처: 국내 민자도로 실시협약 표준 운영기간(BTO 30년 관행).")
+    if business_type == "BTO-a" and operation_years == 30 and _bd.get("op_years_note"):
+        st.sidebar.caption(_bd["op_years_note"])
     _have_fc = st.sidebar.toggle(
         "일 통행량 예측치 입력(선택)", key="have_traffic_forecast",
         help="회사가 보유한 수요 예측치, 또는 상대방(투자자·용역사)이 제시한 수치를 점검할 "
@@ -1288,7 +1311,10 @@ def main():
             help="지형 난이도에 따라 CAPEX 보정 (평지 1.0 / 구릉 1.3 / 산악 1.8)"
         )
         bridge_ratio = st.slider("교량 비율(%)", 0, 50, _preset.get("bridge_ratio", 15), 1) / 100
-        tunnel_ratio = st.slider("터널 비율(%)", 0, 70, _preset.get("tunnel_ratio", 20), 1) / 100
+        _TUNNEL_MAX = 70
+        tunnel_ratio = st.slider("터널 비율(%)", 0, _TUNNEL_MAX, _preset.get("tunnel_ratio", 20), 1) / 100
+        if tunnel_ratio * 100 >= _TUNNEL_MAX:
+            st.caption(f"터널 비율 상한 {_TUNNEL_MAX}% 적용. 실제 비율 초과분은 유지관리비 과소 반영 가능.")
         lanes = st.radio(
             "차로 수", options=[2, 4, 6, 8],
             index=[2, 4, 6, 8].index(_preset.get("lanes", 4)), horizontal=True
@@ -1587,6 +1613,11 @@ def main():
         _cap_warn = 58000.0 * lanes / 4
         _cap_limit = 95000.0 * lanes / 4
 
+    _da = _cfg_fin.demand_anchor()
+    _ANCHOR = float(_da.get("traffic_realization_mean", 0.814))   # 폴백 = 종전 리터럴 동치
+    _ANCHOR_PCT = f"{_ANCHOR * 100:.1f}%"
+    _ANCHOR_NOTE = (f"권장 수요 앵커: 실측 평균 실현율 {_ANCHOR:.3f}(교통량 축). "
+                    f"{_da.get('n_routes', 22)}개 노선 중 {_da.get('below_mean_routes', 11)}개가 평균 미달. ")
     traffic_is_forecast = daily_traffic is not None
     _anchor_capped = False
     if not traffic_is_forecast:
@@ -1617,7 +1648,7 @@ def main():
             # 기준 수요 = 권장 협약 수요(문턱 ÷ 실측 평균 실현율 0.814) — '26-08-04 대표 확정(b안).
             # 실측 평균이 실현되면 문턱 수준에 착지하는 제안 설계 관점. 대주단 게이트 등
             # 미충족 항목은 그대로 드러난다(분식 아님·라벨 명시).
-            _boot_anchor = _boot_seek["min_rev"] / _boot_K / 0.814
+            _boot_anchor = _boot_seek["min_rev"] / _boot_K / _ANCHOR
             # 용량 게이트: 권장 수요가 물리 한계를 넘으면 한계값으로 캡('26-08-06 —
             # 화면은 배지·문턱 패널에서 "교통량으로 성립 불가" 축 전환으로 답한다)
             if _boot_anchor > _cap_limit:
@@ -1885,11 +1916,9 @@ def main():
                 "🎯 일 통행량 예측치 입력은 선택 사항. 통과에 필요한 교통량은 앱이 역산"
                 "(기준별 상세: '⏱ 적격성 사전 시뮬' ▸ '사업성 문턱'). "
                 f"현재 화면 기준: 권장 협약 수요 일 {daily_traffic:,}대"
-                "(문턱 교통량 ÷ 실측 평균 실현율 81.4%). "
+                f"(문턱 교통량 ÷ 실측 평균 실현율 {_ANCHOR_PCT}). "
                 "회사 예측치·상대방 제시 수치 보유 시 사이드바 '일 통행량 예측치 입력' 사용.")
-        st.caption(
-            "권장 수요 앵커: 실측 평균 실현율 0.814(교통량 축). 22개 노선 중 11개가 평균 미달. "
-            + _rv_anchor_tail)
+        st.caption(_ANCHOR_NOTE + _rv_anchor_tail)
 
     # KPI 카드 — 핵심 4종 (나머지 3종은 '전체 지표 보기'로 이동, 2026-07 UI 개편)
     _eirr = metrics.get('equity_irr', float('nan'))
@@ -2160,7 +2189,7 @@ def main():
                     _1p_n = int(((_1p_means >= 70) & (_1p_means < 90)).sum())
                     _1p_t = int(_1p_means.shape[0])
                     _1p_row = next((r for r in _rsv.realization_scenarios(base_params, build_cashflow)
-                                    if abs(r["ratio"] - 0.814) < 1e-6), None)
+                                    if abs(r["ratio"] - _ANCHOR) < 1e-6), None)
                     if _1p_row:
                         _1p_m = _1p_row["metrics"]
                         _1p_mrg = (f", MRG 보전 누적 {_1p_row['mrg_total']:,.0f}억"
@@ -2179,7 +2208,7 @@ def main():
                     "operation_years": operation_years, "total_capex": total_capex,
                     "anchor_label": (
                         f"입력 예측치 일 {daily_traffic:,}대" if traffic_is_forecast
-                        else f"권장 협약 수요 일 {daily_traffic:,}대(문턱을 실측 평균 실현율 81.4%로 나눈 값)"),
+                        else f"권장 협약 수요 일 {daily_traffic:,}대(문턱을 실측 평균 실현율 {_ANCHOR_PCT}로 나눈 값)"),
                     "verdict": _l1,
                     "threshold_rows": _tp_rows,
                     "likely": _lk_txt,
@@ -2190,7 +2219,8 @@ def main():
                     "sources": [
                         f"OPEX {opex_source}: 평균 {opex_ratio*100:.1f}%(실측 데이터 기반 자동 산출)",
                         f"CAPEX 참고 {capex_reference['capex_estimate_억']:,}억(±20%, 단가 휴리스틱: 350억/km x 보정, 통상 가정)",
-                        "실현율 앵커: 교통량 81.4%(국토부 민자도로 현황 보고서 2025, 22개 노선) · "
+                        f"민간투자비 근거: {st.session_state.get('capex_basis', '직접 입력')}",
+                        f"실현율 앵커: 교통량 {_ANCHOR_PCT}(국토부 민자도로 현황 보고서 2025, {_da.get('n_routes', 22)}개 노선) · "
                         + (f"수입 {_revband.reference_text(_rv_band)}" if _rv_band
                            else "수입 62.3%(KOTI RR-25-10)"),
                     ] + ([_revband.band_detail(_rv_band)] if _rv_band else []) + [
@@ -2650,13 +2680,13 @@ def main():
                     st.caption("reference-class 추정 밴드. 노선별 예측·실측 매칭 시 정밀화.")
                     if _rv_band:
                         st.caption(
-                            "ⓘ prior는 '교통량' 기준(교통량 실현율 평균 81.4%). 수입 실현율은 중앙값 기준 더 낮음. "
+                            f"ⓘ prior는 '교통량' 기준(교통량 실현율 평균 {_ANCHOR_PCT}). 수입 실현율은 중앙값 기준 더 낮음. "
                             f"{_revband.band_short(_rv_band)}. "
                             f"비교값: 수입 {_revband.reference_text(_rv_band)}. 수입 기준 점검 시 별도 보정.")
                     else:
                         st.caption(
                             "ⓘ prior는 '교통량' 기준. '수입' 기준은 체계적으로 더 낮음(협약 대비 통행료 수입 "
-                            "10년 평균 62.3% vs 교통량 81.4%, KOTI RR-25-10 p.45·p.140). 수입 기준 점검 시 별도 보정.")
+                            f"10년 평균 62.3% vs 교통량 {_ANCHOR_PCT}, KOTI RR-25-10 p.45·p.140). 수입 기준 점검 시 별도 보정.")
             with _vc2:
                 st.markdown("**🏅 예비 신용등급 (근사)**")
                 _dmin = metrics.get('dscr_min', float('nan'))
@@ -2841,15 +2871,13 @@ def main():
                 st.warning(
                     f"⚠️ 문턱 {_th_t:,.0f}대, 왕복 {lanes}차로 경고 수준"
                     f"(일 {_cap_warn:,.0f}대) 초과.{_cap_prec_txt}")
-            _rec_line = f"📝 협약(제안) 수요 권장선: **일 {_th_t/0.814:,.0f}대 이상**"
+            _rec_line = f"📝 협약(제안) 수요 권장선: **일 {_th_t/_ANCHOR:,.0f}대 이상**"
             _rec_tail = (f". 단, {lanes}차로 한계(일 {_cap_limit:,.0f}대) 초과. "
                          "요금 인상 또는 건설보조금 확대 병행 필요."
-                         if _th_t / 0.814 > _cap_limit else
-                         " (협약 대비 평균 실현율 81.4% 반영. 국토부 2025, 22개 노선).")
+                         if _th_t / _ANCHOR > _cap_limit else
+                         f" (협약 대비 평균 실현율 {_ANCHOR_PCT} 반영. 국토부 2025, {_da.get('n_routes', 22)}개 노선).")
             st.info(_rec_line + _rec_tail)
-            st.caption(
-                "권장선 앵커: 실측 평균 실현율 0.814(교통량 축). 22개 노선 중 11개가 평균 미달. "
-                + _rv_anchor_tail)
+            st.caption(_ANCHOR_NOTE + _rv_anchor_tail)
             st.caption(
                 f"용량 기준(왕복 {lanes}차로): 경고 {_cap_warn:,.0f} · 한계 {_cap_limit:,.0f}대/일. "
                 "근거: 도로용량편람(KHCM 2013) 산식(서비스수준 D·지방부 K·D 계수), 국내 실측 최대"
@@ -2862,6 +2890,18 @@ def main():
         _th_df = pd.DataFrame([{k: v for k, v in r.items() if k != "_traffic"}
                                for r in _th_rows])
         st.dataframe(_th_df, use_container_width=True, hide_index=True)
+        _cap_year = next((int(_r["Year"]) for _, _r in toll_df.iterrows() if _r["DailyTraffic"] > _cap_limit), None)
+        st.caption(
+            f"성장률 {growth:g}% 적용 시 운영 {_cap_year}년차 차로 한계 도달, 이후 수입은 한계 초과 가정(문턱 하향 방향)."
+            if _cap_year else f"성장률 {growth:g}% 적용 시 운영 기간 내 차로 한계 미도달.")
+        _kp = _cfg_fin.koti_planning_returns()
+        _real_wacc = (1 + wacc_info["wacc"]) / (1 + infl / 100) - 1
+        st.caption(
+            f"재무 성립선 통과 조건: 프로젝트 명목 수익률 WACC {wacc_info['wacc'] * 100:.2f}% 이상, "
+            f"실질 환산 {_real_wacc * 100:.2f}%(현 금융 입력 기준). "
+            + (f"비교: 국토부 기획단계 {_kp['n']}건 불변 세후 사업수익률 평균 {_kp['mean']:.2f}%, "
+               f"범위 {_kp['min']:.2f}~{_kp['max']:.2f}%({_kp['source']}). " if _kp else "")
+            + "기준 수준은 금리·β·자본구조 입력에 따라 이동, 외부 정합 증거 아님.")
         try:
             from demand_bias import prob_ratio_below as _rv_prb
             if _th_gov["_traffic"] and daily_traffic and traffic_is_forecast:
@@ -2893,16 +2933,14 @@ def main():
         st.markdown("**📉 실현율 시나리오: 예측 대비 실제가 X%라면**")
         if not traffic_is_forecast:
             st.caption(
-                "기준 수요 = **권장 협약 수요**(문턱을 실측 평균 실현율 81.4%로 나눈 값, "
+                f"기준 수요 = **권장 협약 수요**(문턱을 실측 평균 실현율 {_ANCHOR_PCT}로 나눈 값, "
                 "예측치 미입력)입니다. 실측 평균만큼 실현되면 문턱 수준에 착지하는 하방 "
                 "전개를 보여 드립니다.")
-            st.caption(
-                "권장선 앵커: 실측 평균 실현율 0.814(교통량 축). 22개 노선 중 11개가 평균 미달. "
-                + _rv_anchor_tail)
+            st.caption(_ANCHOR_NOTE + _rv_anchor_tail)
         if _rv_band:
             st.caption(
                 "협약(입력) 교통량 고정, **실제 실현만 낮춘** 시나리오. "
-                "MRG 보전은 협약 기준수입으로 발동. 계산 앵커 2종: 교통량 실현율 평균 81.4%(22개 노선), "
+                f"MRG 보전은 협약 기준수입으로 발동. 계산 앵커 2종: 교통량 실현율 평균 {_ANCHOR_PCT}({_da.get('n_routes', 22)}개 노선), "
                 f"통행료 **수입** 실현율 {_revband.reference_text(_rv_band)}. "
                 "'실측에서 이 이하 비율' 열은 교통량 기준 분포.")
             st.caption(_revband.band_detail(_rv_band))
@@ -2910,7 +2948,7 @@ def main():
             st.caption(
                 "협약(입력) 교통량은 그대로 두고 **실제 실현만 낮춘** 시나리오입니다. "
                 "MRG 보전은 협약 기준수입으로 정확히 발동합니다. 앵커 2종(실측): "
-                "81.4% = 교통량 실현율 평균(22개 노선) · 62.3% = 통행료 **수입** 실현율 10년 평균"
+                f"{_ANCHOR_PCT} = 교통량 실현율 평균({_da.get('n_routes', 22)}개 노선) · 62.3% = 통행료 **수입** 실현율 10년 평균"
                 "(KOTI RR-25-10, 수입은 교통량보다 체계적으로 낮게 실현). "
                 "'실측에서 이 이하 비율' 열은 교통량 기준 분포이며, 수입 기준 분포 학습은 다음 데이터 작업(✚).")
         _rz_rows = _rsv.realization_scenarios(base_params, build_cashflow)
@@ -2922,7 +2960,7 @@ def main():
                          .groupby("노선")["실현율_pct"].mean())
             _lk_n = int(((_lk_means >= 70) & (_lk_means < 90)).sum())
             _lk_total = int(_lk_means.shape[0])
-            _lk_row = next((r for r in _rz_rows if abs(r["ratio"] - 0.814) < 1e-6), None)
+            _lk_row = next((r for r in _rz_rows if abs(r["ratio"] - _ANCHOR) < 1e-6), None)
             if _lk_row is not None:
                 _lk_m = _lk_row["metrics"]
                 _lk_sp = (f"흑자 전환 운영 {_lk_row['first_profit_op_year']}년차부터"
@@ -2950,7 +2988,7 @@ def main():
             _rz_eirr = _rz_m.get("equity_irr", float("nan"))
             _rz_row = {
                 "실현율": f"{_rz['ratio']*100:.0f}%" + (
-                    " (교통량 실측 평균)" if abs(_rz['ratio'] - 0.814) < 1e-6
+                    " (교통량 실측 평균)" if abs(_rz['ratio'] - _ANCHOR) < 1e-6
                     else (_rz_rev_label if abs(_rz['ratio'] - 0.623) < 1e-6 else "")),
                 "실측에서 이 이하 비율": (f"{_rz_prb(_rz['ratio'])*100:.0f}%" if _rz_prb else "산출 불가"),
                 "NPV(억)": f"{_rz_m['npv']:,.0f}",

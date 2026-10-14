@@ -24,6 +24,13 @@ def fiscal_toll_per_km(length_km: float, base_won: float, per_km_won: float, mul
     return round((base_won + per_km_won * length_km) * mult / length_km, 1)
 
 
+def resolve_private_capex(total_cost: float, subsidy: float | None, land: float | None, ratio: float) -> tuple:
+    """민간투자비 환산: 건설보조금·보상비가 모두 있으면 차감, 아니면 총사업비×전국 비율(추정). (값, 근거 라벨)."""
+    if subsidy is not None and land is not None:
+        return round(total_cost - subsidy - land), "총사업비-건설보조금-보상비"
+    return round(total_cost * ratio), f"총사업비×{ratio}(추정, 전국 비율)"
+
+
 def headroom(cap_limit: float, gov_traffic: float) -> float:
     """용량 여유 배수 = 차로 한계 교통량 ÷ 재무 성립선 문턱(소수 2자리)."""
     return round(cap_limit / gov_traffic, 2)

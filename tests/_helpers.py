@@ -46,7 +46,11 @@ APP_DEFAULT_INPUTS = {
     "equity_recovery_method": "원금+수익률",
     "debt_repayment_method": "원리금균등",
 }
-TRAFFIC_ANCHOR_RATIO = 0.814   # app.py 권장 협약 수요 앵커(문턱 ÷ 0.814)와 동일
+try:   # app.py 권장 협약 수요 앵커(문턱 ÷ 앵커)와 같은 출처(config demand_anchor). 결손 시 종전 리터럴
+    import config_loader as _cfg_anchor
+    TRAFFIC_ANCHOR_RATIO = float(_cfg_anchor.demand_anchor().get("traffic_realization_mean", 0.814))
+except Exception:
+    TRAFFIC_ANCHOR_RATIO = 0.814
 
 
 def load_golden() -> dict:

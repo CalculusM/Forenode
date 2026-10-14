@@ -71,7 +71,37 @@ def capacity_gate(fallback: dict | None = None) -> dict:
     return load_finance_params().get("capacity_gate") or (fallback or {})
 
 
+def demand_anchor(fallback: dict | None = None) -> dict:
+    """권장 협약 수요 앵커 {traffic_realization_mean, n_routes, below_mean_routes, source, as_of}. 변경은 VP 게이트."""
+    return load_finance_params().get("demand_anchor") or (fallback or {})
+
+
+_PRESETS_PATH = os.path.join(_BASE, "config", "project_presets.json")
+
+
+def project_presets(fallback: dict | None = None) -> dict:
+    """사이드바 사업 프리셋 {이름: {입력값..., basis, as_of, source}} (config/project_presets.json). 결손 시 폴백."""
+    return _load_json(_PRESETS_PATH).get("presets") or (fallback or {})
+
+
 _KOTI_RETURNS_PATH = os.path.join(_BASE, "data", "koti_rr2510_return_rates.csv")
+
+
+def koti_planning_returns(path: str | None = None, business_type: str = "BTO-a") -> dict | None:
+    """국토부 기획단계 노선(사업 방식별)의 불변 세후 사업수익률 요약 {n, mean, min, max, source}(KOTI RR-25-10 표 2-2 원표행). 실패 시 None."""
+    import csv
+    try:
+        with open(path or _KOTI_RETURNS_PATH, encoding="utf-8-sig") as f:
+            rates = [float(r["수익률_pct"]) for r in csv.DictReader(f)
+                     if r["출처표"] == "표2-2" and r["행유형"] == "원표행" and r["수익률_pct"]
+                     and r["방식"] == business_type]
+        if not rates:
+            return None
+        return {"n": len(rates), "mean": sum(rates) / len(rates), "min": min(rates), "max": max(rates),
+                "source": f"KOTI RR-25-10 표 2-2 {business_type} {len(rates)}건, 2024. 3. 기준"}
+    except Exception as e:
+        print(f"[config_loader] KOTI 기획단계 수익률 로드 실패({e}), 표시 생략", flush=True)
+        return None
 _COVENANT_FALLBACK = (0.056, "협약 평균 수익률 (실질·세후 5.60%, 운영 중 23개)")
 
 

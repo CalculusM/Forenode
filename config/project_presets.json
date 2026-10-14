@@ -1,0 +1,41 @@
+{
+ "_meta": {
+  "purpose": "사이드바 사업 프리셋 단일 출처(2026-10-10 데이터 파일화). 값은 app.py 폴백 사전과 동일. 추가는 1차 출처·공고·차감 분해 노선만, as_of·basis·source 동반(대표 승인)",
+  "updated": "2026-10-10",
+  "note": "daily_traffic 키가 있으면 선택 시 예측치 토글이 켜짐. 예시값 프리셋은 '추정' 표기를 basis에 둔다"
+ },
+ "presets": {
+  "태안-안성 (94.6km · BTO · 민간투자비)": {
+   "business_type": "BTO", "road_length": 95, "total_capex": 21637,
+   "construction_years": 6, "operation_years": 30, "daily_traffic": 30000,
+   "bridge_ratio": 20, "tunnel_ratio": 7, "lanes": 4, "toll_per_km": 85,
+   "growth": 1.5, "heavy_ratio": 30,
+   "basis": "총사업비 37,078억 = 민간투자비 21,637 + 건설보조금 7,212 + 보상비 8,229(PIMAC 적격성조사 보도), 통행료·성장률·교통량은 예시값",
+   "as_of": "2026-07", "source": "PIMAC 적격성조사 결과 보도(2026. 6.), 앱 프리셋 작성 2026-07", "confidence": "사업비 2차·나머지 예시"
+  },
+  "천안논산 (81km · BTO+MRG)": {
+   "business_type": "BTO-rs", "road_length": 81, "total_capex": 11589,
+   "construction_years": 5, "operation_years": 30, "daily_traffic": 45000,
+   "bridge_ratio": 15, "tunnel_ratio": 8, "lanes": 4, "toll_per_km": 61,
+   "growth": 1.5, "heavy_ratio": 27,
+   "basis": "1세대 BTO+MRG, 총사업비 15,953 = 민간투자비 11,589, 통행료 2019년 47.9% 인하 후 약 61원/km, MRG 보전은 위험분담형으로 근사",
+   "as_of": "2026-07", "source": "운영 노선 공개 자료·국토부 현황 보고서, 앱 프리셋 작성 2026-07", "confidence": "사업비 2차·요금 실측"
+  },
+  "제이영동 (57km · BTO · MRG없음)": {
+   "business_type": "BTO", "road_length": 57, "total_capex": 12000,
+   "construction_years": 5, "operation_years": 30, "daily_traffic": 35000,
+   "bridge_ratio": 22, "tunnel_ratio": 30, "lanes": 4, "toll_per_km": 78,
+   "growth": 1.0, "heavy_ratio": 25,
+   "basis": "순수 BTO·MRG 없음, 총사업비 15,978, 민간투자비 약 12,000 추정, 통행료 약 78원/km, 운영 30년(2016~2046)",
+   "as_of": "2026-07", "source": "감사보고서·공개 자료, 앱 프리셋 작성 2026-07", "confidence": "사업비 추정·요금 실측"
+  },
+  "화성-안성 (45km · BTO-a · 예비)": {
+   "business_type": "BTO-a", "road_length": 45, "total_capex": 13000,
+   "construction_years": 5, "operation_years": 30, "daily_traffic": 55000,
+   "bridge_ratio": 15, "tunnel_ratio": 20, "lanes": 4, "toll_per_km": 100,
+   "growth": 2.0, "heavy_ratio": 30,
+   "basis": "손익공유형, 적격성 2025. 10. 통과, 총사업비 20,725, 민간투자비 약 13,000 추정, 교통량·통행료 미확정 예시값",
+   "as_of": "2026-07", "source": "적격성 통과 보도(2025. 10.), 앱 프리셋 작성 2026-07", "confidence": "사업비 추정·나머지 예시"
+  }
+ }
+}
