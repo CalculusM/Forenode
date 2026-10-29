@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """금지 문구 가드(2026-10 추진현황 스터디 A1) + 수정 페이지 AppTest 스모크.
 
-- 줄표(U+2014)·화살표(U+2192)·금지 표현이 app.py·pages·threshold_display.py·README·봉인 CSV에 0건.
+- 줄표(U+2014)·화살표(U+2192)·금지 표현이 app.py·pages·threshold_display.py·report_generator.py·README·봉인 CSV에 0건.
 - .py는 문자열 리터럴만 검사(주석·docstring 제외, ast). README·CSV는 전문 검사.
 - 본 변경 이전부터 있던 잔존은 ALLOW에 명시(메인 세션 정정 대상, 정정 시 항목 삭제).
 - pages/1·2·3을 app.py에서 switch_page로 실행(test_app_smoke.PagesSmoke와 같은 경로), 예외 0.
@@ -14,8 +14,10 @@ import unittest
 import warnings
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TOKENS = (chr(0x2014), chr(0x2192), "예측 시점 이후", "유일", "15/21", "21개 중 15개", "정부 게이트", "회귀 범위")
-PY_FILES = ["app.py", "threshold_display.py"] + sorted(glob.glob(os.path.join(ROOT, "pages", "*.py")))
+TOKENS = (chr(0x2014), chr(0x2192), "예측 시점 이후", "유일", "15/21", "21개 중 15개", "정부 게이트", "회귀 범위",
+          "CAPEX 회귀", "회귀 추정", "회귀 기반", "국내 실측 회귀","학습한 통계", "학습 통계",
+          "재협상 트리거 사전 확률", "BIM 기반")
+PY_FILES = ["app.py", "threshold_display.py", "report_generator.py"] + sorted(glob.glob(os.path.join(ROOT, "pages", "*.py")))
 TEXT_FILES = ["README.md"] + sorted(glob.glob(os.path.join(ROOT, "data", "*registry*.csv")))
 # 알려진 잔존: (상대경로, 해당 줄에 포함된 문자열). 본 작업 이전부터 존재, 메인 세션 판단·정정 대상.
 ALLOW = (

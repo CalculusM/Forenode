@@ -172,10 +172,10 @@ def _forenode_logo(width_pt: float = 400):
         fillColor=color_primary,
     ))
     
-    # 부재 — "BIM·AI 민자사업 인텔리전스"
+    # 부재 — 대외 한 줄 정의(_canonical/positioning §1)
     d.add(String(
         120 * scale, height_pt - 65 * scale,
-        "BIM·AI 민자사업 인텔리전스",
+        "민자도로 사전 수지 검토 엔진",
         fontName=subtitle_font,
         fontSize=11 * scale,
         fillColor=color_subtitle,
@@ -244,7 +244,7 @@ def _chart_opex_band(opex_estimation: dict) -> bytes:
 
 def _chart_capex_comparison(capex_ref: dict, user_capex: int) -> bytes:
     """CAPEX 비교 막대 차트"""
-    labels = ['사용자 입력', '회귀 추정\n(중앙값)', '회귀 하한\n(-20%)', '회귀 상한\n(+20%)']
+    labels = ['사용자 입력', 'km당 단가 경험치\n추정(중앙값)', '참고 하한\n(-20%)', '참고 상한\n(+20%)']
     values = [
         user_capex,
         capex_ref['capex_estimate_억'],
@@ -410,7 +410,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     story.append(Paragraph(
         "본 보고서는 Forenode 분석 플랫폼이 자동 생성한 결과입니다. "
         "한국 PPP 30년 데이터(13개 SPC + 도로공사 11년치 4,380건)와 "
-        "실측 데이터 학습 통계 모델을 기반으로 산출되었습니다.",
+        "사용자 입력 조건을 바탕으로 산출되었습니다.",
         caption_style
     ))
     story.append(PageBreak())
@@ -510,7 +510,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
         '사업주': ('SPC / 사업주(출자자)', 'Equity IRR · MIRR · 배당 타임라인 · 핸드백 리저브'),
         '신평사': ('신용평가사', 'OPEX 가정 물리근거 · 스트레스 · 하방 시나리오 · 등급 근거'),
         '운용사': ('FI 지분·후순위(인프라펀드·연기금)', '만기 잔존 NPV · 회수 타임라인(최초 배당가능 연차) · 후순위 원리금 · 하방 P10 · 자금재조달'),
-        'CI': ('건설사(CI) 사업 발굴·제안', '수익성 간이판정 · 공사비 회귀 범위 · 재협상 트리거 사전 확률 · 통행료 배수 · 제안 적기'),
+        'CI': ('건설사(CI) 사업 발굴·제안', '수익성 간이판정 · 공사비 참고 범위 · 재협상 트리거 도달 확률 · 통행료 배수 · 제안 적기'),
         'FI': ('FI(인프라펀드·연기금) 발굴 심의', 'Equity IRR·MIRR · 최초 배당가능 연차 · 후순위 흐름 · 만기 잔존 NPV'),
         '회계법인': ('회계법인 / 자문사', 'EBITDA · CFADS 재현성 · 세금(정액 감가상각) · 연도별 현금흐름 재현'),
     }
@@ -540,7 +540,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     story.append(Paragraph("Ⅱ. 사전 검토 분석 (통계 모드)", h1_style))
     story.append(Paragraph(
         "본 장은 제안 전에 통과 가능성을 사전 정량화하는 단계로, CI·FI 발굴 부서의 제안 설계용입니다. "
-        "BIM 없이 한국 PPP 30년 데이터를 학습한 통계 모델로 분석합니다.",
+        "공사비는 노선 조건으로 보정한 km당 단가 경험치(참고 범위 ±20%)로 추정합니다.",
         body_style,
     ))
     story.append(Spacer(1, 4 * mm))
@@ -557,7 +557,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
                 <= ctx['capex_reference']['capex_high_억'])
     range_text = "참고범위(±20%, 단가 휴리스틱) 내 위치로 적정" if in_range else "참고범위(±20%, 단가 휴리스틱) 밖으로 재검토 필요"
     story.append(Paragraph(
-        f"사용자 입력 {ctx['total_capex_user']:,}억 vs 회귀 추정 "
+        f"사용자 입력 {ctx['total_capex_user']:,}억 vs km당 단가 경험치 추정 "
         f"{ctx['capex_reference']['capex_estimate_억']:,}억. {range_text}.",
         caption_style,
     ))
@@ -654,7 +654,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     
     story.append(Paragraph("2. 분석 모델", h2_style))
     story.append(Paragraph(
-        "<b>CAPEX 회귀 모델</b>: 노선 특성(연장·차로·지형·교량·터널)에서 km당 단가 추정 (±20% 참고범위·통상 가정).<br/>"
+        "<b>CAPEX 단가 경험치</b>: 노선 특성(연장·차로·지형·교량·터널)에서 km당 단가 추정 (±20% 참고범위·통상 가정).<br/>"
         "<b>OPEX 자동 산출</b>: 사업유형 기본 비율 + 노선 보정 + 학습 데이터 연차 패턴.<br/>"
         "<b>현금흐름 모델</b>: S-curve CAPEX 분배, MRG 보전금, 재구조화 통행료 조정 반영.<br/>"
         "<b>Monte Carlo NPV</b>: 1,000회 시뮬레이션으로 NPV 분포 추정.<br/>"
@@ -667,7 +667,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     
     story.append(Paragraph("3. 한계 및 면책", h2_style))
     story.append(Paragraph(
-        "본 보고서는 자동 산출 추정치입니다. 통계 모드 정확도는 ±20%, BIM 모드는 ±5% 수준입니다. "
+        "본 보고서는 자동 산출 추정치입니다. 공사비 ±20%는 km당 단가 경험치의 참고 범위이며 정확도가 아닙니다. "
         "최종 의사결정은 본 보고서 외에 추가 자문(KDI PIMAC, LTA, STA, 법률 자문 등)을 거쳐야 합니다. "
         "본 결과는 분석 시점의 입력 변수에 기반하며, 시장 환경 변화에 따라 재산출이 필요합니다.",
         caption_style,
