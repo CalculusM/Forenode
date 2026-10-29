@@ -1749,7 +1749,7 @@ def main():
         opex_series = np.array(opex_estimation['opex_series_억'])
         opex_source = "자동 산출"
 
-    # ── CAPEX 회귀 참고치 ──
+    # ── CAPEX km당 단가 경험치 참고치 ──
     capex_reference = estimate_capex_from_route(
         road_length_km=road_length,
         lanes=lanes,
@@ -2549,10 +2549,10 @@ def main():
             try:
                 from demand_bias import prob_ratio_below as _ci_prb
                 _ci_p70 = _ci_prb(0.70, prior=_bp_key)
-                c3.metric("재협상 트리거 사전 확률", f"{_ci_p70*100:.0f}%",
+                c3.metric("재협상 트리거 도달 확률", f"{_ci_p70*100:.0f}%",
                           help="prior 기준 실측이 협약 대비 70% 미달에 머물 확률(유료도로법 §23의5)")
             except Exception:
-                c3.metric("재협상 트리거 사전 확률", "산출 불가")
+                c3.metric("재협상 트리거 도달 확률", "산출 불가")
             try:
                 import config_loader as _ci_cfg
                 _tb = _ci_cfg.load_finance_params().get("toll_benchmark", {})
@@ -2820,7 +2820,7 @@ def main():
                 f"{capex_reference['capex_low_억']:,}~{capex_reference['capex_high_억']:,}억 대비 "
                 f"{'범위 내' if _capex_in_range else '범위 밖(제안 시 근거 보강 필요)'}\n\n"
                 f"3. {_pt_toll_ok} 통행료: 도공 대비 **{_pt_mult:.2f}배** (활성화 방안 기준 {_pt_cap:.1f}배, 기준단가 자체 가정) · 입력 근거 {_pt_basis} · 가격부문 200점 직결\n\n"
-                f"4. {_pt_trg_ok} 재협상 트리거 사전 확률: **{_pt_p70*100:.0f}%** (협약 대비 70% 미달 확률·§23의5)")
+                f"4. {_pt_trg_ok} 재협상 트리거 도달 확률: **{_pt_p70*100:.0f}%** (협약 대비 70% 미달 확률·§23의5)")
             st.caption(
                 "💸 제안비 매몰 리스크: 제안에서 실시협약까지 실측 6~10년, 우선협상 탈락 시 제안서·설계비 사실상 전액 매몰. "
                 "아래 심화 도구로 조건을 바꿔 반복 비교하세요. 심사 배점: 기술 450·수요 150·가격 400(통행료율 200·재정지원율 200).")

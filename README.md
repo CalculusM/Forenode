@@ -131,7 +131,7 @@ streamlit run app.py
 forenode/
 ├── app.py                          # 메인 Streamlit 앱 (1,752줄)
 ├── phase_tabs.py                   # 시점 탭 4개 (1,092줄)
-├── pretest_regressor.py            # CAPEX 회귀 모델
+├── pretest_regressor.py            # CAPEX km당 단가 경험치
 ├── opex_estimator.py               # OPEX 자동 산출
 ├── report_generator.py             # PDF 보고서 생성 (668줄)
 ├── requirements.txt                # 의존성
