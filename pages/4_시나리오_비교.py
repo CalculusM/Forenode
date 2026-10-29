@@ -56,9 +56,12 @@ for _c in _input_cols + _metric_cols:
 # 유력도를 산출하고, 그 외 축(통행료·공사비·MRG 등)은 실측 근거 미확보 → ✚ (빈칸 원칙).
 def _likelihood_row(saved: list) -> list:
     try:
-        from demand_bias import prob_ratio_below as _prb
+        from demand_bias import prob_ratio_below as _prb, BENCHMARK_PRIORS as _BP
     except Exception:
         return ["산출 불가"] * len(saved)
+    # 메인 화면(app.py _bp_key)과 같은 prior.
+    # shortcut: 메인 화면 prior 위젯 상태가 페이지 전환 뒤 지워지면 기본 prior(첫 키)로 계산, 선택 유지가 필요해지면 위젯 밖 키로 복사
+    _prior = st.session_state.get("demand_prior") or list(_BP.keys())[0]
     base = saved[0]
     _other_cols = ["사업유형", "연장(km)", "민간투자비(억)", "통행료(원/km)", "MRG(%)"]
     out = []
@@ -75,7 +78,7 @@ def _likelihood_row(saved: list) -> list:
         if abs(ratio - 1.0) < 1e-9:
             out.append("✚ 수요 외 축(실측 근거 없음)" if others else "수요 동일")
             continue
-        p = _prb(ratio) if ratio < 1 else 1.0 - _prb(ratio)
+        p = _prb(ratio, prior=_prior) if ratio < 1 else 1.0 - _prb(ratio, prior=_prior)
         _dir = "이하" if ratio < 1 else "이상"
         txt = f"실측 {p*100:.0f}% (수요 {ratio*100:.0f}% {_dir} 실현 비율)"
         if others:

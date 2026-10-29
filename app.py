@@ -2017,9 +2017,10 @@ def main():
     try:
         from demand_bias import demand_optimism_band as _dob, prob_ratio_below as _prb, \
             BENCHMARK_PRIORS as _BP
+        # 화면의 실현율 확률 전부가 쓰는 prior: verification_overlays 실패와 무관하게 정의
+        _bp_key = st.session_state.get("demand_prior") or list(_BP.keys())[0]
         from verification_overlays import implied_rating as _irt, \
             agreed_return_position as _arp, TRIGGER_RULES as _TR
-        _bp_key = st.session_state.get("demand_prior") or list(_BP.keys())[0]
         _b_db = _dob(daily_traffic, prior=_bp_key)
         _b_dicon = {"high": "🔴", "mid": "🟡", "low": "🟢"}.get(_b_db["level"], "⚪")
         _b_p70 = _prb(_TR["ratio_threshold"], prior=_bp_key)
@@ -2804,7 +2805,7 @@ def main():
             from demand_bias import prob_ratio_below as _pt_prb
             import config_loader as _pt_cfg
             _pt_scr = _pt_scr_fn(metrics['bc_ratio'], metrics['dscr_min'])
-            _pt_p70 = _pt_prb(0.70)
+            _pt_p70 = _pt_prb(0.70, prior=_bp_key)
             _pt_tb = _pt_cfg.load_finance_params().get("toll_benchmark", {})
             _pt_koex = float(_pt_tb.get("koex_won_per_km", 60))
             _pt_cap = float(_pt_tb.get("policy_cap_mult", 1.1))
@@ -2947,7 +2948,7 @@ def main():
             from demand_bias import prob_ratio_below as _rv_prb
             if _th_gov["_traffic"] and daily_traffic and traffic_is_forecast:
                 _rv_ratio = _th_gov["_traffic"] / daily_traffic
-                _rv_p = _rv_prb(_rv_ratio)
+                _rv_p = _rv_prb(_rv_ratio, prior=_bp_key)
                 _rv_icon = "🔴" if _rv_p >= 0.50 else ("🟡" if _rv_p >= 0.25 else "🟢")
                 st.caption(
                     f"{_rv_icon} 실측 대조: 과거 실측 분포에서 실현율이 입력 대비 "
@@ -3031,7 +3032,7 @@ def main():
                 "실현율": f"{_rz['ratio']*100:.0f}%" + (
                     " (교통량 실측 평균)" if abs(_rz['ratio'] - _ANCHOR) < 1e-6
                     else (_rz_rev_label if abs(_rz['ratio'] - 0.623) < 1e-6 else "")),
-                "실측에서 이 이하 비율": (f"{_rz_prb(_rz['ratio'])*100:.0f}%" if _rz_prb else "산출 불가"),
+                "실측에서 이 이하 비율": (f"{_rz_prb(_rz['ratio'], prior=_bp_key)*100:.0f}%" if _rz_prb else "산출 불가"),
                 "NPV(억)": f"{_rz_m['npv']:,.0f}",
                 "자기자본IRR": f"{_rz_eirr*100:.1f}%" if _rz_eirr == _rz_eirr else "산출 불가",
                 "DSCR최소": f"{_rz_m['dscr_min']:.2f}",
