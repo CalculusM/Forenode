@@ -24,6 +24,7 @@ import os
 import platform
 from datetime import datetime
 from typing import Optional
+from xml.sax.saxutils import escape
 
 import matplotlib
 matplotlib.use('Agg')
@@ -374,7 +375,11 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
         fontName=_KOR_FONT, fontSize=8, alignment=TA_LEFT,
         textColor=colors.HexColor(_PDF['muted']),
     )
-    
+    # 표 칸 안 긴 문장 줄바꿈용(일반 문자열 칸은 줄바꿈 없이 칸 밖으로 넘침)
+    cell_style = ParagraphStyle(
+        'KorCell', parent=body_style, fontSize=9.5, leading=13, spaceAfter=0,
+    )
+
     story = []
     
     # ════════════════════════════════════════════════════════
@@ -393,7 +398,7 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
         ['민간투자비 (사용자 입력)', f"{ctx['total_capex_user']:,} 억원"],
         ['생성일시', datetime.now().strftime('%Y-%m-%d %H:%M')],
     ]
-    t = Table(cover_data, colWidths=[40 * mm, 110 * mm])
+    t = Table(cover_data, colWidths=[54 * mm, 96 * mm])
     t.setStyle(TableStyle([
         ('FONTNAME', (0, 0), (-1, -1), _KOR_FONT),
         ('FONTSIZE', (0, 0), (-1, -1), 11),
@@ -488,7 +493,8 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     _scr = profitability_screen(bc, dscr_min)
     judgment = _scr["judgment"]
     rec = _scr["recommendation"]
-    judgment_data = [['판단 결과', judgment], ['권고 사항', rec]]
+    judgment_data = [['판단 결과', Paragraph(escape(judgment), cell_style)],
+                     ['권고 사항', Paragraph(escape(rec), cell_style)]]
     t = Table(judgment_data, colWidths=[35 * mm, 135 * mm])
     t.setStyle(TableStyle([
         ('FONTNAME', (0, 0), (-1, -1), _KOR_FONT),
@@ -518,7 +524,10 @@ def generate_pdf_report(phase_context: dict, project_name: str = "민자도로 �
     if _rk in _ROLE_FOCUS:
         story.append(Spacer(1, 5 * mm))
         _rn, _rf = _ROLE_FOCUS[_rk]
-        rt = Table([[f'관점: {_rn}', f'핵심 지표: {_rf}']], colWidths=[45 * mm, 125 * mm])
+        _rs = ParagraphStyle('KorRole', parent=cell_style, fontSize=9, leading=12)
+        _rh = ParagraphStyle('KorRoleHead', parent=_rs, textColor=colors.white)
+        rt = Table([[Paragraph(escape(f'관점: {_rn}'), _rh), Paragraph(escape(f'핵심 지표: {_rf}'), _rs)]],
+                   colWidths=[45 * mm, 125 * mm])
         rt.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (-1, -1), _KOR_FONT),
             ('FONTSIZE', (0, 0), (-1, -1), 9),
@@ -719,8 +728,13 @@ def generate_one_pager(one: dict, project_name: str = "민자도로 검토 사�
     cap = ParagraphStyle('OpCap', parent=styles['Normal'], fontName=_KOR_FONT,
                          fontSize=8, alignment=TA_LEFT, leading=11,
                          textColor=colors.HexColor(_PDF['muted']))
+    cellp = ParagraphStyle('OpCell', parent=body, fontSize=9.5, leading=12.5, spaceAfter=0)
+    headp = ParagraphStyle('OpHead', parent=cellp, textColor=colors.HexColor(_PDF['primary']))
 
     def _tbl(data, widths, header=True):
+        # 일반 문자열 칸은 줄바꿈 없이 옆 칸과 겹침, 문단으로 감싸 줄바꿈
+        data = [[Paragraph(escape(str(c)), headp if header and i == 0 else cellp) for c in row]
+                for i, row in enumerate(data)]
         t = Table(data, colWidths=widths)
         style = [
             ('FONTNAME', (0, 0), (-1, -1), _KOR_FONT),

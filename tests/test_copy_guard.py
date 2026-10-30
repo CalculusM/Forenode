@@ -16,7 +16,7 @@ import warnings
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOKENS = (chr(0x2014), chr(0x2192), "예측 시점 이후", "유일", "15/21", "21개 중 15개", "정부 게이트", "회귀 범위",
           "CAPEX 회귀", "회귀 추정", "회귀 기반", "국내 실측 회귀","학습한 통계", "학습 통계",
-          "재협상 트리거 사전 확률", "BIM 기반")
+          "재협상 트리거 사전 확률", "BIM 기반", "회귀 참고치", "예측 검증")
 PY_FILES = ["app.py", "threshold_display.py", "report_generator.py"] + sorted(glob.glob(os.path.join(ROOT, "pages", "*.py")))
 TEXT_FILES = ["README.md"] + sorted(glob.glob(os.path.join(ROOT, "data", "*registry*.csv")))
 # 알려진 잔존: (상대경로, 해당 줄에 포함된 문자열). 본 작업 이전부터 존재, 메인 세션 판단·정정 대상.
