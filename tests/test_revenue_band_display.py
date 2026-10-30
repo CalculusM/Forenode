@@ -9,6 +9,7 @@ import io
 import json
 import logging
 import os
+import re
 import tempfile
 import unittest
 import warnings
@@ -29,7 +30,15 @@ EXPECT_SHORT = "수입 실현율 범위 49~99%(중앙값 73%, 2021~2025년 17개
 EXPECT_DETAIL = ("수입 실현율 범위(표시 전용, 계산 미반영): 49~99%(중앙값 73%). "
                  "2021~2025년 17개 노선 징수 통행료 기준. 노선 분리 검증(시점 분리 아님), 판정 강도 약함.")
 EXPECT_REF = "10년 평균 62.3%(KOTI RR-25-10 p.45, 2014~2024년)"
+# 마크다운 렌더 경로(st.caption, md=True) 기대 문구. 단일 ~ 2개를 취소선으로 읽는 결함 방지(2026-10-16)
+EXPECT_SHORT_MD = EXPECT_SHORT.replace("~", "\\~")
+EXPECT_DETAIL_MD = EXPECT_DETAIL.replace("~", "\\~")
 LEGACY_ANCHOR = "수입 실현율 패널 평균 71.2%"
+
+
+def _single_tildes(s):
+    """이스케이프·연속이 아닌 단일 ~ 개수. 2개 이상이면 마크다운이 그 사이를 취소선으로 렌더."""
+    return len(re.findall(r"(?<![~\\])~(?!~)", s))
 
 
 def _texts(rbd, b):
@@ -85,6 +94,13 @@ class DisplayModule(unittest.TestCase):
         for name, s in list(t.items()) + [("module", src), ("gate", gate_txt)]:
             for bad in FORBIDDEN:
                 self.assertNotIn(bad, s, f"{name}: 금지 표현 '{bad}'")
+
+    def test_markdown_no_strikethrough(self):              # 화면 캡션 취소선 결함(2026-10-16)
+        for fn in (self.rbd.band_short, self.rbd.band_detail):
+            plain, md = fn(self.b), fn(self.b, md=True)
+            self.assertNotIn("\\", plain, "PDF 등 비마크다운 경로에 역슬래시 노출")
+            self.assertLess(_single_tildes(md), 2, md)
+            self.assertEqual(md.replace("\\~", "~"), plain)
 
     def test_no_band_literals_in_code(self):               # B2 하드코딩 금지
         for fn in ("app.py", "revenue_band_display.py"):
@@ -174,9 +190,9 @@ class DisplayInApp(_CwdRoot):
         anchor = [c for c in caps if c.startswith("권장 수요 앵커") or c.startswith("권장선 앵커")]
         self.assertGreaterEqual(len(anchor), 2, anchor)
         for c in anchor:
-            self.assertIn(EXPECT_SHORT, c)
+            self.assertIn(EXPECT_SHORT_MD, c)
             self.assertNotIn(LEGACY_ANCHOR, c)
-        self.assertIn(EXPECT_DETAIL, caps)
+        self.assertIn(EXPECT_DETAIL_MD, caps)
         scen = [c for c in caps if c.startswith("협약(입력) 교통량 고정")]
         self.assertEqual(len(scen), 1)
         self.assertIn(EXPECT_REF, scen[0])
@@ -185,6 +201,7 @@ class DisplayInApp(_CwdRoot):
         self.assertIn("62% (수입 10년 평균 2014~2024년, KOTI RR-25-10 p.45)", labels)
         for c in caps:                                      # B4: 화면 수입 실현율 문구 전체
             if "수입 실현율" in c:
+                self.assertLess(_single_tildes(c), 2, f"취소선 유발 캡션: {c}")
                 for bad in FORBIDDEN:
                     self.assertNotIn(bad, c, f"금지 표현 '{bad}': {c}")
 
@@ -196,7 +213,7 @@ class DisplayInApp(_CwdRoot):
         self.assertEqual([getattr(e, "value", str(e)) for e in at.exception], [])
         prior = [c for c in _captions(at) if c.startswith("ⓘ prior는")]
         self.assertEqual(len(prior), 1, prior)
-        self.assertIn(EXPECT_SHORT, prior[0])
+        self.assertIn(EXPECT_SHORT_MD, prior[0])
         self.assertIn("비교값: 수입 " + EXPECT_REF, prior[0])
 
     def test_onepager_pdf_sources(self):
