@@ -2264,11 +2264,11 @@ def main():
                         f"OPEX {opex_source}: 평균 {opex_ratio*100:.1f}%(실측 데이터 기반 자동 산출)",
                         f"CAPEX 참고 {capex_reference['capex_estimate_억']:,}억(±20%, 단가 휴리스틱: 350억/km x 보정, 통상 가정)",
                         f"민간투자비 근거: {st.session_state.get('capex_basis', '직접 입력')}",
-                        f"실현율 앵커: 교통량 {_ANCHOR_PCT}(국토부 민자도로 현황 보고서 2025, {_da.get('n_routes', 22)}개 노선) · "
+                        f"실현율 앵커: 교통량 {_ANCHOR_PCT}(2022~2024년 3개년 평균, 국토부 민자도로 현황 보고서 2025, {_da.get('n_routes', 22)}개 노선) · "
                         + (f"수입 {_revband.reference_text(_rv_band)}" if _rv_band
                            else "수입 62.3%(KOTI RR-25-10)"),
                     ] + ([_revband.band_detail(_rv_band)] if _rv_band else []) + [
-                        "예측 검증: 국내 22개 사업 협약 대 실적 대사(채점 가능 21개). "
+                        "검증: 국내 22개 사업 협약 대 실적 대사(채점 가능 21개). "
                         "관측 98건 중 70건 적중, 80% 설계 목표 대비 71.4%. "
                         "최근 3개년 관측 40건 중 32건(80.0%). 이전 연도 관측은 소급 검정",
                         _thd.NOTICE,
@@ -2297,7 +2297,7 @@ def main():
         _detail = "부채상환 불가" if _dmin < 1.0 else f"default({cov_default:.2f}) 근처"
         st.error(
             f"🔴 **대주단 기준 사업성 미달**: DSCR_min {_dmin:.2f}({_detail})"
-            f"{' · NPV 적자' if _npv < 0 else ''}. 수요·단가·자본구조 가정 재검토 또는 정부 보전(MRG/MCC) 필요."
+            f"{' · NPV 적자' if _npv < 0 else ''}. 수요·단가·자본구조 가정 재검토 또는 건설보조금 등 재정지원 설계 필요."
         )
     elif _dmin < cov_lockup:
         st.warning(
