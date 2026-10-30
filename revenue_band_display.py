@@ -84,20 +84,17 @@ def load_band(gate_path: str = None) -> dict:
         return None
 
 
-def band_short(b: dict, md: bool = False) -> str:
-    """짧은 병기: 수입 실현율 범위 {P10}~{P90}%(중앙값 {P50}%, {연도} {노선 수} {기준}, 판정 강도 {강도}).
-    md=True: st.caption·st.markdown용. 단일 ~ 2개를 마크다운이 취소선으로 읽으므로 역슬래시로 이스케이프."""
-    t = "\\~" if md else "~"
-    return (f"수입 실현율 범위 {b['p10']}{t}{b['p90']}%(중앙값 {b['p50']}%, "
-            f"{b['year_from']}{t}{b['year_to']}년 {b['n_routes']}개 노선 {b['basis']}, "
+def band_short(b: dict) -> str:
+    """짧은 병기: 수입 실현율 범위 {P10}~{P90}%(중앙값 {P50}%, {연도} {노선 수} {기준}, 판정 강도 {강도})."""
+    return (f"수입 실현율 범위 {b['p10']}~{b['p90']}%(중앙값 {b['p50']}%, "
+            f"{b['year_from']}~{b['year_to']}년 {b['n_routes']}개 노선 {b['basis']}, "
             f"판정 강도 {b['strength']})")
 
 
-def band_detail(b: dict, md: bool = False) -> str:
-    """상세 병기(실현율 시나리오·한 장 요약 PDF): 검증 방식·계산 미반영 단서 포함. md는 band_short와 동일."""
-    t = "\\~" if md else "~"
-    return (f"수입 실현율 범위({b['calc_note']}): {b['p10']}{t}{b['p90']}%(중앙값 {b['p50']}%). "
-            f"{b['year_from']}{t}{b['year_to']}년 {b['n_routes']}개 노선 {b['basis']}. "
+def band_detail(b: dict) -> str:
+    """상세 병기(실현율 시나리오·한 장 요약 PDF): 검증 방식·계산 미반영 단서 포함."""
+    return (f"수입 실현율 범위({b['calc_note']}): {b['p10']}~{b['p90']}%(중앙값 {b['p50']}%). "
+            f"{b['year_from']}~{b['year_to']}년 {b['n_routes']}개 노선 {b['basis']}. "
             f"{b['validation']}, 판정 강도 {b['strength']}.")
 
 

@@ -1939,7 +1939,7 @@ def main():
     # 실현율 시나리오 계산 앵커(reverse_solver 0.623)는 그대로 둔다. 로드 실패 시 기존 문구.
     _rv_band = _revband.load_band() if _revband is not None else None
     _rv_anchor_tail = (
-        f"수입 축 추가 하방: 요금실행률 평균 0.904, {_revband.band_short(_rv_band, md=True)}. "
+        f"수입 축 추가 하방: 요금실행률 평균 0.904, {_revband.band_short(_rv_band)}. "
         "안전 여유 별도 확보 권장."
         if _rv_band else
         "수입 축은 요금실행률 평균 0.904, 수입 실현율 패널 평균 71.2%로 추가 하방. 안전 여유 별도 확보 권장.")
@@ -2725,7 +2725,7 @@ def main():
                     if _rv_band:
                         st.caption(
                             f"ⓘ prior는 '교통량' 기준(교통량 실현율 평균 {_ANCHOR_PCT}). 수입 실현율은 중앙값 기준 더 낮음. "
-                            f"{_revband.band_short(_rv_band, md=True)}. "
+                            f"{_revband.band_short(_rv_band)}. "
                             f"비교값: 수입 {_revband.reference_text(_rv_band)}. 수입 기준 점검 시 별도 보정.")
                     else:
                         st.caption(
@@ -2985,7 +2985,7 @@ def main():
                 f"MRG 보전은 협약 기준수입으로 발동. 계산 앵커 2종: 교통량 실현율 평균 {_ANCHOR_PCT}({_da.get('n_routes', 22)}개 노선), "
                 f"통행료 **수입** 실현율 {_revband.reference_text(_rv_band)}. "
                 "'실측에서 이 이하 비율' 열은 교통량 기준 분포.")
-            st.caption(_revband.band_detail(_rv_band, md=True))
+            st.caption(_revband.band_detail(_rv_band))
         else:
             st.caption(
                 "협약(입력) 교통량은 그대로 두고 **실제 실현만 낮춘** 시나리오입니다. "
